@@ -21,7 +21,7 @@ assert.strictEqual(c.actions.length, 1, 'Fishing without Octopus proposes one eq
 const a = c.actions[0];
 assert.strictEqual(a.item, 'Octopus');
 assert.match(a.id, /^[0-9a-f]{12}$/);
-assert.ok(c.saveRisk && /local save newer/.test(c.saveRisk), 'local-newer save risk detected');
+assert.ok(c.analysis.saveRisk && /local save newer/.test(c.analysis.saveRisk), 'local-newer save risk detected');
 assert.ok(c.observed.saveSource.source === 'local' && c.analysis.riskNotes.length >= 1);
 
 // same state twice -> stable id, no duplicate event on rerun

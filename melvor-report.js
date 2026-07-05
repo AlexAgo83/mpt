@@ -526,10 +526,10 @@ function buildCharacterJournal(name, data, save) {
         saveRisk,
         report.mode === 'Hardcore Mode' ? 'Hardcore character: verify survivability before any combat change' : null,
       ].filter(Boolean),
+      saveRisk,
       stale: false,
     },
     actions,
-    saveRisk,
   };
 }
 
@@ -553,7 +553,7 @@ function journalMd(c) {
     `- Total level ${o.totalLevel}, maxed ${o.maxedSkills}, combat ${o.combatLevel}`,
     `- GP ${fmtNum(o.gp)}, HP ${fmtNum(o.hp)}, food ${o.food || 'none'} x${fmtNum(o.foodQty || 0)}`,
     `- Save source: ${o.saveSource ? `${o.saveSource.source}${o.saveSource.diffMinutes === null ? '' : ` (delta ${o.saveSource.diffMinutes} min)`}` : 'unknown'}`,
-    ...(c.saveRisk ? [`- Save risk: ${c.saveRisk}`] : []),
+    ...(c.analysis.saveRisk ? [`- Save risk: ${c.analysis.saveRisk}`] : []),
     '',
     '### Recommendations',
     ...list(c.analysis.recommendations),
@@ -635,7 +635,10 @@ function buildLatest(chars, latest, previous, now) {
     account: {
       name: ACCOUNT,
       scannedNow: chars.length ? chars.map(c => c.name) : previous?.account?.scannedNow || [],
-      saveRisks: Object.entries(characters).filter(([, v]) => v.analysis.riskNotes.some(n => /save/.test(n))).map(([k]) => k),
+      // ponytail: riskNotes regex fallback covers pre-saveRisk snapshots; drop after the next full scan everywhere
+      saveRisks: Object.entries(characters)
+        .filter(([, v]) => v.analysis.saveRisk ?? v.analysis.riskNotes.some(n => /save/.test(n)))
+        .map(([k]) => k),
       staleCharacters: Object.entries(characters).filter(([, v]) => Date.parse(now) - Date.parse(v.observed.at) > staleMs).map(([k]) => k),
     },
     characters,
