@@ -7,9 +7,11 @@
   "scripts": {
     "check": "node --check melvor-report.js && node -e \"const fs=require('fs'); new Function(fs.readFileSync('melvor-helpers.js','utf8')); console.log('helper syntax ok')\"",
     "help": "node --env-file-if-exists=.env.local melvor-report.js --help",
+    "smoke": "node --env-file-if-exists=.env.local melvor-report.js smoke",
     "slots": "node --env-file-if-exists=.env.local melvor-report.js slots",
     "source": "node --env-file-if-exists=.env.local melvor-report.js source-of-truth",
     "improve": "node --env-file-if-exists=.env.local melvor-report.js improve --record",
+    "test:smoke": "MELVOR_ACCOUNT=test node --env-file-if-exists=.env.local melvor-report.js smoke",
     "test:slots": "MELVOR_ACCOUNT=test node --env-file-if-exists=.env.local melvor-report.js slots",
     "test:source": "MELVOR_ACCOUNT=test node --env-file-if-exists=.env.local melvor-report.js source-of-truth"
   }

@@ -19,6 +19,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const [cmd = 'summary', who = 'all'] = process.argv.slice(2);
 const usage = `usage:
   ./melvor-report.js slots
+  ./melvor-report.js smoke
   ./melvor-report.js diff-slots
   ./melvor-report.js source-of-truth
   ./melvor-report.js improve [--record]
@@ -34,7 +35,7 @@ if (cmd === '--help' || cmd === '-h' || cmd === 'help') {
   console.log(usage);
   process.exit(0);
 }
-if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'export-state'].includes(cmd)) {
+if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'export-state'].includes(cmd)) {
   console.error(usage);
   process.exit(2);
 }
@@ -320,6 +321,13 @@ async function readSlots() {
   });
 }
 
+async function smoke() {
+  const slots = await readSlots();
+  const count = (slots.local?.length || 0) + (slots.cloud?.length || 0);
+  if (!count) throw Error('Melvor smoke failed: no local or cloud save buttons found');
+  console.log(`smoke ok | account ${ACCOUNT} | port ${PORT} | slots ${count}`);
+}
+
 function parseSaveTime(value) {
   return Date.parse(String(value || '').replace(' Europe/Paris', ''));
 }
@@ -431,6 +439,11 @@ function lock() {
   const unlock = lock();
   const chrome = await ensureChrome();
   try {
+    if (cmd === 'smoke') {
+      await smoke();
+      return;
+    }
+
     if (cmd === 'slots' || cmd === 'diff-slots' || cmd === 'source-of-truth' || cmd === 'improve') {
       const data = await readSlots();
       if (cmd === 'diff-slots') printSlotDiffs(data);

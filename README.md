@@ -63,6 +63,7 @@ Rules:
 ```bash
 npm run slots
 npm run source
+./melvor-report.js smoke
 ./melvor-report.js slots
 ./melvor-report.js diff-slots
 ./melvor-report.js source-of-truth
@@ -149,14 +150,14 @@ GitHub Actions runs the dependency-free syntax check on pushes and pull requests
 npm run check
 ```
 
-The workflow also has a manual `workflow_dispatch` smoke slot for a future live Melvor
-test account. It expects these GitHub secrets when enabled:
+The workflow also has a manual `workflow_dispatch` smoke for the live Melvor test account.
+It expects these GitHub secrets when enabled:
 
 - `MELVOR_TEST_EMAIL`
 - `MELVOR_TEST_PASSWORD`
 
-The live smoke is intentionally a placeholder until the test-account login flow is stable
-and non-destructive.
+The live smoke is read-only and requires an already accessible Melvor session. It does not
+create characters or perform a password relog yet.
 
 ## Project status
 

@@ -35,9 +35,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
       - name: Refuse missing secrets
         run: test -n "$MELVOR_TEST_EMAIL" && test -n "$MELVOR_TEST_PASSWORD"
-      - name: Placeholder
-        run: |
-          echo "Live Melvor login smoke is intentionally not implemented yet."
-          echo "Add it only after a test account flow is stable and non-destructive."
+      - name: Live read-only smoke
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+          MELVOR_ACCOUNT: test
+          MELVOR_TEST_PROFILE: ${{ runner.temp }}/mpt-melvor-test-profile
+          MELVOR_TEST_PORT: "9224"
+        run: node melvor-report.js smoke

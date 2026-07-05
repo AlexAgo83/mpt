@@ -44,6 +44,7 @@ logics-manager audit --group-by-doc
 For live Melvor reads, start with read-only commands:
 
 ```bash
+npm run smoke
 npm run slots
 npm run source
 ```
