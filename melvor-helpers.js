@@ -47,9 +47,9 @@
   };
 
   // Local save + immediate cloud push.
-  mh.save = () => {
+  mh.save = async () => {
     saveData();
-    cloudManager.forceUpdatePlayFabSave();
+    await cloudManager.forceUpdatePlayFabSave();
     return 'saved (local + cloud)';
   };
 
