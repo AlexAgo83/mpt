@@ -14,8 +14,23 @@ const helper = fs.readFileSync(path.join(__dirname, 'melvor-helpers.js'), 'utf8'
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const [cmd = 'summary', who = 'all'] = process.argv.slice(2);
+const usage = `usage:
+  ./melvor-report.js slots
+  ./melvor-report.js diff-slots
+  ./melvor-report.js summary [all|character]
+  ./melvor-report.js audit [all|character]
+  ./melvor-report.js plan [all|character]
+  ./melvor-report.js gear <character>
+  ./melvor-report.js skilling <character>
+  ./melvor-report.js export-state [all|character]
+
+Read-only commands. Check slots/diff-slots before any manual write.`;
+if (cmd === '--help' || cmd === '-h' || cmd === 'help') {
+  console.log(usage);
+  process.exit(0);
+}
 if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'diff-slots', 'plan', 'export-state'].includes(cmd)) {
-  console.error('usage: node melvor-report.js summary|gear|skilling|audit|plan|export-state [all|character] | slots|diff-slots');
+  console.error(usage);
   process.exit(2);
 }
 
