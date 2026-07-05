@@ -16,8 +16,8 @@ _None_
 
 | Doc | Title | Status | Owner | Progress | Path |
 |---|---|---|---|---|---|
-| [req_000_character_journal_generation_for_melvor_planning](request/req_000_character_journal_generation_for_melvor_planning.md) | Character journal generation for Melvor planning | Draft |  |  | request/req_000_character_journal_generation_for_melvor_planning.md |
-| [req_001_journal_operating_model_and_interactive_dashboard](request/req_001_journal_operating_model_and_interactive_dashboard.md) | Journal operating model and interactive dashboard | Draft |  |  | request/req_001_journal_operating_model_and_interactive_dashboard.md |
+| [req_000_character_journal_generation_for_melvor_planning](request/req_000_character_journal_generation_for_melvor_planning.md) | Character journal generation for Melvor planning | Ready |  |  | request/req_000_character_journal_generation_for_melvor_planning.md |
+| [req_001_journal_operating_model_and_interactive_dashboard](request/req_001_journal_operating_model_and_interactive_dashboard.md) | Journal operating model and interactive dashboard | Ready |  |  | request/req_001_journal_operating_model_and_interactive_dashboard.md |
 
 ## Backlog
 

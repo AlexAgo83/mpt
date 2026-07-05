@@ -1,7 +1,7 @@
 ## req_000_character_journal_generation_for_melvor_planning - Character journal generation for Melvor planning
 > From version: 0.1.0
 > Schema version: 1.0
-> Status: Draft
+> Status: Ready
 > Understanding: 90
 > Confidence: 85
 > Complexity: Medium
