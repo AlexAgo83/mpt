@@ -6,12 +6,15 @@
 ./melvor-report.js slots
 ./melvor-report.js diff-slots
 ./melvor-report.js source-of-truth
+./melvor-report.js improve
 ./melvor-report.js summary all
 ./melvor-report.js audit all
 ```
 
 Source of truth is the newest save, local or cloud. If `source-of-truth` points at local,
 do not load older cloud unless the user explicitly asks.
+
+Use `./melvor-report.js improve` after sessions with failures or confusing behavior. Record repeated patterns in `AI_IMPROVEMENTS.md`.
 
 ## Propose gear or skilling changes
 

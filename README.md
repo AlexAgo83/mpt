@@ -8,6 +8,7 @@ Useful commands:
 ./melvor-report.js slots
 ./melvor-report.js diff-slots
 ./melvor-report.js source-of-truth
+./melvor-report.js improve
 ./melvor-report.js summary all
 ./melvor-report.js plan all
 ./melvor-report.js export-state all > /tmp/melvor-state.json
@@ -20,3 +21,4 @@ Rules:
 - Do not open the same character in two tabs.
 - Use `mh.equipSlot(item, slot)` for manual equipment changes; do not rely on implicit slots.
 - After approved writes, save, wait for cloud push, reload, and verify.
+- After a messy session, run `./melvor-report.js improve` and update `AI_IMPROVEMENTS.md` if a pattern repeats.

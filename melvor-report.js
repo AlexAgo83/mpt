@@ -18,6 +18,7 @@ const usage = `usage:
   ./melvor-report.js slots
   ./melvor-report.js diff-slots
   ./melvor-report.js source-of-truth
+  ./melvor-report.js improve
   ./melvor-report.js summary [all|character]
   ./melvor-report.js audit [all|character]
   ./melvor-report.js plan [all|character]
@@ -30,7 +31,7 @@ if (cmd === '--help' || cmd === '-h' || cmd === 'help') {
   console.log(usage);
   process.exit(0);
 }
-if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'diff-slots', 'source-of-truth', 'plan', 'export-state'].includes(cmd)) {
+if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'export-state'].includes(cmd)) {
   console.error(usage);
   process.exit(2);
 }
@@ -366,6 +367,38 @@ function printSourceOfTruth(r) {
   }
 }
 
+function printImprovementReport(slots) {
+  const sources = sourceOfTruth(slots);
+  const risks = [];
+  const ideas = [];
+
+  for (const s of sources) {
+    if (s.source === 'unknown') risks.push(`${s.name}: source of truth unknown`);
+    if (s.source === 'local' && s.diffMs > 5 * 60000)
+      risks.push(`${s.name}: local is newer than cloud by ${Math.round(s.diffMs / 60000)} min`);
+  }
+
+  if (sources.some(s => s.source === 'local'))
+    ideas.push('Add an approved local-first write workflow before any apply-plan command.');
+  if (sources.some(s => s.diffMs !== null && Math.abs(s.diffMs) > 60 * 60000))
+    ideas.push('After writes, verify cloud catch-up with slots/source-of-truth before closing the session.');
+  if (!risks.length)
+    ideas.push('No state-risk automation needed right now; keep using plan/export-state before writes.');
+
+  console.log(`# Melvor AI improvement report`);
+  console.log(`Generated: ${new Date().toISOString()}`);
+  console.log('');
+  console.log('## Risks observed');
+  for (const risk of risks.length ? risks : ['No immediate save-source risk detected.'])
+    console.log(`- ${risk}`);
+  console.log('');
+  console.log('## Improvement candidates');
+  for (const idea of ideas) console.log(`- ${idea}`);
+  console.log('');
+  console.log('## Next command');
+  console.log('- Run `./melvor-report.js export-state all > /tmp/melvor-state.json` before deep recommendations.');
+}
+
 function lock() {
   try {
     const fd = fs.openSync(LOCK, 'wx');
@@ -383,10 +416,11 @@ function lock() {
   const unlock = lock();
   const chrome = await ensureChrome();
   try {
-    if (cmd === 'slots' || cmd === 'diff-slots' || cmd === 'source-of-truth') {
+    if (cmd === 'slots' || cmd === 'diff-slots' || cmd === 'source-of-truth' || cmd === 'improve') {
       const data = await readSlots();
       if (cmd === 'diff-slots') printSlotDiffs(data);
       else if (cmd === 'source-of-truth') printSourceOfTruth(data);
+      else if (cmd === 'improve') printImprovementReport(data);
       else printSlots(data);
       return;
     }
