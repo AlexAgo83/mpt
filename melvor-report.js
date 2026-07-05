@@ -603,8 +603,10 @@ function mergeLedger(chars, latest, now) {
     }
     for (const prev of latest.values()) {
       if (prev.character !== c.name || !['proposed', 'approved'].includes(prev.status)) continue;
-      if (!c.actions.some(a => a.id === prev.id))
-        push('stale', c.name, prev, 'observed state no longer produces this recommendation');
+      if (c.actions.some(a => a.id === prev.id)) continue;
+      const applied = prev.type === 'equip' && c.observed.equipment[prev.slot] === prev.item;
+      push(applied ? 'done' : 'stale', c.name, prev,
+        applied ? 'observed equipment now matches this action' : 'observed state no longer produces this recommendation');
     }
   }
   const merged = new Map(latest);
@@ -614,13 +616,15 @@ function mergeLedger(chars, latest, now) {
 
 function buildLatest(chars, latest, previous, now) {
   const characters = { ...(previous?.characters || {}) };
-  for (const c of chars) {
+  for (const c of chars) characters[c.name] = { observed: c.observed, analysis: c.analysis };
+  // decisions always derive from the ledger, for scanned and carried-over characters alike
+  for (const [name, entry] of Object.entries(characters)) {
     const decisions = Object.fromEntries(ACTION_STATUSES.map(s => [s, []]));
     for (const e of latest.values()) {
-      if (e.character !== c.name) continue;
+      if (e.character !== name) continue;
       decisions[e.status]?.push({ id: e.id, slot: e.slot, item: e.item, risk: e.risk, reason: e.reason, ts: e.ts });
     }
-    characters[c.name] = { observed: c.observed, analysis: c.analysis, decisions };
+    characters[name] = { ...entry, decisions };
   }
   const actionsSummary = Object.fromEntries(ACTION_STATUSES.map(s => [s, 0]));
   for (const e of latest.values()) if (e.status in actionsSummary) actionsSummary[e.status]++;

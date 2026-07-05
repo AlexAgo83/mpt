@@ -48,6 +48,20 @@ const idle = buildCharacterJournal('TestChar', { ...data, report: { ...data.repo
 const stale = mergeLedger([idle], first.latest, now);
 assert.ok(stale.events.some(e => e.id === a.id && e.status === 'stale'), 'dropped recommendation goes stale');
 
+// open action whose item is now equipped -> done, not stale
+const applied = buildCharacterJournal('TestChar', {
+  ...data, report: { ...data.report, equipment: { ...data.report.equipment, Summon2: 'Octopus' } },
+}, save);
+const doneMerge = mergeLedger([applied], first.latest, now);
+assert.ok(doneMerge.events.some(e => e.id === a.id && e.status === 'done'), 'applied action goes done');
+assert.ok(!doneMerge.events.some(e => e.status === 'stale'), 'applied action is not stale');
+
+// decisions are rebuilt from the ledger even for carried-over characters
+const prevSnap = buildLatest([c], first.latest, null, now);
+const afterDismiss = buildLatest([], dismissed, prevSnap, now);
+assert.strictEqual(afterDismiss.characters.TestChar.decisions.dismissed.length, 1, 'carried-over decisions refresh');
+assert.strictEqual(afterDismiss.characters.TestChar.decisions.proposed.length, 0);
+
 // latest.json shape
 const snap = buildLatest([c], first.latest, null, now);
 assert.deepStrictEqual(Object.keys(snap).sort(), ['account', 'actionsSummary', 'characters', 'generatedAt']);
