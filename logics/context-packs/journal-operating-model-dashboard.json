@@ -1,0 +1,375 @@
+{
+  "budgets": {
+    "max_docs": 20,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_001_journal_operating_model_and_interactive_dashboard item_002_create_structured_journal_snapshot_and_action_ledger item_003_generate_interactive_offline_journal_dashboard item_004_document_journal_lifecycle_and_ai_handoff_rules task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs --mode full --profile normal",
+  "companion_docs": [],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, journal operating model and interactive dashboard, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Journal operating model and interactive dashboard",
+        "use when": "You need to implement or review the scaffolded workflow for Journal operating model and interactive dashboard."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_001_add_append_only_character_journal_command",
+          "item_002_create_structured_journal_snapshot_and_action_ledger",
+          "item_003_generate_interactive_offline_journal_dashboard",
+          "item_004_document_journal_lifecycle_and_ai_handoff_rules"
+        ],
+        "prod": [
+          "prod_002_melvin_character_journal_and_planning_log",
+          "prod_003_melvin_journal_operating_model_and_dashboard"
+        ],
+        "req": [
+          "req_000_character_journal_generation_for_melvor_planning",
+          "req_001_journal_operating_model_and_interactive_dashboard"
+        ],
+        "task": [
+          "task_001_implement_and_validate_character_journal_generation"
+        ]
+      },
+      "path": "logics/request/req_001_journal_operating_model_and_interactive_dashboard.md",
+      "ref": "req_001_journal_operating_model_and_interactive_dashboard",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- `journal all --record` writes sanitized per-character Markdown, `journal/latest.json`, and `journal/index.html` from one read-only collection pass.",
+          "- `journal/latest.json` explicitly separates `observed`, `analysis`, and `decisions` fields per character.",
+          "- `journal/actions.jsonl` stores append-only action events with stable ids, character, status, type, reason, risk, timestamps, and enough metadata to avoid duplicate recommendations.",
+          "- Generated recommendations become structured proposed actions where practical, without applying them.",
+          "- The dashboard reads embedded or adjacent sanitized data and supports search, character filter, current-action filter, save-risk filter, action-status filter, stale-data highlighting, and per-character detail expansion.",
+          "- The dashboard surfaces account-level indicators: last scan time, save risks, stale characters, pending approved actions, blocked actions, and top-priority recommendations."
+        ],
+        "Needs": [
+          "- Define a durable journal operating model that separates observed game state, assistant analysis, and user decisions.",
+          "- Generate structured local data files that future AI sessions and the dashboard can trust without reparsing Markdown.",
+          "- Track proposed, approved, completed, blocked, dismissed, and stale actions per character without executing them automatically.",
+          "- Provide an offline interactive dashboard for scanning all characters, save risks, stale observations, recommendations, and pending actions.",
+          "- Keep the system local-first, dependency-free, read-only during journal generation, and safe around Melvor save state."
+        ]
+      },
+      "status": "Draft",
+      "title": "Journal operating model and interactive dashboard"
+    },
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, character journal generation for melvor planning, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Character journal generation for Melvor planning",
+        "use when": "You need to implement or review the scaffolded workflow for Character journal generation for Melvor planning."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_001_add_append_only_character_journal_command"
+        ],
+        "prod": [
+          "prod_001_melvin_ai_assistant_for_melvor_idle",
+          "prod_002_melvin_character_journal_and_planning_log"
+        ],
+        "req": [
+          "req_000_character_journal_generation_for_melvor_planning"
+        ]
+      },
+      "path": "logics/request/req_000_character_journal_generation_for_melvor_planning.md",
+      "ref": "req_000_character_journal_generation_for_melvor_planning",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- A new CLI command `journal [all|character] [--record]` is documented in the help output and README command list.",
+          "- Running `journal <character>` prints a Markdown journal entry for exactly that character without writing files.",
+          "- Running `journal all --record` creates or appends one Markdown file per configured character under `journal/`.",
+          "- Running `journal all --record` also generates or refreshes `journal/index.html` as a local interactive dashboard.",
+          "- Each character entry includes state, source-of-truth/save-risk context, recommendations, an optimization plan, proposed actions, and a history note.",
+          "- The dashboard shows one compact row/card per character, supports filtering by character/action/risk, exposes top recommendations and proposed actions, and links to the character Markdown file."
+        ],
+        "Needs": [
+          "- Add a read-only journal command that produces and optionally records a per-character logbook.",
+          "- Capture recommendations, optimization plans, historical snapshots, and proposed actions per character.",
+          "- Provide an interactive local dashboard for browsing the generated journal by character, risk, recommendation, and proposed action.",
+          "- Keep the implementation local-first, dependency-free, and aligned with existing CLI/report patterns."
+        ]
+      },
+      "status": "Draft",
+      "title": "Character journal generation for Melvor planning"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, add append-only character journal command, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Add append-only character journal command",
+        "use when": "Implementing the scaffolded slice for Add append-only character journal command."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_001_add_append_only_character_journal_command"
+        ],
+        "prod": [
+          "prod_002_melvin_character_journal_and_planning_log"
+        ],
+        "req": [
+          "req_000_character_journal_generation_for_melvor_planning"
+        ],
+        "task": [
+          "task_001_implement_and_validate_character_journal_generation"
+        ]
+      },
+      "path": "logics/backlog/item_001_add_append_only_character_journal_command.md",
+      "ref": "item_001_add_append_only_character_journal_command",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- `./melvor-report.js journal GrifhinZ` prints Markdown with headings for State, Recommendations, Optimization plan, Proposed actions, and History.",
+          "- `./melvor-report.js journal all --record` appends per-character files in `journal/` with deterministic filenames based on configured character names.",
+          "- `./melvor-report.js journal all --record` writes `journal/index.html` with embedded CSS/JS and enough embedded sanitized data to browse the latest generated state offline.",
+          "- The dashboard shows all configured characters with current action, source-of-truth/save-risk status, top recommendations, and proposed actions.",
+          "- The dashboard supports at least text search and risk/action filters without requiring a dev server.",
+          "- The command refuses unknown character names the same way other single-character commands do, or clearly reports the load failure without partial writes for that character."
+        ],
+        "Problem": [
+          "- Recommendations and plans are currently transient CLI output.",
+          "- A new AI session has to rediscover each character's context unless the user summarizes it manually.",
+          "- There is no durable per-character place to track proposed actions and optimization history.",
+          "- Markdown alone is useful for handoff, but the player wants an interactive overview to scan all characters quickly."
+        ]
+      },
+      "status": "Ready",
+      "title": "Add append-only character journal command"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, create structured journal snapshot and action ledger, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Create structured journal snapshot and action ledger",
+        "use when": "Implementing the scaffolded slice for Create structured journal snapshot and action ledger."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_002_create_structured_journal_snapshot_and_action_ledger"
+        ],
+        "prod": [
+          "prod_003_melvin_journal_operating_model_and_dashboard"
+        ],
+        "req": [
+          "req_001_journal_operating_model_and_interactive_dashboard"
+        ],
+        "task": [
+          "task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs"
+        ]
+      },
+      "path": "logics/backlog/item_002_create_structured_journal_snapshot_and_action_ledger.md",
+      "ref": "item_002_create_structured_journal_snapshot_and_action_ledger",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- `journal/latest.json` is valid JSON and includes `generatedAt`, `account`, `characters`, and `actionsSummary` top-level fields.",
+          "- Each character in `latest.json` has `observed`, `analysis`, and `decisions` keys.",
+          "- `observed` includes current action, relevant levels/gear/food/GP already available from existing helpers, last observed timestamp, and save-source/risk context.",
+          "- `analysis` includes recommendations, optimization plan, risk notes, and stale-data status.",
+          "- `decisions` includes proposed/approved/done/blocked/dismissed/stale action references derived from `actions.jsonl`.",
+          "- `actions.jsonl` is append-only JSON Lines and remains readable if one malformed historical line is skipped with a warning."
+        ],
+        "Problem": [
+          "- Markdown-only journals are good for reading, but poor as the dashboard's source of truth.",
+          "- Without stable action ids and statuses, the assistant will repeat dismissed recommendations or lose approved work between sessions.",
+          "- Without stale detection, a recommendation can remain visible after the character state changed."
+        ]
+      },
+      "status": "Ready",
+      "title": "Create structured journal snapshot and action ledger"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Implement journal data model, ledger, dashboard, and lifecycle docs",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_002_create_structured_journal_snapshot_and_action_ledger",
+          "item_003_generate_interactive_offline_journal_dashboard",
+          "item_004_document_journal_lifecycle_and_ai_handoff_rules"
+        ],
+        "prod": [
+          "prod_003_melvin_journal_operating_model_and_dashboard"
+        ],
+        "req": [
+          "req_001_journal_operating_model_and_interactive_dashboard"
+        ],
+        "task": [
+          "task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs"
+        ]
+      },
+      "path": "logics/tasks/task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs.md",
+      "ref": "task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Implement the full journal operating model described by `req_001_journal_operating_model_and_interactive_dashboard`.",
+          "- Build the data model first: `latest.json` and `actions.jsonl` are the source for the dashboard and future AI handoff.",
+          "- Keep generation read-only. Do not mutate Melvor game state or add any action execution path in this task."
+        ],
+        "Validation": [
+          "- Run `npm run check`.",
+          "- Run `./melvor-report.js --help`.",
+          "- Run `./melvor-report.js journal GrifhinZ`.",
+          "- Run `./melvor-report.js journal all --record`.",
+          "- Open or inspect `journal/index.html` for dashboard rendering and filters.",
+          "- Validate `journal/latest.json` with `node -e \"JSON.parse(require('fs').readFileSync('journal/latest.json','utf8'))\"`."
+        ]
+      },
+      "status": "Ready",
+      "title": "Implement journal data model, ledger, dashboard, and lifecycle docs"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, generate interactive offline journal dashboard, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Generate interactive offline journal dashboard",
+        "use when": "Implementing the scaffolded slice for Generate interactive offline journal dashboard."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_003_generate_interactive_offline_journal_dashboard"
+        ],
+        "prod": [
+          "prod_003_melvin_journal_operating_model_and_dashboard"
+        ],
+        "req": [
+          "req_001_journal_operating_model_and_interactive_dashboard"
+        ],
+        "task": [
+          "task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs"
+        ]
+      },
+      "path": "logics/backlog/item_003_generate_interactive_offline_journal_dashboard.md",
+      "ref": "item_003_generate_interactive_offline_journal_dashboard",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- `journal/index.html` opens directly from disk and renders without external network assets.",
+          "- Dashboard text fits at desktop and mobile widths without overlapping.",
+          "- Search and all filters update the visible character list without reloading.",
+          "- Save-risk and stale-data states are visually prominent and not color-only.",
+          "- Each character exposes top recommendations, proposed/approved/blocked actions, current action, last observed time, and a Markdown link.",
+          "- The generated HTML escapes data safely before injecting it into the page."
+        ],
+        "Problem": [
+          "- The player needs a fast visual entrypoint for all characters, not seven separate files.",
+          "- A dashboard that only looks good but cannot filter risks/actions will not help account triage.",
+          "- A framework app would add build/runtime cost that the repository has deliberately avoided."
+        ]
+      },
+      "status": "Ready",
+      "title": "Generate interactive offline journal dashboard"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, document journal lifecycle and ai handoff rules, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Document journal lifecycle and AI handoff rules",
+        "use when": "Implementing the scaffolded slice for Document journal lifecycle and AI handoff rules."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_004_document_journal_lifecycle_and_ai_handoff_rules"
+        ],
+        "prod": [
+          "prod_003_melvin_journal_operating_model_and_dashboard"
+        ],
+        "req": [
+          "req_001_journal_operating_model_and_interactive_dashboard"
+        ],
+        "task": [
+          "task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs"
+        ]
+      },
+      "path": "logics/backlog/item_004_document_journal_lifecycle_and_ai_handoff_rules.md",
+      "ref": "item_004_document_journal_lifecycle_and_ai_handoff_rules",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- README names `journal/latest.json`, `journal/actions.jsonl`, `journal/index.html`, and per-character Markdown files.",
+          "- MELVOR_RUNBOOK explains how a future AI should start from the dashboard and structured files.",
+          "- Action statuses and stale/dismissed recommendation rules are documented.",
+          "- Docs explicitly state that dashboard/journal generation is read-only.",
+          "- Docs warn that action execution remains out of scope and still requires source-of-truth checks and user approval.",
+          "- `npm run check` passes after docs changes."
+        ],
+        "Problem": [
+          "- Future AI sessions need rules for interpreting latest snapshots, action statuses, and stale recommendations.",
+          "- The player needs to know which artifacts to review and which ones are machine-generated.",
+          "- Without lifecycle documentation, action status changes will drift into ad hoc edits."
+        ]
+      },
+      "status": "Ready",
+      "title": "Document journal lifecycle and AI handoff rules"
+    }
+  ],
+  "estimates": {
+    "char_count": 14933,
+    "companion_doc_count": 0,
+    "doc_count": 7
+  },
+  "generated_at": "2026-07-05T11:22:30Z",
+  "handoff": {
+    "companion_doc_count": 0,
+    "enabled": false,
+    "source_refs": [
+      "req_001_journal_operating_model_and_interactive_dashboard",
+      "item_002_create_structured_journal_snapshot_and_action_ledger",
+      "item_003_generate_interactive_offline_journal_dashboard",
+      "item_004_document_journal_lifecycle_and_ai_handoff_rules",
+      "task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs"
+    ],
+    "validation_summary_count": 0
+  },
+  "mode": "full",
+  "profile": "normal",
+  "ref": "req_001_journal_operating_model_and_interactive_dashboard,item_002_create_structured_journal_snapshot_and_action_ledger,item_003_generate_interactive_offline_journal_dashboard,item_004_document_journal_lifecycle_and_ai_handoff_rules,task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs",
+  "refs": [
+    "req_001_journal_operating_model_and_interactive_dashboard",
+    "item_002_create_structured_journal_snapshot_and_action_ledger",
+    "item_003_generate_interactive_offline_journal_dashboard",
+    "item_004_document_journal_lifecycle_and_ai_handoff_rules",
+    "task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "Missing logics/release/contract.json."
+    ],
+    "configured": false,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "Run logics-manager release discover --write, then review and promote logics/release/contract.draft.json to logics/release/contract.json.",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "not_configured",
+    "target_version": null
+  },
+  "validation_summary": []
+}

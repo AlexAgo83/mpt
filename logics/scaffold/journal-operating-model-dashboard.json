@@ -1,0 +1,209 @@
+{
+  "title": "Journal operating model and interactive dashboard",
+  "references": [
+    "README.md",
+    "MELVOR.md",
+    "MELVOR_RUNBOOK.md",
+    "AI_IMPROVEMENTS.md",
+    "melvor-report.js",
+    "melvor-helpers.js",
+    "logics/request/req_000_character_journal_generation_for_melvor_planning.md",
+    "logics/backlog/item_001_add_append_only_character_journal_command.md",
+    "logics/product/prod_002_melvin_character_journal_and_planning_log.md",
+    "logics/tasks/task_001_implement_and_validate_character_journal_generation.md"
+  ],
+  "request": {
+    "complexity": "High",
+    "theme": "Melvor assistant journal system",
+    "needs": [
+      "Define a durable journal operating model that separates observed game state, assistant analysis, and user decisions.",
+      "Generate structured local data files that future AI sessions and the dashboard can trust without reparsing Markdown.",
+      "Track proposed, approved, completed, blocked, dismissed, and stale actions per character without executing them automatically.",
+      "Provide an offline interactive dashboard for scanning all characters, save risks, stale observations, recommendations, and pending actions.",
+      "Keep the system local-first, dependency-free, read-only during journal generation, and safe around Melvor save state."
+    ],
+    "context": [
+      "The existing journal corpus covers an initial `journal [all|character] [--record]` command with per-character Markdown and a static dashboard target.",
+      "The product now needs a stronger data model: `journal/latest.json` for the newest sanitized snapshot and `journal/actions.jsonl` for action history and user decisions.",
+      "Markdown remains the human-readable log, but it must not be the only source the dashboard or future AI agents rely on.",
+      "The dashboard should be generated as `journal/index.html` with embedded CSS/JS and no dev server, framework, build step, or external assets.",
+      "Journal generation and dashboard creation must not mutate game state, equip items, save, sell, buy, open, claim, or overwrite cloud/local saves."
+    ],
+    "acceptance_criteria": [
+      "`journal all --record` writes sanitized per-character Markdown, `journal/latest.json`, and `journal/index.html` from one read-only collection pass.",
+      "`journal/latest.json` explicitly separates `observed`, `analysis`, and `decisions` fields per character.",
+      "`journal/actions.jsonl` stores append-only action events with stable ids, character, status, type, reason, risk, timestamps, and enough metadata to avoid duplicate recommendations.",
+      "Generated recommendations become structured proposed actions where practical, without applying them.",
+      "The dashboard reads embedded or adjacent sanitized data and supports search, character filter, current-action filter, save-risk filter, action-status filter, stale-data highlighting, and per-character detail expansion.",
+      "The dashboard surfaces account-level indicators: last scan time, save risks, stale characters, pending approved actions, blocked actions, and top-priority recommendations.",
+      "Rejected or dismissed actions are not repeatedly re-proposed unless the observed context materially changes.",
+      "Stale actions are detectable when the observed state no longer matches the original recommendation context.",
+      "No generated file contains credentials, environment variables, save strings, absolute Chrome profile paths, or raw browser debugging URLs.",
+      "Implementation keeps the repository dependency-free and validates with `npm run check`, CLI help, a dry-run journal command, and recorded dashboard generation."
+    ]
+  },
+  "product": {
+    "title": "Melvin - journal operating model and dashboard",
+    "overview": "Turn the character journal into a small local operating system for Melvor planning: a trusted latest snapshot, an append-only action ledger, human-readable per-character notes, and an offline dashboard. The core product value is not just visual polish; it is preventing future AI sessions from rediscovering state, repeating dismissed recommendations, or confusing observations with decisions.",
+    "goals": [
+      "Separate observed game state, assistant analysis, and user decisions in generated data.",
+      "Make per-character planning durable across AI sessions.",
+      "Give the player a dense dashboard for account triage: save risk, stale data, pending actions, and top recommendations.",
+      "Preserve the safety model: read-only generation first, explicit user approval before any future mutation workflow.",
+      "Keep all artifacts local, git-friendly, and dependency-free."
+    ],
+    "non_goals": [
+      "No hosted service, database, background monitor, scheduled bot, or server.",
+      "No automatic action execution or apply-plan command in this corpus.",
+      "No frontend framework, package dependency, or build step.",
+      "No attempt to parse and rewrite old Markdown checkboxes as the system of record.",
+      "No save-string backup or destructive action helper work in this corpus."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Create structured journal snapshot and action ledger",
+      "priority": "High",
+      "complexity": "High",
+      "theme": "Melvor assistant journal data",
+      "request_acs": [
+        "`journal all --record` writes sanitized per-character Markdown, `journal/latest.json`, and `journal/index.html` from one read-only collection pass.",
+        "`journal/latest.json` explicitly separates `observed`, `analysis`, and `decisions` fields per character.",
+        "`journal/actions.jsonl` stores append-only action events with stable ids, character, status, type, reason, risk, timestamps, and enough metadata to avoid duplicate recommendations.",
+        "Generated recommendations become structured proposed actions where practical, without applying them.",
+        "Rejected or dismissed actions are not repeatedly re-proposed unless the observed context materially changes.",
+        "Stale actions are detectable when the observed state no longer matches the original recommendation context.",
+        "No generated file contains credentials, environment variables, save strings, absolute Chrome profile paths, or raw browser debugging URLs.",
+        "Implementation keeps the repository dependency-free and validates with `npm run check`, CLI help, a dry-run journal command, and recorded dashboard generation."
+      ],
+      "problem": [
+        "Markdown-only journals are good for reading, but poor as the dashboard's source of truth.",
+        "Without stable action ids and statuses, the assistant will repeat dismissed recommendations or lose approved work between sessions.",
+        "Without stale detection, a recommendation can remain visible after the character state changed."
+      ],
+      "scope_in": [
+        "Design and write `journal/latest.json` with account metadata and per-character `observed`, `analysis`, and `decisions` sections.",
+        "Design and append `journal/actions.jsonl` events for proposed actions and later status transitions.",
+        "Derive stable action ids from character, action type, target slot/item/activity, and recommendation context.",
+        "Merge current recommendations with existing action ledger state so dismissed/done/blocked actions are respected.",
+        "Mark actions stale when current observed state invalidates the original recommendation.",
+        "Keep generated data sanitized and local-path free."
+      ],
+      "scope_out": [
+        "Executing actions in the game.",
+        "Editing old Markdown entries to update action status.",
+        "Introducing a database or dependency.",
+        "Building the visual dashboard layout beyond the minimum data contract needed by the next slice."
+      ],
+      "acceptance_criteria": [
+        "`journal/latest.json` is valid JSON and includes `generatedAt`, `account`, `characters`, and `actionsSummary` top-level fields.",
+        "Each character in `latest.json` has `observed`, `analysis`, and `decisions` keys.",
+        "`observed` includes current action, relevant levels/gear/food/GP already available from existing helpers, last observed timestamp, and save-source/risk context.",
+        "`analysis` includes recommendations, optimization plan, risk notes, and stale-data status.",
+        "`decisions` includes proposed/approved/done/blocked/dismissed/stale action references derived from `actions.jsonl`.",
+        "`actions.jsonl` is append-only JSON Lines and remains readable if one malformed historical line is skipped with a warning.",
+        "The same recommendation does not create duplicate proposed actions when rerun without material state changes.",
+        "Dismissed actions are not re-proposed unless their context hash changes.",
+        "`npm run check` passes."
+      ]
+    },
+    {
+      "title": "Generate interactive offline journal dashboard",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Melvor assistant dashboard",
+      "request_acs": [
+        "`journal all --record` writes sanitized per-character Markdown, `journal/latest.json`, and `journal/index.html` from one read-only collection pass.",
+        "The dashboard reads embedded or adjacent sanitized data and supports search, character filter, current-action filter, save-risk filter, action-status filter, stale-data highlighting, and per-character detail expansion.",
+        "The dashboard surfaces account-level indicators: last scan time, save risks, stale characters, pending approved actions, blocked actions, and top-priority recommendations.",
+        "No generated file contains credentials, environment variables, save strings, absolute Chrome profile paths, or raw browser debugging URLs.",
+        "Implementation keeps the repository dependency-free and validates with `npm run check`, CLI help, a dry-run journal command, and recorded dashboard generation."
+      ],
+      "problem": [
+        "The player needs a fast visual entrypoint for all characters, not seven separate files.",
+        "A dashboard that only looks good but cannot filter risks/actions will not help account triage.",
+        "A framework app would add build/runtime cost that the repository has deliberately avoided."
+      ],
+      "scope_in": [
+        "Generate `journal/index.html` with embedded CSS and JavaScript.",
+        "Use `journal/latest.json` data embedded into the HTML or loaded from a sibling file with a clear browser-open fallback.",
+        "Show compact cards or rows for every configured character.",
+        "Add search plus filters for character, current action, save risk, action status, and stale observations.",
+        "Show account-level summary indicators and per-character detail expansion.",
+        "Link each character to its Markdown file.",
+        "Use a restrained, tool-like layout optimized for scanning and repeated use."
+      ],
+      "scope_out": [
+        "React/Vite/Next or any frontend framework.",
+        "Server-side rendering, local API server, hosting, or authentication.",
+        "Persisting checkbox changes from the dashboard UI back to disk.",
+        "Decorative landing pages or marketing-style hero sections."
+      ],
+      "acceptance_criteria": [
+        "`journal/index.html` opens directly from disk and renders without external network assets.",
+        "Dashboard text fits at desktop and mobile widths without overlapping.",
+        "Search and all filters update the visible character list without reloading.",
+        "Save-risk and stale-data states are visually prominent and not color-only.",
+        "Each character exposes top recommendations, proposed/approved/blocked actions, current action, last observed time, and a Markdown link.",
+        "The generated HTML escapes data safely before injecting it into the page.",
+        "`npm run check` passes after implementation."
+      ]
+    },
+    {
+      "title": "Document journal lifecycle and AI handoff rules",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Melvor assistant operations",
+      "request_acs": [
+        "`journal/latest.json` explicitly separates `observed`, `analysis`, and `decisions` fields per character.",
+        "`journal/actions.jsonl` stores append-only action events with stable ids, character, status, type, reason, risk, timestamps, and enough metadata to avoid duplicate recommendations.",
+        "Rejected or dismissed actions are not repeatedly re-proposed unless the observed context materially changes.",
+        "Stale actions are detectable when the observed state no longer matches the original recommendation context.",
+        "Implementation keeps the repository dependency-free and validates with `npm run check`, CLI help, a dry-run journal command, and recorded dashboard generation."
+      ],
+      "problem": [
+        "Future AI sessions need rules for interpreting latest snapshots, action statuses, and stale recommendations.",
+        "The player needs to know which artifacts to review and which ones are machine-generated.",
+        "Without lifecycle documentation, action status changes will drift into ad hoc edits."
+      ],
+      "scope_in": [
+        "Document the journal artifacts in README and MELVOR_RUNBOOK.",
+        "Document the action status lifecycle: proposed, approved, done, blocked, dismissed, stale.",
+        "Document the rule that `observed` is game state, `analysis` is assistant interpretation, and `decisions` are user/session decisions.",
+        "Document how future AI sessions should read `latest.json` and `actions.jsonl` before making recommendations.",
+        "Document safety expectations before any future apply-action command is designed."
+      ],
+      "scope_out": [
+        "Implementing action approval UI persistence.",
+        "Implementing apply-action or mutation workflows.",
+        "Changing Melvor helper mutation behavior."
+      ],
+      "acceptance_criteria": [
+        "README names `journal/latest.json`, `journal/actions.jsonl`, `journal/index.html`, and per-character Markdown files.",
+        "MELVOR_RUNBOOK explains how a future AI should start from the dashboard and structured files.",
+        "Action statuses and stale/dismissed recommendation rules are documented.",
+        "Docs explicitly state that dashboard/journal generation is read-only.",
+        "Docs warn that action execution remains out of scope and still requires source-of-truth checks and user approval.",
+        "`npm run check` passes after docs changes."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Implement journal data model, ledger, dashboard, and lifecycle docs",
+    "plan": [
+      "Read README, MELVOR_RUNBOOK, MELVOR.md, melvor-report.js, the prior journal corpus, and this request chain.",
+      "Implement `latest.json` and `actions.jsonl` generation first; do not start with dashboard markup.",
+      "Make recommendation-to-action ids stable and suppress duplicates from existing action ledger entries.",
+      "Add stale/dismissed handling before building visual filters.",
+      "Generate `journal/index.html` from sanitized latest-state data with embedded CSS/JS and no external assets.",
+      "Document the artifact lifecycle and AI handoff rules.",
+      "Run `npm run check`, `./melvor-report.js --help`, a single-character journal dry run, `./melvor-report.js journal all --record`, and inspect `journal/index.html`.",
+      "Run Logics validation, lint, and audit before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/journal-operating-model-dashboard.json",
+    "mode": "full",
+    "profile": "normal"
+  }
+}
