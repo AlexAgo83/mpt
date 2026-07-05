@@ -31,6 +31,7 @@ const usage = `usage:
   ./melvor-report.js summary [all|character]
   ./melvor-report.js audit [all|character]
   ./melvor-report.js plan [all|character]
+  ./melvor-report.js combat-plan [all|character]
   ./melvor-report.js gear <character>
   ./melvor-report.js skilling <character>
   ./melvor-report.js export-state [all|character]
@@ -45,7 +46,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'export-state', 'journal', 'journal-action'].includes(cmd)) {
+  if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'export-state', 'journal', 'journal-action'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -132,6 +133,27 @@ async function withCharacter(name, fn) {
     await evalExpr(client, helper);
     const load = await evalExpr(client, `mh.loadCharacter(${JSON.stringify(name)})`, 45000);
     if (!String(load).startsWith('loading ')) throw Error(load);
+    await waitFor(client, `typeof game !== 'undefined' && game.loopStarted && game.characterName === ${JSON.stringify(name)}`, 150000);
+    await sleep(1500);
+    return await fn(client);
+  } finally {
+    client.close();
+    await closeTab(tab.id);
+  }
+}
+
+async function withCharacterSource(name, source, fn) {
+  if (source !== 'local') return withCharacter(name, fn);
+  const tab = await newTab(URL);
+  const client = await cdp(tab.webSocketDebuggerUrl);
+  try {
+    await client.send('Runtime.enable');
+    await client.send('Page.enable');
+    await waitFor(client, "document.readyState === 'complete'", 90000);
+    await sleep(2200);
+    await evalExpr(client, helper);
+    const load = await evalExpr(client, `mh.loadLocalCharacter(${JSON.stringify(name)})`, 45000);
+    if (!String(load).startsWith('loading local ')) throw Error(load);
     await waitFor(client, `typeof game !== 'undefined' && game.loopStarted && game.characterName === ${JSON.stringify(name)}`, 150000);
     await sleep(1500);
     return await fn(client);
@@ -287,11 +309,45 @@ function planLines(r) {
   return planActions(r).map(a => `${a.slot}: ${a.current} -> ${a.item} (${a.available > 0 ? `available x${a.available}` : 'not in bank'}; ${a.reason})`);
 }
 
+function combatGoalLines(report) {
+  const goals = report.combatGoals;
+  if (!goals) return [];
+  const capped = (goals.cappedSkills || [])
+    .filter(s => s.level >= s.cap)
+    .slice(0, 6)
+    .map(s => `${s.name} ${s.level}/${s.cap}`);
+  const dungeons = (goals.unclearedDungeons || [])
+    .slice(0, 3)
+    .map(d => `${d.name} (boss ${d.boss || 'unknown'}, CL ${d.maxCombatLevel})`);
+  return [
+    capped.length ? `capped standard skills: ${capped.join(', ')}` : null,
+    dungeons.length ? `uncleared accessible candidates: ${dungeons.join('; ')}` : null,
+  ].filter(Boolean);
+}
+
 function printPlan(r) {
   const lines = planLines(r);
   console.log(`${r.report.name} | ${r.report.action}`);
   if (!lines.length) console.log('  no obvious skilling swap');
   for (const line of lines) console.log(`  would equip ${line}`);
+}
+
+function printCombatPlan(r) {
+  const goals = r.report.combatGoals || {};
+  const capped = (goals.cappedSkills || []).filter(s => s.level >= s.cap).slice(0, 8);
+  const beats = { melee: 'magic', ranged: 'melee', magic: 'ranged' };
+  console.log(`${r.report.name} | combat plan | ${r.report.mode} | combat ${r.report.combatLevel} | HP ${fmtNum(r.report.hp)}`);
+  console.log(`  food: ${r.report.food || 'none'} x${fmtNum(r.report.foodQty || 0)}`);
+  if (capped.length) console.log(`  capped: ${capped.map(s => `${s.name} ${s.level}/${s.cap}`).join(', ')}`);
+  const dungeons = (goals.unclearedDungeons || []).slice(0, 5);
+  if (!dungeons.length) console.log('  no accessible uncleared dungeon found');
+  for (const d of dungeons) {
+    const style = beats[d.bossAttackType] || null;
+    const set = r.sets.find(s => style && s.attackType === style) || r.sets.find(s => s.attackType) || {};
+    const reqs = d.requirements.length ? d.requirements.map(req => req.dungeon || req.skill || req.purchase || req.type).join(', ') : 'none';
+    console.log(`  dungeon: ${d.name} | boss ${d.boss || 'unknown'} (${d.bossAttackType || 'unknown'}, CL ${d.maxCombatLevel})`);
+    console.log(`    use set ${set.index ?? '?'} ${set.attackType || 'unknown'}: ${set.weapon || 'no weapon'} / ${set.cape || 'no cape'} | reqs ${reqs}`);
+  }
 }
 
 function printSlots(r) {
@@ -521,10 +577,11 @@ function buildCharacterJournal(name, data, save) {
       foodQty: report.foodQty,
       equipment: report.equipment,
       lowSkills: report.lowSkills.slice(0, 6),
+      combatGoals: report.combatGoals || null,
       saveSource: save ? { source: save.source, diffMinutes: save.diffMs === null ? null : Math.round(save.diffMs / 60000) } : null,
     },
     analysis: {
-      recommendations: [...(data.skilling.notes || []), ...planLines(data)],
+      recommendations: [...(data.skilling.notes || []), ...planLines(data), ...combatGoalLines(report)],
       optimizationPlan: report.lowSkills.filter(s => s.level > 1).slice(0, 3).map(s => `raise ${s.name} (level ${s.level})`),
       riskNotes: [
         saveRisk,
@@ -564,6 +621,9 @@ function journalMd(c) {
     '',
     '### Optimization plan',
     ...list(c.analysis.optimizationPlan),
+    '',
+    '### Combat goals',
+    ...list(combatGoalLines({ combatGoals: o.combatGoals })),
     '',
     '### Proposed actions',
     ...list(c.actions.map(a => `[${a.id}] equip ${a.item} in ${a.slot} (now: ${a.current}; risk ${a.risk}; ${a.reason})`)),
@@ -771,12 +831,17 @@ render();
 `;
 }
 
-async function collectJournal(name) {
-  return withCharacter(name, client => evalExpr(client, `(() => {
+async function collectJournal(name, save) {
+  return withCharacterSource(name, save?.source, client => evalExpr(client, `(() => {
     const wanted = ${JSON.stringify(JOURNAL_WANTED)};
     const qty = n => { for (const [item, bi] of game.bank.items) if (item.name === n) return bi.quantity; return 0; };
     return { report: mh.readOnlyReport(), skilling: mh.skillingAudit(), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])) };
   })()`));
+}
+
+async function readSourcesByName() {
+  const slots = await readSlots();
+  return { slots, sources: Object.fromEntries(sourceOfTruth(slots).map(s => [s.name, s])) };
 }
 
 // Offline status change: appends a ledger event and refreshes latest.json + dashboard.
@@ -801,10 +866,9 @@ function runJournalAction(id, status) {
 }
 
 async function runJournal() {
-  const slots = await readSlots();
-  const sources = Object.fromEntries(sourceOfTruth(slots).map(s => [s.name, s]));
+  const { sources } = await readSourcesByName();
   const chars = [];
-  for (const name of names) chars.push(buildCharacterJournal(name, await collectJournal(name), sources[name]));
+  for (const name of names) chars.push(buildCharacterJournal(name, await collectJournal(name, sources[name]), sources[name]));
   if (!record) {
     for (const c of chars) console.log(journalMd(c) + '\n');
     return;
@@ -881,10 +945,10 @@ if (require.main === module) (async () => {
     }
 
     if (cmd === 'export-state') {
-      const slots = await readSlots();
+      const { slots, sources } = await readSourcesByName();
       const characters = {};
       for (const name of names) {
-        characters[name] = await withCharacter(name, client => evalExpr(client, `(() => {
+        characters[name] = await withCharacterSource(name, sources[name]?.source, client => evalExpr(client, `(() => {
           const report = mh.readOnlyReport();
           return {
             mode: report.mode,
@@ -898,6 +962,7 @@ if (require.main === module) (async () => {
             foodQty: report.foodQty,
             equipment: report.equipment,
             combat: report.combat,
+            combatGoals: report.combatGoals,
           };
         })()`));
       }
@@ -905,8 +970,9 @@ if (require.main === module) (async () => {
       return;
     }
 
+    const { sources } = await readSourcesByName();
     for (const name of names) {
-      const data = await withCharacter(name, client => {
+      const data = await withCharacterSource(name, sources[name]?.source, client => {
         if (cmd === 'summary') return evalExpr(client, 'mh.readOnlyReport()');
         if (cmd === 'skilling') return evalExpr(client, 'mh.skillingAudit()');
         if (cmd === 'plan') return evalExpr(client, `(() => {
@@ -922,6 +988,21 @@ if (require.main === module) (async () => {
             candidates: gear.candidates,
           } };
         })()`);
+        if (cmd === 'combat-plan') return evalExpr(client, `(() => {
+          const report = mh.readOnlyReport();
+          const sets = game.combat.player.equipmentSets.map((set, index) => {
+            const equipped = set.equipment.equippedArray.filter(s => !s.isEmpty);
+            const item = slot => equipped.find(s => s.slot.localID === slot)?.item;
+            return {
+              index,
+              attackType: item('Weapon')?.attackType ?? null,
+              weapon: item('Weapon')?.name ?? null,
+              cape: item('Cape')?.name ?? null,
+              passive: item('Passive')?.name ?? null,
+            };
+          });
+          return { report, sets };
+        })()`);
         return evalExpr(client, `(() => {
           const audit = mh.gearAudit(game.combat.player.attackType, 2);
           return { name: game.characterName, action: game.activeAction?.name ?? null, combat: mh.combatInfo(), context: audit.context, equipped: audit.equipped, candidates: audit.candidates };
@@ -931,6 +1012,7 @@ if (require.main === module) (async () => {
       else if (cmd === 'skilling') printSkilling({ name, ...data });
       else if (cmd === 'audit') printAudit(data);
       else if (cmd === 'plan') printPlan(data);
+      else if (cmd === 'combat-plan') printCombatPlan(data);
       else printGear(data);
     }
   } finally {

@@ -47,11 +47,15 @@ is out of scope: it still requires `source-of-truth` checks and explicit user ap
 
 ```bash
 ./melvor-report.js plan all
+./melvor-report.js combat-plan Edalbraw
 ./melvor-report.js gear <character>
 ./melvor-report.js skilling <character>
 ```
 
 Plans are suggestions only. Check whether each item is available and whether the slot makes sense for the current action.
+Read commands load the source-of-truth save for each character: local when local is newer, cloud otherwise.
+`gear` filters candidates the character cannot currently equip.
+`combat-plan` lists accessible uncleared dungeons, capped skills that may need new cap rolls, and the saved combat set that best matches the boss attack type.
 
 ## Apply a user-approved change
 

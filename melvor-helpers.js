@@ -46,6 +46,29 @@
     return `loading ${name}...`;
   };
 
+  mh.loadLocalCharacter = async (name) => {
+    const open = await mh.activeCharacters();
+    if (open.includes(name)) return `refused: "${name}" already open in another tab`;
+    const toggle = [...document.querySelectorAll('button')].find(b => /Show Local Saves/i.test(b.innerText));
+    if (toggle) {
+      toggle.click();
+      await new Promise(r => setTimeout(r, 5000));
+    }
+    let btn = null;
+    for (let i = 0; i < 30 && !btn; i++) {
+      btn = [...document.querySelectorAll('button[class*="btn-gamemode"]')]
+        .find(b => /Local Save/i.test(b.innerText) && b.innerText.includes(name));
+      if (!btn) await new Promise(r => setTimeout(r, 1000));
+    }
+    if (!btn) return `no local save button for "${name}"`;
+    btn.click();
+    await new Promise(r => setTimeout(r, 800));
+    const confirm = [...document.querySelectorAll('.swal2-popup button')]
+      .find(b => /confirm/i.test(b.innerText));
+    if (confirm) confirm.click();
+    return `loading local ${name}...`;
+  };
+
   // Local save + immediate cloud push.
   mh.save = async () => {
     saveData();
@@ -126,13 +149,24 @@
     p.equipment.equippedArray.filter(s => !s.isEmpty).forEach(s => {
       equipped[s.slot.localID] = { name: s.item.name, stats: statsOf(s.item), passives: passivesOf(s.item), damageType: s.item.damageType?.name };
     });
+    const meetsRequirement = r => {
+      if (r.type === 'SkillLevel' && r.skill && r.level !== undefined) return r.skill.level >= r.level;
+      if (r.type === 'AbyssalLevel' && r.skill && r.level !== undefined) return (r.skill.abyssalLevel ?? 0) >= r.level;
+      if (r.type === 'DungeonCompletion' && r.dungeon && r.count !== undefined)
+        return (game.combat.getDungeonCompleteCount?.(r.dungeon) ?? 0) >= r.count;
+      if (r.type === 'ShopPurchase') return false;
+      return true;
+    };
+    const canEquip = item => (item.equipRequirements ?? []).every(meetsRequirement);
     const candidates = {};
     for (const [item] of game.bank.items) {
       if (!item.validSlots?.length) continue;
       if (item.attackType && item.attackType !== attackType) continue;
+      const slot = item.validSlots[0];
+      if (!canEquip(item)) continue;
       const st = statsOf(item);
       if (scoreOf(st) === 0) continue;
-      (candidates[item.validSlots[0].localID] ??= []).push({ name: item.name, stats: st, passives: passivesOf(item), damageType: item.damageType?.name });
+      (candidates[slot.localID] ??= []).push({ name: item.name, stats: st, passives: passivesOf(item), damageType: item.damageType?.name });
     }
     for (const k in candidates) candidates[k] = candidates[k].sort((a,b)=>scoreOf(b.stats)-scoreOf(a.stats)).slice(0, topN);
     return { context: { attackType, hitChance: p.stats.hitChance, maxHit: p.stats.maxHit, attackInterval: p.stats.attackInterval }, equipped, candidates };
@@ -171,6 +205,53 @@
     };
   };
 
+  mh.combatGoals = () => {
+    const completeCount = d => game.combat.getDungeonCompleteCount?.(d) ?? 0;
+    const reqMet = r => {
+      if (r.dungeon && r.count !== undefined) return completeCount(r.dungeon) >= r.count;
+      if (r.skill && r.level !== undefined) return r.skill.level >= r.level;
+      if (r.purchase) return false;
+      return true;
+    };
+    const reqInfo = r => ({
+      type: r.type ?? r.constructor?.name ?? null,
+      dungeon: r.dungeon?.name ?? null,
+      skill: r.skill?.name ?? null,
+      level: r.level ?? null,
+      purchase: r.purchase?.name ?? null,
+      count: r.count ?? null,
+      met: reqMet(r),
+    });
+    const dungeons = game.dungeons.allObjects.map(d => {
+      const monsters = d.monsters ?? [];
+      const boss = monsters[monsters.length - 1];
+      return {
+        name: d.name,
+        id: d.id,
+        completeCount: completeCount(d),
+        maxCombatLevel: Math.max(0, ...monsters.map(m => m.combatLevel ?? 0)),
+        boss: boss?.name ?? null,
+        bossAttackType: boss?.attackType ?? null,
+        requirements: (d.entryRequirements ?? d.unlockRequirements ?? d.requirements ?? []).map(reqInfo),
+      };
+    });
+    return {
+      cappedSkills: game.skills.allObjects
+        .filter(s => s.level >= s.currentLevelCap || (s.abyssalLevel ?? 0) >= (s.currentAbyssalLevelCap ?? Infinity))
+        .map(s => ({
+          name: s.name,
+          level: s.level,
+          cap: s.currentLevelCap,
+          abyssalLevel: s.abyssalLevel ?? null,
+          abyssalCap: s.currentAbyssalLevelCap ?? null,
+        })),
+      unclearedDungeons: dungeons
+        .filter(d => d.completeCount === 0)
+        .filter(d => d.requirements.every(r => r.met))
+        .sort((a, b) => a.maxCombatLevel - b.maxCombatLevel),
+    };
+  };
+
   // An item's passives (modifiers) — bank, equipped, or global registry.
   mh.itemPassives = (name) => {
     const item = findBank(name)
@@ -199,6 +280,7 @@
       bankSlots: game.bank.items.size,
       equipment: snap.equipment,
       combat: mh.combatInfo(),
+      combatGoals: mh.combatGoals(),
     };
   };
 
