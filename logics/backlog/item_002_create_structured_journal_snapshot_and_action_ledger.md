@@ -2,9 +2,9 @@
 > From version: 0.1.0
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 0%
+> Understanding: 90
+> Confidence: 85
+> Progress: 0
 > Complexity: High
 > Theme: Melvor assistant journal data
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -22,6 +22,7 @@
   - Merge current recommendations with existing action ledger state so dismissed/done/blocked actions are respected.
   - Mark actions stale when current observed state invalidates the original recommendation.
   - Keep generated data sanitized and local-path free.
+  - Keep all generated `journal/` files untracked by git.
 - Out:
   - Executing actions in the game.
   - Editing old Markdown entries to update action status.
@@ -37,6 +38,7 @@
 - `actions.jsonl` is append-only JSON Lines and remains readable if one malformed historical line is skipped with a warning.
 - The same recommendation does not create duplicate proposed actions when rerun without material state changes.
 - Dismissed actions are not re-proposed unless their context hash changes.
+- `journal/` is ignored by git, and generated player journal files are not staged or committed.
 - `npm run check` passes.
 
 # AC Traceability

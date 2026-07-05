@@ -27,6 +27,7 @@
       "The product now needs a stronger data model: `journal/latest.json` for the newest sanitized snapshot and `journal/actions.jsonl` for action history and user decisions.",
       "Markdown remains the human-readable log, but it must not be the only source the dashboard or future AI agents rely on.",
       "The dashboard should be generated as `journal/index.html` with embedded CSS/JS and no dev server, framework, build step, or external assets.",
+      "The entire `journal/` directory is player-private generated output and must stay git-ignored.",
       "Journal generation and dashboard creation must not mutate game state, equip items, save, sell, buy, open, claim, or overwrite cloud/local saves."
     ],
     "acceptance_criteria": [
@@ -39,6 +40,7 @@
       "Rejected or dismissed actions are not repeatedly re-proposed unless the observed context materially changes.",
       "Stale actions are detectable when the observed state no longer matches the original recommendation context.",
       "No generated file contains credentials, environment variables, save strings, absolute Chrome profile paths, or raw browser debugging URLs.",
+      "Generated `journal/` artifacts are not versioned in git; only docs, code, and templates are committed.",
       "Implementation keeps the repository dependency-free and validates with `npm run check`, CLI help, a dry-run journal command, and recorded dashboard generation."
     ]
   },
@@ -50,7 +52,7 @@
       "Make per-character planning durable across AI sessions.",
       "Give the player a dense dashboard for account triage: save risk, stale data, pending actions, and top recommendations.",
       "Preserve the safety model: read-only generation first, explicit user approval before any future mutation workflow.",
-      "Keep all artifacts local, git-friendly, and dependency-free."
+      "Keep generated player artifacts local, private, git-ignored, and dependency-free."
     ],
     "non_goals": [
       "No hosted service, database, background monitor, scheduled bot, or server.",
@@ -87,7 +89,8 @@
         "Derive stable action ids from character, action type, target slot/item/activity, and recommendation context.",
         "Merge current recommendations with existing action ledger state so dismissed/done/blocked actions are respected.",
         "Mark actions stale when current observed state invalidates the original recommendation.",
-        "Keep generated data sanitized and local-path free."
+        "Keep generated data sanitized and local-path free.",
+        "Keep all generated `journal/` files untracked by git."
       ],
       "scope_out": [
         "Executing actions in the game.",
@@ -104,6 +107,7 @@
         "`actions.jsonl` is append-only JSON Lines and remains readable if one malformed historical line is skipped with a warning.",
         "The same recommendation does not create duplicate proposed actions when rerun without material state changes.",
         "Dismissed actions are not re-proposed unless their context hash changes.",
+        "`journal/` is ignored by git, and generated player journal files are not staged or committed.",
         "`npm run check` passes."
       ]
     },
@@ -146,6 +150,7 @@
         "Save-risk and stale-data states are visually prominent and not color-only.",
         "Each character exposes top recommendations, proposed/approved/blocked actions, current action, last observed time, and a Markdown link.",
         "The generated HTML escapes data safely before injecting it into the page.",
+        "`journal/index.html` is generated locally under the git-ignored `journal/` directory and is not committed.",
         "`npm run check` passes after implementation."
       ]
     },
@@ -171,6 +176,7 @@
         "Document the action status lifecycle: proposed, approved, done, blocked, dismissed, stale.",
         "Document the rule that `observed` is game state, `analysis` is assistant interpretation, and `decisions` are user/session decisions.",
         "Document how future AI sessions should read `latest.json` and `actions.jsonl` before making recommendations.",
+        "Document that `journal/` is local player data and must remain git-ignored.",
         "Document safety expectations before any future apply-action command is designed."
       ],
       "scope_out": [
@@ -183,6 +189,7 @@
         "MELVOR_RUNBOOK explains how a future AI should start from the dashboard and structured files.",
         "Action statuses and stale/dismissed recommendation rules are documented.",
         "Docs explicitly state that dashboard/journal generation is read-only.",
+        "Docs explicitly state that generated journal files are private local output and must not be committed.",
         "Docs warn that action execution remains out of scope and still requires source-of-truth checks and user approval.",
         "`npm run check` passes after docs changes."
       ]

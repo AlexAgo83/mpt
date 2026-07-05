@@ -10,7 +10,7 @@ _None_
 |---|---|---|---|---|---|
 | [prod_001_melvin_ai_assistant_for_melvor_idle](product/prod_001_melvin_ai_assistant_for_melvor_idle.md) | Melvin - AI assistant for Melvor Idle | Proposed |  |  | product/prod_001_melvin_ai_assistant_for_melvor_idle.md |
 | [prod_002_melvin_character_journal_and_planning_log](product/prod_002_melvin_character_journal_and_planning_log.md) | Melvin - character journal and planning log | Accepted |  |  | product/prod_002_melvin_character_journal_and_planning_log.md |
-| [prod_003_melvin_journal_operating_model_and_dashboard](product/prod_003_melvin_journal_operating_model_and_dashboard.md) | Melvin - journal operating model and dashboard | Accepted |  |  | product/prod_003_melvin_journal_operating_model_and_dashboard.md |
+| [prod_003_melvin_journal_operating_model_and_dashboard](product/prod_003_melvin_journal_operating_model_and_dashboard.md) | Melvin - journal operating model and dashboard | Active |  |  | product/prod_003_melvin_journal_operating_model_and_dashboard.md |
 
 ## Requests
 
@@ -24,9 +24,9 @@ _None_
 | Doc | Title | Status | Owner | Progress | Path |
 |---|---|---|---|---|---|
 | [item_001_add_append_only_character_journal_command](backlog/item_001_add_append_only_character_journal_command.md) | Add append-only character journal command | Ready |  | 0 | backlog/item_001_add_append_only_character_journal_command.md |
-| [item_002_create_structured_journal_snapshot_and_action_ledger](backlog/item_002_create_structured_journal_snapshot_and_action_ledger.md) | Create structured journal snapshot and action ledger | Ready |  | 0% | backlog/item_002_create_structured_journal_snapshot_and_action_ledger.md |
-| [item_003_generate_interactive_offline_journal_dashboard](backlog/item_003_generate_interactive_offline_journal_dashboard.md) | Generate interactive offline journal dashboard | Ready |  | 0% | backlog/item_003_generate_interactive_offline_journal_dashboard.md |
-| [item_004_document_journal_lifecycle_and_ai_handoff_rules](backlog/item_004_document_journal_lifecycle_and_ai_handoff_rules.md) | Document journal lifecycle and AI handoff rules | Ready |  | 0% | backlog/item_004_document_journal_lifecycle_and_ai_handoff_rules.md |
+| [item_002_create_structured_journal_snapshot_and_action_ledger](backlog/item_002_create_structured_journal_snapshot_and_action_ledger.md) | Create structured journal snapshot and action ledger | Ready |  | 0 | backlog/item_002_create_structured_journal_snapshot_and_action_ledger.md |
+| [item_003_generate_interactive_offline_journal_dashboard](backlog/item_003_generate_interactive_offline_journal_dashboard.md) | Generate interactive offline journal dashboard | Ready |  | 0 | backlog/item_003_generate_interactive_offline_journal_dashboard.md |
+| [item_004_document_journal_lifecycle_and_ai_handoff_rules](backlog/item_004_document_journal_lifecycle_and_ai_handoff_rules.md) | Document journal lifecycle and AI handoff rules | Ready |  | 0 | backlog/item_004_document_journal_lifecycle_and_ai_handoff_rules.md |
 
 ## Tasks
 

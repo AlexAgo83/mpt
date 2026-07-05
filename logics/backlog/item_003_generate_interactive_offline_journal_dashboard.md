@@ -2,9 +2,9 @@
 > From version: 0.1.0
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 0%
+> Understanding: 90
+> Confidence: 85
+> Progress: 0
 > Complexity: Medium
 > Theme: Melvor assistant dashboard
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -36,6 +36,7 @@
 - Save-risk and stale-data states are visually prominent and not color-only.
 - Each character exposes top recommendations, proposed/approved/blocked actions, current action, last observed time, and a Markdown link.
 - The generated HTML escapes data safely before injecting it into the page.
+- `journal/index.html` is generated locally under the git-ignored `journal/` directory and is not committed.
 - `npm run check` passes after implementation.
 
 # AC Traceability

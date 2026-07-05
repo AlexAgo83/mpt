@@ -54,7 +54,7 @@
           "- Keep the system local-first, dependency-free, read-only during journal generation, and safe around Melvor save state."
         ]
       },
-      "status": "Draft",
+      "status": "Ready",
       "title": "Journal operating model and interactive dashboard"
     },
     {
@@ -96,7 +96,7 @@
           "- Keep the implementation local-first, dependency-free, and aligned with existing CLI/report patterns."
         ]
       },
-      "status": "Draft",
+      "status": "Ready",
       "title": "Character journal generation for Melvor planning"
     },
     {
@@ -305,8 +305,8 @@
           "- MELVOR_RUNBOOK explains how a future AI should start from the dashboard and structured files.",
           "- Action statuses and stale/dismissed recommendation rules are documented.",
           "- Docs explicitly state that dashboard/journal generation is read-only.",
-          "- Docs warn that action execution remains out of scope and still requires source-of-truth checks and user approval.",
-          "- `npm run check` passes after docs changes."
+          "- Docs explicitly state that generated journal files are private local output and must not be committed.",
+          "- Docs warn that action execution remains out of scope and still requires source-of-truth checks and user approval."
         ],
         "Problem": [
           "- Future AI sessions need rules for interpreting latest snapshots, action statuses, and stale recommendations.",
@@ -319,11 +319,11 @@
     }
   ],
   "estimates": {
-    "char_count": 14933,
+    "char_count": 14993,
     "companion_doc_count": 0,
     "doc_count": 7
   },
-  "generated_at": "2026-07-05T11:22:30Z",
+  "generated_at": "2026-07-05T11:30:39Z",
   "handoff": {
     "companion_doc_count": 0,
     "enabled": false,

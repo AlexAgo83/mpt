@@ -3,7 +3,7 @@
 > Schema version: 1.0
 > Status: Ready
 > Understanding: 90
-> Confidence: 85
+> Confidence: 86
 > Progress: 0
 > Complexity: Medium
 > Theme: Implementation delivery
@@ -38,6 +38,7 @@
 - [ ] Stale actions are detectable when observed state invalidates the recommendation context.
 - [ ] `journal/index.html` works offline with search, action/risk/status filters, stale highlighting, account indicators, and per-character detail.
 - [ ] README and MELVOR_RUNBOOK document artifacts, lifecycle statuses, handoff rules, and read-only safety boundaries.
+- [ ] `.gitignore` excludes `journal/`, and generated player journal artifacts are never staged or committed.
 - [ ] No generated artifact contains credentials, save strings, environment variables, absolute profile paths, or raw browser debugging URLs.
 - [ ] `npm run check`, `./melvor-report.js --help`, one dry-run journal command, one recorded `journal all --record`, and Logics validation/lint/audit are recorded at closeout.
 

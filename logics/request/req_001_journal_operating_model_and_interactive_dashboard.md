@@ -2,8 +2,8 @@
 > From version: 0.1.0
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
+> Understanding: 90
+> Confidence: 85
 > Complexity: High
 > Theme: Melvor assistant journal system
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
@@ -20,6 +20,7 @@
 - The product now needs a stronger data model: `journal/latest.json` for the newest sanitized snapshot and `journal/actions.jsonl` for action history and user decisions.
 - Markdown remains the human-readable log, but it must not be the only source the dashboard or future AI agents rely on.
 - The dashboard should be generated as `journal/index.html` with embedded CSS/JS and no dev server, framework, build step, or external assets.
+- The entire `journal/` directory is player-private generated output and must stay git-ignored.
 - Journal generation and dashboard creation must not mutate game state, equip items, save, sell, buy, open, claim, or overwrite cloud/local saves.
 
 # Acceptance criteria
@@ -32,6 +33,7 @@
 - Rejected or dismissed actions are not repeatedly re-proposed unless the observed context materially changes.
 - Stale actions are detectable when the observed state no longer matches the original recommendation context.
 - No generated file contains credentials, environment variables, save strings, absolute Chrome profile paths, or raw browser debugging URLs.
+- Generated `journal/` artifacts are not versioned in git; only docs, code, and templates are committed.
 - Implementation keeps the repository dependency-free and validates with `npm run check`, CLI help, a dry-run journal command, and recorded dashboard generation.
 
 # Definition of Ready (DoR)

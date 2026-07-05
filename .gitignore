@@ -8,3 +8,4 @@ logics/external/*
 !logics/external/.gitkeep
 logics/.cache/*
 !logics/.cache/.gitkeep
+journal/
