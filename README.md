@@ -102,11 +102,21 @@ That profile must stay logged into Melvor Cloud. Chrome locks the profile, so on
 
 If login expires, open the same profile visibly, let the user log in, then return to headless operation.
 
+Local account settings can live in `.env.local`, copied from [`.env.example`](./.env.example).
+That file is git-ignored. It supports both the main profile and a separate test profile:
+
+```bash
+cp .env.example .env.local
+npm run slots
+npm run test:slots
+```
+
 ## Repository layout
 
 - [`melvor-report.js`](./melvor-report.js): read-only CLI reports and source-of-truth checks
 - [`melvor-helpers.js`](./melvor-helpers.js): injected `window.mh` browser helper library
 - [`package.json`](./package.json): standard local command aliases, no dependencies
+- [`.env.example`](./.env.example): local-only account/profile configuration template
 - [`MELVOR.md`](./MELVOR.md): full operating manual for AI assistants
 - [`MELVOR_RUNBOOK.md`](./MELVOR_RUNBOOK.md): short runbook for common workflows
 - [`AI_IMPROVEMENTS.md`](./AI_IMPROVEMENTS.md): ledger for repeated assistant failures and improvements

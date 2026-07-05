@@ -48,6 +48,7 @@ The sensitive surfaces are:
 - Only one assistant/browser driver should use the Chrome profile at a time.
 - Do not expose the Chrome DevTools port to untrusted networks.
 - Keep exported saves, browser profiles, and account backups out of git.
+- Keep `.env.local` local; commit only `.env.example`.
 - Keep test-account credentials in GitHub Actions secrets only; never in workflow files.
 - Check `./melvor-report.js source-of-truth` before writes.
 - Treat save-source disagreement as a data-loss risk, not a normal warning.

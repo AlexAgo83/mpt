@@ -4,11 +4,12 @@ const http = require('http');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const PORT = Number(process.env.MELVOR_PORT || 9223);
+const ACCOUNT = process.env.MELVOR_ACCOUNT || 'main';
+const PORT = Number(process.env.MELVOR_PORT || (ACCOUNT === 'test' && process.env.MELVOR_TEST_PORT) || 9223);
 const URL = 'https://melvoridle.com/index_game.php';
 const CHARS = ['GrifhinZ', 'Rya', 'Dash', 'Edalbraw', 'Opa', 'Chap', 'Kang'];
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const PROFILE = process.env.MELVOR_PROFILE || `${process.env.HOME}/.cache/chrome-devtools-mcp/chrome-profile`;
+const PROFILE = process.env.MELVOR_PROFILE || (ACCOUNT === 'test' && process.env.MELVOR_TEST_PROFILE) || `${process.env.HOME}/.cache/chrome-devtools-mcp/chrome-profile`;
 const LOCK = path.join('/tmp', `melvor-report-${PORT}.lock`);
 const helper = fs.readFileSync(path.join(__dirname, 'melvor-helpers.js'), 'utf8');
 const sleep = ms => new Promise(r => setTimeout(r, ms));

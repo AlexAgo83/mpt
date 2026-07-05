@@ -6,9 +6,11 @@
   "license": "MIT",
   "scripts": {
     "check": "node --check melvor-report.js && node -e \"const fs=require('fs'); new Function(fs.readFileSync('melvor-helpers.js','utf8')); console.log('helper syntax ok')\"",
-    "help": "./melvor-report.js --help",
-    "slots": "./melvor-report.js slots",
-    "source": "./melvor-report.js source-of-truth",
-    "improve": "./melvor-report.js improve --record"
+    "help": "node --env-file-if-exists=.env.local melvor-report.js --help",
+    "slots": "node --env-file-if-exists=.env.local melvor-report.js slots",
+    "source": "node --env-file-if-exists=.env.local melvor-report.js source-of-truth",
+    "improve": "node --env-file-if-exists=.env.local melvor-report.js improve --record",
+    "test:slots": "MELVOR_ACCOUNT=test node --env-file-if-exists=.env.local melvor-report.js slots",
+    "test:source": "MELVOR_ACCOUNT=test node --env-file-if-exists=.env.local melvor-report.js source-of-truth"
   }
 }

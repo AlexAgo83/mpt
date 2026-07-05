@@ -1,6 +1,9 @@
 AGENTS.md
 LOGICS.md
 .DS_Store
+.env
+.env.*
+!.env.example
 logics/external/*
 !logics/external/.gitkeep
 logics/.cache/*
