@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      melvor_smoke:
+        description: "Run live Melvor smoke check"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm run check
+
+  melvor-smoke:
+    if: github.event_name == 'workflow_dispatch' && inputs.melvor_smoke == 'true'
+    runs-on: ubuntu-latest
+    env:
+      MELVOR_TEST_EMAIL: ${{ secrets.MELVOR_TEST_EMAIL }}
+      MELVOR_TEST_PASSWORD: ${{ secrets.MELVOR_TEST_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Refuse missing secrets
+        run: test -n "$MELVOR_TEST_EMAIL" && test -n "$MELVOR_TEST_PASSWORD"
+      - name: Placeholder
+        run: |
+          echo "Live Melvor login smoke is intentionally not implemented yet."
+          echo "Add it only after a test account flow is stable and non-destructive."

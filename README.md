@@ -1,6 +1,7 @@
 # MPT - Melvor Personal Tooling
 
 [![Last Commit](https://img.shields.io/github/last-commit/AlexAgo83/mpt/main)](https://github.com/AlexAgo83/mpt/commits/main)
+[![CI](https://github.com/AlexAgo83/mpt/actions/workflows/ci.yml/badge.svg)](https://github.com/AlexAgo83/mpt/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-4C8BF5)](./LICENSE)
 [![Melvor Idle](https://img.shields.io/badge/Melvor%20Idle-tooling-1f6feb)](https://melvoridle.com/)
 [![Runtime](https://img.shields.io/badge/runtime-Node.js-339933?logo=node.js&logoColor=white)](./melvor-report.js)
@@ -129,6 +130,23 @@ logics-manager status
 logics-manager lint --require-status
 logics-manager audit --group-by-doc
 ```
+
+## CI
+
+GitHub Actions runs the dependency-free syntax check on pushes and pull requests:
+
+```bash
+npm run check
+```
+
+The workflow also has a manual `workflow_dispatch` smoke slot for a future live Melvor
+test account. It expects these GitHub secrets when enabled:
+
+- `MELVOR_TEST_EMAIL`
+- `MELVOR_TEST_PASSWORD`
+
+The live smoke is intentionally a placeholder until the test-account login flow is stable
+and non-destructive.
 
 ## Project status
 
