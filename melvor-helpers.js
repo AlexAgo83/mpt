@@ -267,6 +267,7 @@
     };
     const set = next ? p.equipmentSets.map(setInfo).find(s => style && s.attackType === style) ?? null : null;
     const bankQty = name => { const item = findBank(name); return item ? game.bank.items.get(item).quantity : 0; };
+    const available = names => names.filter(name => bankQty(name) > 0);
     goals.nextSetup = next ? {
       dungeon: next.name,
       boss: next.boss,
@@ -278,6 +279,19 @@
       ].filter(Boolean),
       gearNotes: [
         set?.cape !== 'Maximum Skillcape' && bankQty('Maximum Skillcape') > 0 ? `Cape: ${set?.cape || 'empty'} -> Maximum Skillcape` : null,
+      ].filter(Boolean),
+      summons: style === 'ranged'
+        ? available(['Centaur', 'Yak', 'Wolf', 'Occultist']).slice(0, 2)
+        : style === 'melee'
+          ? available(['Minotaur', 'Yak', 'Wolf', 'Occultist']).slice(0, 2)
+          : style === 'magic'
+            ? available(['Witch', 'Yak', 'Wolf', 'Occultist']).slice(0, 2)
+            : [],
+      potions: [
+        bankQty('Damage Reduction Potion IV') > 0 ? 'Damage Reduction Potion IV for first clear safety' : null,
+        bankQty('Diamond Luck Potion IV') > 0 ? 'Diamond Luck Potion IV for DPS/farming' : null,
+        style === 'ranged' && bankQty('Ranged Strength Potion IV') > 0 ? 'Ranged Strength Potion IV if spending limited stock is OK' : null,
+        style === 'ranged' && bankQty('Ranged Assistance Potion IV') > 0 ? 'Ranged Assistance Potion IV if accuracy is the bottleneck' : null,
       ].filter(Boolean),
     } : null;
     return goals;

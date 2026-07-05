@@ -324,6 +324,8 @@ function combatGoalLines(report) {
     capped.length ? `capped standard skills: ${capped.join(', ')}` : null,
     dungeons.length ? `uncleared accessible candidates: ${dungeons.join('; ')}` : null,
     goals.nextSetup ? `next combat setup: ${goals.nextSetup.dungeon} with set ${goals.nextSetup.set?.index ?? '?'} ${goals.nextSetup.set?.attackType || 'unknown'} (${goals.nextSetup.set?.weapon || 'no weapon'}); prayers ${goals.nextSetup.prayers.join(' + ') || 'none'}` : null,
+    goals.nextSetup?.summons?.length ? `next summons: ${goals.nextSetup.summons.join(' + ')}` : null,
+    goals.nextSetup?.potions?.length ? `next potions: ${goals.nextSetup.potions.join('; ')}` : null,
     ...(goals.nextSetup?.gearNotes || []),
   ].filter(Boolean);
 }
@@ -353,6 +355,8 @@ function printCombatPlan(r) {
   }
   if (goals.nextSetup) {
     console.log(`  next setup: prayers ${goals.nextSetup.prayers.join(' + ') || 'none'}`);
+    if (goals.nextSetup.summons?.length) console.log(`  next setup: summons ${goals.nextSetup.summons.join(' + ')}`);
+    if (goals.nextSetup.potions?.length) console.log(`  next setup: potions ${goals.nextSetup.potions.join('; ')}`);
     for (const note of goals.nextSetup.gearNotes || []) console.log(`  next setup: ${note}`);
   }
 }

@@ -48,7 +48,7 @@ Purpose: capture what made the assistant less reliable, then promote only repeat
 - Observed: Edalbraw's next target is `Cursed Forest`; set 1 ranged is appropriate, but no prayers were active and the cape can improve from `Ancient Infernal Cape` to `Maximum Skillcape`.
 - Impact: `combat-plan` needed to surface setup recommendations, not only target dungeon names.
 - Root cause: Combat planning separated target choice from pre-run setup.
-- Fix shipped: `combatGoals.nextSetup` now records recommended set, simple prayers, and obvious cape swaps; the journal records those recommendations.
+- Fix shipped: `combatGoals.nextSetup` now records recommended set, simple prayers, summons, potions, and obvious cape swaps; the journal records those recommendations.
 - Follow-up: Add an apply command for approved combat setup changes, including prayers, without starting a dungeon.
 
 ## Entry template
