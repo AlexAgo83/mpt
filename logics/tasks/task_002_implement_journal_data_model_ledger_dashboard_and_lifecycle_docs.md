@@ -4,7 +4,7 @@
 > Status: Ready
 > Understanding: 90
 > Confidence: 86
-> Progress: 0
+> Progress: 40
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -15,10 +15,10 @@
 - Keep generation read-only. Do not mutate Melvor game state or add any action execution path in this task.
 
 # Plan
-- [ ] 1. Read README, MELVOR_RUNBOOK, MELVOR.md, melvor-report.js, the prior journal corpus, and this request chain.
-- [ ] 2. Implement `latest.json` and `actions.jsonl` generation first; do not start with dashboard markup.
-- [ ] 3. Make recommendation-to-action ids stable and suppress duplicates from existing action ledger entries.
-- [ ] 4. Add stale/dismissed handling before building visual filters.
+- [x] 1. Read README, MELVOR_RUNBOOK, MELVOR.md, melvor-report.js, the prior journal corpus, and this request chain.
+- [x] 2. Implement `latest.json` and `actions.jsonl` generation first; do not start with dashboard markup.
+- [x] 3. Make recommendation-to-action ids stable and suppress duplicates from existing action ledger entries.
+- [x] 4. Add stale/dismissed handling before building visual filters.
 - [ ] 5. Generate `journal/index.html` from sanitized latest-state data with embedded CSS/JS and no external assets.
 - [ ] 6. Document the artifact lifecycle and AI handoff rules.
 - [ ] 7. Run `npm run check`, `./melvor-report.js --help`, a single-character journal dry run, `./melvor-report.js journal all --record`, and inspect `journal/index.html`.

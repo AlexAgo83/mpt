@@ -39,13 +39,15 @@ const usage = `usage:
 Read-only commands. Check slots/diff-slots before any manual write.
 journal prints a Markdown entry; --record appends it under journal/ and
 refreshes journal/latest.json, journal/actions.jsonl and journal/index.html.`;
-if (cmd === '--help' || cmd === '-h' || cmd === 'help') {
-  console.log(usage);
-  process.exit(0);
-}
-if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'export-state', 'journal'].includes(cmd)) {
-  console.error(usage);
-  process.exit(2);
+if (require.main === module) {
+  if (cmd === '--help' || cmd === '-h' || cmd === 'help') {
+    console.log(usage);
+    process.exit(0);
+  }
+  if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'export-state', 'journal'].includes(cmd)) {
+    console.error(usage);
+    process.exit(2);
+  }
 }
 
 const names = who === 'all' ? CHARS : [who];
@@ -566,6 +568,76 @@ function journalMd(c) {
   ].join('\n');
 }
 
+const LEDGER = path.join(JOURNAL_DIR, 'actions.jsonl');
+const ACTION_STATUSES = ['proposed', 'approved', 'done', 'blocked', 'dismissed', 'stale'];
+
+function readLedger(file = LEDGER) {
+  const latest = new Map();
+  let text = '';
+  try { text = fs.readFileSync(file, 'utf8'); } catch { return latest; }
+  for (const [i, line] of text.split('\n').entries()) {
+    if (!line.trim()) continue;
+    try {
+      const e = JSON.parse(line);
+      if (e.id) latest.set(e.id, e);
+    } catch {
+      console.error(`warning: skipping malformed actions.jsonl line ${i + 1}`);
+    }
+  }
+  return latest;
+}
+
+// Pure merge: current recommendations vs latest ledger state -> events to append.
+// Dedup on unchanged contextHash; dismissed/done/blocked are respected until context changes;
+// open actions no longer recommended go stale.
+function mergeLedger(chars, latest, now) {
+  const events = [];
+  const push = (status, character, a, reason) => events.push({
+    ts: now, id: a.id, character, status, type: a.type, slot: a.slot, item: a.item,
+    risk: a.risk, reason: reason || a.reason, contextHash: a.contextHash,
+  });
+  for (const c of chars) {
+    for (const a of c.actions) {
+      const prev = latest.get(a.id);
+      if (!prev || prev.contextHash !== a.contextHash) push('proposed', c.name, a);
+    }
+    for (const prev of latest.values()) {
+      if (prev.character !== c.name || !['proposed', 'approved'].includes(prev.status)) continue;
+      if (!c.actions.some(a => a.id === prev.id))
+        push('stale', c.name, prev, 'observed state no longer produces this recommendation');
+    }
+  }
+  const merged = new Map(latest);
+  for (const e of events) merged.set(e.id, e);
+  return { events, latest: merged };
+}
+
+function buildLatest(chars, latest, previous, now) {
+  const characters = { ...(previous?.characters || {}) };
+  for (const c of chars) {
+    const decisions = Object.fromEntries(ACTION_STATUSES.map(s => [s, []]));
+    for (const e of latest.values()) {
+      if (e.character !== c.name) continue;
+      decisions[e.status]?.push({ id: e.id, slot: e.slot, item: e.item, risk: e.risk, reason: e.reason, ts: e.ts });
+    }
+    characters[c.name] = { observed: c.observed, analysis: c.analysis, decisions };
+  }
+  const actionsSummary = Object.fromEntries(ACTION_STATUSES.map(s => [s, 0]));
+  for (const e of latest.values()) if (e.status in actionsSummary) actionsSummary[e.status]++;
+  const staleMs = 24 * 3600 * 1000;
+  return {
+    generatedAt: now,
+    account: {
+      name: ACCOUNT,
+      scannedNow: chars.map(c => c.name),
+      saveRisks: Object.entries(characters).filter(([, v]) => v.analysis.riskNotes.some(n => /save/.test(n))).map(([k]) => k),
+      staleCharacters: Object.entries(characters).filter(([, v]) => Date.parse(now) - Date.parse(v.observed.at) > staleMs).map(([k]) => k),
+    },
+    characters,
+    actionsSummary,
+  };
+}
+
 async function collectJournal(name) {
   return withCharacter(name, client => evalExpr(client, `(() => {
     const wanted = ${JSON.stringify(JOURNAL_WANTED)};
@@ -588,6 +660,17 @@ async function runJournal() {
     fs.appendFileSync(path.join(JOURNAL_DIR, `${c.name}.md`), journalMd(c) + '\n\n');
     console.log(`recorded journal/${c.name}.md`);
   }
+  const now = new Date().toISOString();
+  const { events, latest } = mergeLedger(chars, readLedger(), now);
+  if (events.length) {
+    fs.appendFileSync(LEDGER, events.map(e => JSON.stringify(e)).join('\n') + '\n');
+    console.log(`recorded ${events.length} action event(s) in journal/actions.jsonl`);
+  }
+  let previous = null;
+  try { previous = JSON.parse(fs.readFileSync(path.join(JOURNAL_DIR, 'latest.json'), 'utf8')); } catch {}
+  const snapshot = buildLatest(chars, latest, previous, now);
+  fs.writeFileSync(path.join(JOURNAL_DIR, 'latest.json'), JSON.stringify(snapshot, null, 2));
+  console.log('recorded journal/latest.json');
 }
 
 function lock() {
@@ -603,7 +686,8 @@ function lock() {
   }
 }
 
-(async () => {
+module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, sourceOfTruth };
+if (require.main === module) (async () => {
   const unlock = lock();
   const chrome = await ensureChrome();
   try {

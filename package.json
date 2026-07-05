@@ -5,7 +5,7 @@
   "description": "Local Melvor Idle assistant tooling through Chrome DevTools.",
   "license": "MIT",
   "scripts": {
-    "check": "node --check melvor-report.js && node -e \"const fs=require('fs'); new Function(fs.readFileSync('melvor-helpers.js','utf8')); console.log('helper syntax ok')\"",
+    "check": "node --check melvor-report.js && node -e \"const fs=require('fs'); new Function(fs.readFileSync('melvor-helpers.js','utf8')); console.log('helper syntax ok')\" && node test-journal.js",
     "help": "node --env-file-if-exists=.env.local melvor-report.js --help",
     "smoke": "node --env-file-if-exists=.env.local melvor-report.js smoke",
     "login-smoke": "node --env-file-if-exists=.env.local melvor-report.js login-smoke",
