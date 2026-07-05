@@ -30,6 +30,20 @@ Purpose: capture what made the assistant less reliable, then promote only repeat
 - Fix shipped: journal, summary, gear, audit, plan, combat-plan, and export-state now load the source-of-truth save.
 - Follow-up: Reuse the source-aware loader in future write/apply workflows.
 
+### 2026-07-05 - Edalbraw dungeon run dogfood
+- Observed: `Lair of the Spider Queen` cleared on Edalbraw with set 0 melee; HP stayed safe, ending at 1135/1175, then combat stopped with `Claim` and many `Increase Level Cap` / `Increase Abyssal Level Cap` buttons visible.
+- Impact: The assistant can start and monitor a dungeon, but cannot yet summarize post-clear reward/cap choices or choose a cap safely.
+- Root cause: Combat automation is still one-off CDP scripting; `combat-plan` predicts targets but does not execute, monitor, or detect post-clear decisions.
+- Fix shipped: Journal refreshed after the clear so future planning sees the new state.
+- Follow-up: Add a `combat-run <character> <dungeon>` command that source-loads, equips the recommended set, starts combat, monitors transitions where `fightInProgress=false` between enemies, saves on completion, and reports pending reward/cap buttons without choosing them.
+
+### 2026-07-05 - Melvor report lock ergonomics
+- Observed: I accidentally ran `source-of-truth` in parallel with `journal --record`; the port lock correctly rejected one command.
+- Impact: Harmless, but it wastes time and creates noisy failures during multi-step Melvor sessions.
+- Root cause: The CLI has a single DevTools port and lock, while the assistant habitually parallelizes independent shell reads.
+- Fix shipped: none.
+- Follow-up: Never parallelize `melvor-report.js` commands for the same account; optionally add a small queue/retry wrapper for read-only commands.
+
 ## Entry template
 
 ```markdown

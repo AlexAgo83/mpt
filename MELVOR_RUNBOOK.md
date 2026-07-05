@@ -56,6 +56,7 @@ Plans are suggestions only. Check whether each item is available and whether the
 Read commands load the source-of-truth save for each character: local when local is newer, cloud otherwise.
 `gear` filters candidates the character cannot currently equip.
 `combat-plan` lists accessible uncleared dungeons, capped skills that may need new cap rolls, and the saved combat set that best matches the boss attack type.
+After an Ancient Relics dungeon clear, stop before clicking `Claim` or any `Increase Level Cap` button unless the user has chosen the target cap; record the pending choice in the journal instead.
 
 ## Apply a user-approved change
 
