@@ -7,6 +7,7 @@ const { spawn } = require('child_process');
 const ACCOUNT = process.env.MELVOR_ACCOUNT || 'main';
 const PORT = Number(ACCOUNT === 'test' ? (process.env.MELVOR_TEST_PORT || 9224) : (process.env.MELVOR_PORT || 9223));
 const URL = 'https://melvoridle.com/index_game.php';
+const AUTH_URL = 'https://melvoridle.com/index.php';
 const CHARS = ['GrifhinZ', 'Rya', 'Dash', 'Edalbraw', 'Opa', 'Chap', 'Kang'];
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const PROFILE = ACCOUNT === 'test'
@@ -20,6 +21,7 @@ const [cmd = 'summary', who = 'all'] = process.argv.slice(2);
 const usage = `usage:
   ./melvor-report.js slots
   ./melvor-report.js smoke
+  ./melvor-report.js login-smoke
   ./melvor-report.js diff-slots
   ./melvor-report.js source-of-truth
   ./melvor-report.js improve [--record]
@@ -35,7 +37,7 @@ if (cmd === '--help' || cmd === '-h' || cmd === 'help') {
   console.log(usage);
   process.exit(0);
 }
-if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'export-state'].includes(cmd)) {
+if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'export-state'].includes(cmd)) {
   console.error(usage);
   process.exit(2);
 }
@@ -318,7 +320,12 @@ async function readSlots() {
       const local = scrape('Local');
       if (/Show Cloud Saves/i.test(document.body.innerText)) await click(/Show Cloud Saves/i);
       const cloud = scrape('Cloud');
-      return { local, cloud };
+      const text = document.body.innerText || '';
+      return {
+        local,
+        cloud,
+        signedIn: (typeof cloudManager !== 'undefined' && Boolean(cloudManager.isAuthenticated)) || (!/DEMO VERSION/.test(text) && /Select your Character/.test(text)),
+      };
     })()`, 30000);
   });
 }
@@ -326,8 +333,50 @@ async function readSlots() {
 async function smoke() {
   const slots = await readSlots();
   const count = (slots.local?.length || 0) + (slots.cloud?.length || 0);
+  if (!slots.signedIn) throw Error('Melvor smoke failed: not signed in to Melvor Cloud');
   if (!count) throw Error('Melvor smoke failed: no local or cloud save buttons found');
   console.log(`smoke ok | account ${ACCOUNT} | port ${PORT} | slots ${count}`);
+}
+
+async function loginSmoke() {
+  const username = ACCOUNT === 'test' ? process.env.MELVOR_TEST_EMAIL : process.env.MELVOR_MAIN_EMAIL;
+  const password = ACCOUNT === 'test' ? process.env.MELVOR_TEST_PASSWORD : process.env.MELVOR_MAIN_PASSWORD;
+  if (!username || !password) throw Error(`missing ${ACCOUNT} Melvor credentials`);
+  const tab = await newTab(AUTH_URL);
+  const client = await cdp(tab.webSocketDebuggerUrl);
+  try {
+    await client.send('Runtime.enable');
+    await client.send('Page.enable');
+    await waitFor(client, "document.readyState === 'complete'", 90000);
+    await sleep(2200);
+    const alreadySignedIn = await evalExpr(client, "!/DEMO VERSION/.test(document.body.innerText || '') && /Select your Character/.test(document.body.innerText || '')");
+    if (alreadySignedIn) return;
+    try {
+      await evalExpr(client, `(async () => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      cloudManager.showSignInContainer();
+      await sleep(500);
+      const user = document.querySelector('#formElements-signIn-username');
+      const pass = document.querySelector('#formElements-signIn-password');
+      if (!user || !pass) throw Error('sign-in form not found');
+      for (const [el, value] of [[user, ${JSON.stringify(username)}], [pass, ${JSON.stringify(password)}]]) {
+        el.focus();
+        el.value = value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      document.querySelector('#formElements-signIn-submit').click();
+      return true;
+    })()`, 10000);
+    } catch (e) {
+      if (!/navigated|closed/i.test(String(e.message || e))) throw e;
+    }
+    await sleep(8000);
+  } finally {
+    client.close();
+    await closeTab(tab.id);
+  }
+  await smoke();
 }
 
 function parseSaveTime(value) {
@@ -443,6 +492,11 @@ function lock() {
   try {
     if (cmd === 'smoke') {
       await smoke();
+      return;
+    }
+
+    if (cmd === 'login-smoke') {
+      await loginSmoke();
       return;
     }
 

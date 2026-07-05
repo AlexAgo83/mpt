@@ -45,6 +45,7 @@ For live Melvor reads, start with read-only commands:
 
 ```bash
 npm run smoke
+npm run login-smoke
 npm run slots
 npm run source
 ```

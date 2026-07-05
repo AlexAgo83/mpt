@@ -64,6 +64,7 @@ Rules:
 npm run slots
 npm run source
 ./melvor-report.js smoke
+./melvor-report.js login-smoke
 ./melvor-report.js slots
 ./melvor-report.js diff-slots
 ./melvor-report.js source-of-truth
@@ -156,8 +157,8 @@ It expects these GitHub secrets when enabled:
 - `MELVOR_TEST_EMAIL`
 - `MELVOR_TEST_PASSWORD`
 
-The live smoke is read-only and requires an already accessible Melvor session. It does not
-create characters or perform a password relog yet.
+The live smoke is read-only. It can log into the test account with GitHub secrets, but it
+does not create characters or mutate saves.
 
 ## Project status
 

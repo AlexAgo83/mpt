@@ -39,10 +39,10 @@ jobs:
         id: chrome
       - name: Refuse missing secrets
         run: test -n "$MELVOR_TEST_EMAIL" && test -n "$MELVOR_TEST_PASSWORD"
-      - name: Live read-only smoke
+      - name: Live read-only login smoke
         env:
           CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
           MELVOR_ACCOUNT: test
           MELVOR_TEST_PROFILE: ${{ runner.temp }}/mpt-melvor-test-profile
           MELVOR_TEST_PORT: "9224"
-        run: node melvor-report.js smoke
+        run: node melvor-report.js login-smoke
