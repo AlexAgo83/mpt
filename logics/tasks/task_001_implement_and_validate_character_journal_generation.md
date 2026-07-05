@@ -4,7 +4,7 @@
 > Status: Ready
 > Understanding: 90
 > Confidence: 85
-> Progress: 0
+> Progress: 40
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -16,10 +16,10 @@
 - Report commands are read-only. Do not mutate Melvor saves while generating or recording journal entries.
 
 # Plan
-- [ ] 1. Read README, MELVOR_RUNBOOK, melvor-report.js, and this request chain.
-- [ ] 2. Trace existing `summary`, `audit`, `plan`, `export-state`, `slots`, and `source-of-truth` flows before editing.
-- [ ] 3. Add the smallest `journal` command that reuses existing collection helpers and prints Markdown by default.
-- [ ] 4. Add `--record` file appending under `journal/` with no secrets or save strings.
+- [x] 1. Read README, MELVOR_RUNBOOK, melvor-report.js, and this request chain.
+- [x] 2. Trace existing `summary`, `audit`, `plan`, `export-state`, `slots`, and `source-of-truth` flows before editing.
+- [x] 3. Add the smallest `journal` command that reuses existing collection helpers and prints Markdown by default.
+- [x] 4. Add `--record` file appending under `journal/` with no secrets or save strings.
 - [ ] 5. Generate `journal/index.html` from the same sanitized latest-state data with embedded CSS/JS, no external assets, and no server requirement.
 - [ ] 6. Include dashboard search plus action/risk filters, compact character cards/rows, top recommendations, proposed actions, and links to Markdown files.
 - [ ] 7. Update README and MELVOR_RUNBOOK command docs.

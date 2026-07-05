@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
@@ -17,7 +18,9 @@ const LOCK = path.join('/tmp', `melvor-report-${PORT}.lock`);
 const helper = fs.readFileSync(path.join(__dirname, 'melvor-helpers.js'), 'utf8');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-const [cmd = 'summary', who = 'all'] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+const record = argv.includes('--record');
+const [cmd = 'summary', who = 'all'] = argv.filter(a => a !== '--record');
 const usage = `usage:
   ./melvor-report.js slots
   ./melvor-report.js smoke
@@ -31,19 +34,22 @@ const usage = `usage:
   ./melvor-report.js gear <character>
   ./melvor-report.js skilling <character>
   ./melvor-report.js export-state [all|character]
+  ./melvor-report.js journal [all|character] [--record]
 
-Read-only commands. Check slots/diff-slots before any manual write.`;
+Read-only commands. Check slots/diff-slots before any manual write.
+journal prints a Markdown entry; --record appends it under journal/ and
+refreshes journal/latest.json, journal/actions.jsonl and journal/index.html.`;
 if (cmd === '--help' || cmd === '-h' || cmd === 'help') {
   console.log(usage);
   process.exit(0);
 }
-if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'export-state'].includes(cmd)) {
+if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'export-state', 'journal'].includes(cmd)) {
   console.error(usage);
   process.exit(2);
 }
 
 const names = who === 'all' ? CHARS : [who];
-const recordImprovement = cmd === 'improve' && who === '--record';
+const recordImprovement = cmd === 'improve' && record;
 const req = (method, path) => new Promise((resolve, reject) => {
   const r = http.request({ host: '127.0.0.1', port: PORT, method, path }, res => {
     let data = '';
@@ -247,13 +253,14 @@ function printAudit(r) {
   }
 }
 
-function planLines(r) {
+function planActions(r) {
   const eq = r.report.equipment;
   const bank = r.bank || {};
-  const lines = [];
+  const actions = [];
   const add = (slot, item, reason) => {
     if (eq[slot] === item) return;
-    lines.push(`${slot}: ${eq[slot] || 'empty'} -> ${item} (${bank[item] > 0 ? `available x${bank[item]}` : 'not in bank'}; ${reason})`);
+    actions.push({ type: 'equip', slot, item, current: eq[slot] || 'empty', available: bank[item] || 0, reason,
+      risk: r.report.mode === 'Hardcore Mode' ? 'medium' : 'low' });
   };
   if (r.report.action === 'Fishing') add('Summon2', 'Octopus', 'Fishing yield');
   if (r.report.action === 'Herblore') {
@@ -270,7 +277,11 @@ function planLines(r) {
     add('Amulet', 'Jeweled Necklace', 'remove Fishing-only amulet');
     add('Summon2', 'Eagle', 'Agility interval');
   }
-  return lines;
+  return actions;
+}
+
+function planLines(r) {
+  return planActions(r).map(a => `${a.slot}: ${a.current} -> ${a.item} (${a.available > 0 ? `available x${a.available}` : 'not in bank'}; ${a.reason})`);
 }
 
 function printPlan(r) {
@@ -473,6 +484,112 @@ function printImprovementReport(slots) {
   }
 }
 
+const JOURNAL_DIR = path.join(__dirname, 'journal');
+const JOURNAL_WANTED = ['Octopus', 'Potion Stirrer', 'Bear', 'Jeweled Necklace', 'Book of Scholars', 'Ancient Ring of Mastery', 'Golden Star', 'Eagle'];
+const sha = s => crypto.createHash('sha1').update(s).digest('hex').slice(0, 12);
+// ponytail: id = char+slot+item, contextHash = activity+currently equipped item; refine if dedup proves too coarse
+const actionId = (name, a) => sha(`${name}|${a.type}|${a.slot}|${a.item}`);
+const actionContextHash = (report, a) => sha(`${report.action}|${report.equipment[a.slot] || 'empty'}`);
+
+function buildCharacterJournal(name, data, save) {
+  const report = data.report;
+  const actions = planActions(data).map(a => ({ ...a, id: actionId(name, a), contextHash: actionContextHash(report, a) }));
+  const saveRisk = !save || save.source === 'unknown'
+    ? 'save source of truth unknown'
+    : save.source === 'local' && save.diffMs > 5 * 60000
+      ? `local save newer than cloud by ${Math.round(save.diffMs / 60000)} min`
+      : null;
+  return {
+    name,
+    observed: {
+      at: new Date().toISOString(),
+      action: report.action,
+      mode: report.mode,
+      gp: report.gp,
+      combatLevel: report.combatLevel,
+      totalLevel: report.totalLevel,
+      maxedSkills: report.maxedSkills,
+      hp: report.hp,
+      food: report.food,
+      foodQty: report.foodQty,
+      equipment: report.equipment,
+      lowSkills: report.lowSkills.slice(0, 6),
+      saveSource: save ? { source: save.source, diffMinutes: save.diffMs === null ? null : Math.round(save.diffMs / 60000) } : null,
+    },
+    analysis: {
+      recommendations: [...(data.skilling.notes || []), ...planLines(data)],
+      optimizationPlan: report.lowSkills.filter(s => s.level > 1).slice(0, 3).map(s => `raise ${s.name} (level ${s.level})`),
+      riskNotes: [
+        saveRisk,
+        report.mode === 'Hardcore Mode' ? 'Hardcore character: verify survivability before any combat change' : null,
+      ].filter(Boolean),
+      stale: false,
+    },
+    actions,
+    saveRisk,
+  };
+}
+
+function journalHistoryCount(name) {
+  try {
+    return (fs.readFileSync(path.join(JOURNAL_DIR, `${name}.md`), 'utf8').match(/^## /gm) || []).length;
+  } catch {
+    return 0;
+  }
+}
+
+function journalMd(c) {
+  const history = journalHistoryCount(c.name);
+  const o = c.observed;
+  const list = xs => xs.length ? xs.map(x => `- ${x}`) : ['- none'];
+  return [
+    `## ${o.at} — ${c.name}`,
+    '',
+    '### State',
+    `- Action: ${o.action || 'idle'} (${o.mode || 'unknown mode'})`,
+    `- Total level ${o.totalLevel}, maxed ${o.maxedSkills}, combat ${o.combatLevel}`,
+    `- GP ${fmtNum(o.gp)}, HP ${fmtNum(o.hp)}, food ${o.food || 'none'} x${fmtNum(o.foodQty || 0)}`,
+    `- Save source: ${o.saveSource ? `${o.saveSource.source}${o.saveSource.diffMinutes === null ? '' : ` (delta ${o.saveSource.diffMinutes} min)`}` : 'unknown'}`,
+    ...(c.saveRisk ? [`- Save risk: ${c.saveRisk}`] : []),
+    '',
+    '### Recommendations',
+    ...list(c.analysis.recommendations),
+    '',
+    '### Optimization plan',
+    ...list(c.analysis.optimizationPlan),
+    '',
+    '### Proposed actions',
+    ...list(c.actions.map(a => `[${a.id}] equip ${a.item} in ${a.slot} (now: ${a.current}; risk ${a.risk}; ${a.reason})`)),
+    '',
+    '### History',
+    `- ${history} prior ${history === 1 ? 'entry' : 'entries'} in journal/${c.name}.md`,
+  ].join('\n');
+}
+
+async function collectJournal(name) {
+  return withCharacter(name, client => evalExpr(client, `(() => {
+    const wanted = ${JSON.stringify(JOURNAL_WANTED)};
+    const qty = n => { for (const [item, bi] of game.bank.items) if (item.name === n) return bi.quantity; return 0; };
+    return { report: mh.readOnlyReport(), skilling: mh.skillingAudit(), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])) };
+  })()`));
+}
+
+async function runJournal() {
+  const slots = await readSlots();
+  const sources = Object.fromEntries(sourceOfTruth(slots).map(s => [s.name, s]));
+  const chars = [];
+  for (const name of names) chars.push(buildCharacterJournal(name, await collectJournal(name), sources[name]));
+  if (!record) {
+    for (const c of chars) console.log(journalMd(c) + '\n');
+    return;
+  }
+  fs.mkdirSync(JOURNAL_DIR, { recursive: true });
+  for (const c of chars) {
+    fs.appendFileSync(path.join(JOURNAL_DIR, `${c.name}.md`), journalMd(c) + '\n\n');
+    console.log(`recorded journal/${c.name}.md`);
+  }
+}
+
 function lock() {
   try {
     const fd = fs.openSync(LOCK, 'wx');
@@ -506,6 +623,11 @@ function lock() {
       else if (cmd === 'source-of-truth') printSourceOfTruth(data);
       else if (cmd === 'improve') printImprovementReport(data);
       else printSlots(data);
+      return;
+    }
+
+    if (cmd === 'journal') {
+      await runJournal();
       return;
     }
 
