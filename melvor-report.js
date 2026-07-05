@@ -362,13 +362,13 @@ async function loginSmoke() {
     await client.send('Page.enable');
     await waitFor(client, "document.readyState === 'complete'", 90000);
     await sleep(2200);
+    await waitFor(client, "document.querySelector('#formElements-signIn-username') || (!/DEMO VERSION/.test(document.body.innerText || '') && /Select your Character/.test(document.body.innerText || ''))", 60000);
     const alreadySignedIn = await evalExpr(client, "!/DEMO VERSION/.test(document.body.innerText || '') && /Select your Character/.test(document.body.innerText || '')");
     if (alreadySignedIn) return;
     try {
       await evalExpr(client, `(async () => {
       const sleep = ms => new Promise(r => setTimeout(r, ms));
-      cloudManager.showSignInContainer();
-      await sleep(500);
+      if (typeof cloudManager !== 'undefined') { cloudManager.showSignInContainer(); await sleep(500); }
       const user = document.querySelector('#formElements-signIn-username');
       const pass = document.querySelector('#formElements-signIn-password');
       if (!user || !pass) throw Error('sign-in form not found');
@@ -812,8 +812,9 @@ function lock() {
 module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth };
 if (require.main === module) (async () => {
   const unlock = lock();
-  const chrome = await ensureChrome();
+  let chrome = null;
   try {
+    chrome = await ensureChrome();
     if (cmd === 'smoke') {
       await smoke();
       return;
