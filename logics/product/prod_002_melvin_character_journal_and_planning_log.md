@@ -1,6 +1,6 @@
 ## prod_002_melvin_character_journal_and_planning_log - Melvin - character journal and planning log
 > Date: 2026-07-05
-> Status: Accepted
+> Status: Settled
 > Related request: `req_000_character_journal_generation_for_melvor_planning`
 > Related backlog: `item_001_add_append_only_character_journal_command`
 > Related task: `task_001_implement_and_validate_character_journal_generation`

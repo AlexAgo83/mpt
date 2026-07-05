@@ -1,6 +1,6 @@
 ## prod_001_melvin_ai_assistant_for_melvor_idle - Melvin - AI assistant for Melvor Idle
 > Date: 2026-07-04
-> Status: Proposed
+> Status: Settled
 > Related request: (none yet)
 > Related backlog: (none yet)
 > Related task: (none yet)

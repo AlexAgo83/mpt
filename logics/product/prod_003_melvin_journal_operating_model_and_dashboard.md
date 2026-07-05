@@ -1,6 +1,6 @@
 ## prod_003_melvin_journal_operating_model_and_dashboard - Melvin - journal operating model and dashboard
 > Date: 2026-07-05
-> Status: Active
+> Status: Settled
 > Related request: `req_001_journal_operating_model_and_interactive_dashboard`
 > Related backlog: `item_002_create_structured_journal_snapshot_and_action_ledger`, `item_003_generate_interactive_offline_journal_dashboard`, `item_004_document_journal_lifecycle_and_ai_handoff_rules`
 > Related task: `task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs`
