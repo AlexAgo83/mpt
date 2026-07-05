@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Offline self-check for journal pure logic: ids, dedup, dismissed, stale, latest.json shape.
 const assert = require('assert');
-const { buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard } = require('./melvor-report.js');
+const { buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, potionItemName } = require('./melvor-report.js');
 
 const data = {
   report: {
@@ -15,6 +15,9 @@ const data = {
 };
 const save = { source: 'local', diffMs: 10 * 60000 };
 const now = '2026-07-05T12:00:00.000Z';
+
+assert.strictEqual(potionItemName('Damage Reduction Potion IV for first clear safety'), 'Damage Reduction Potion IV');
+assert.strictEqual(potionItemName('Ranged Assistance Potion IV if accuracy is the bottleneck'), 'Ranged Assistance Potion IV');
 
 const c = buildCharacterJournal('TestChar', data, save);
 assert.strictEqual(c.actions.length, 1, 'Fishing without Octopus proposes one equip');

@@ -32,6 +32,7 @@ const usage = `usage:
   ./melvor-report.js audit [all|character]
   ./melvor-report.js plan [all|character]
   ./melvor-report.js combat-plan [all|character]
+  ./melvor-report.js combat-setup <character>
   ./melvor-report.js combat-run <character> <dungeon name|id>
   ./melvor-report.js gear <character>
   ./melvor-report.js skilling <character>
@@ -39,7 +40,7 @@ const usage = `usage:
   ./melvor-report.js journal [all|character] [--record]
   ./melvor-report.js journal-action <id> <approved|dismissed|done|blocked>
 
-Read-only commands. Check slots/diff-slots before any manual write.
+Most commands are read-only. combat-setup and combat-run write, save, then verify source-of-truth.
 journal prints a Markdown entry; --record appends it under journal/ and
 refreshes journal/latest.json, journal/actions.jsonl and journal/index.html.`;
 if (require.main === module) {
@@ -47,7 +48,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-run', 'export-state', 'journal', 'journal-action'].includes(cmd)) {
+  if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'export-state', 'journal', 'journal-action'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -367,9 +368,37 @@ function printCombatRun(r) {
   for (const s of r.samples) {
     console.log(`  ${s.t} progress ${s.progress} | completed ${s.completed} | ${s.monster || 'none'} hp ${s.enemyHP ?? '-'} | player ${s.hp}/${s.maxHP} | fight ${s.fight}`);
   }
-  if (r.capButtons.length) console.log(`  pending: ${[...new Set(r.capButtons)].join(', ')}`);
+  for (const o of r.rewardOptions || []) console.log(`  pending option: ${o.label}${o.context ? ` | ${o.context}` : ''}`);
+  console.log(`  saved: ${r.saved} | source ${r.sourceBefore} -> ${r.sourceAfter}`);
+}
+
+function recordCombatRewardOptions(r) {
+  if (!r.rewardOptions?.length) return;
+  fs.mkdirSync(JOURNAL_DIR, { recursive: true });
+  fs.appendFileSync(path.join(JOURNAL_DIR, `${r.name}.md`), [
+    `## ${new Date().toISOString()} - ${r.name} combat rewards`,
+    '',
+    `- Dungeon: ${r.dungeon}`,
+    `- Status: ${r.status}`,
+    ...r.rewardOptions.map(o => `- Pending option: ${o.label}${o.context ? ` - ${o.context}` : ''}`),
+    '',
+  ].join('\n') + '\n');
+  console.log(`recorded journal/${r.name}.md`);
+}
+
+function printCombatSetup(r) {
+  console.log(`${r.name} | combat-setup | ${r.dungeon} | ${r.status}`);
+  console.log(`  source ${r.sourceBefore} -> ${r.sourceAfter}`);
+  for (const x of r.actions) console.log(`  ${x}`);
   console.log(`  saved: ${r.saved}`);
 }
+
+const visibleRewardOptions = `(() => [...document.querySelectorAll('button')]
+  .map(b => ({ label: b.innerText.trim(), context: (b.closest('.swal2-popup,.modal,.block,.content')?.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 220) }))
+  .filter(o => /^Claim$|^Increase .*Level Cap$/.test(o.label))
+)()`;
+
+const potionItemName = s => String(s || '').split(/\s+(?:for|if)\s+/i)[0].trim();
 
 const combatRunScript = (dungeonRef, timeoutMs) => `(async () => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -416,11 +445,41 @@ const combatRunScript = (dungeonRef, timeoutMs) => `(async () => {
     if (sample.hp < sample.maxHP * 0.35) { status = 'low-hp'; break; }
     await sleep(10000);
   }
-  const capButtons = [...document.querySelectorAll('button')]
-    .map(b => b.innerText.trim())
-    .filter(t => /^Claim$|^Increase .*Level Cap$/.test(t));
-  const saved = await mh.save();
-  return { name: game.characterName, dungeon: dungeon.name, status, set, samples, capButtons, saved };
+  const rewardOptions = ${visibleRewardOptions};
+  return { name: game.characterName, dungeon: dungeon.name, status, set, samples, rewardOptions };
+})()`;
+
+const combatSetupScript = `(() => {
+  const goals = mh.combatGoals();
+  const setup = goals.nextSetup;
+  if (!setup) return { status: 'error', error: 'no next combat setup found' };
+  const p = game.combat.player;
+  const actions = [];
+  if (setup.set?.index !== undefined) {
+    p.changeEquipmentSet(setup.set.index);
+    actions.push('set: ' + setup.set.index + ' ' + (setup.set.attackType || 'unknown'));
+  }
+  if (setup.gearNotes?.some(n => /Maximum Skillcape/.test(n)))
+    actions.push('cape: ' + mh.equipSlot('Maximum Skillcape', 'Cape'));
+  for (const [i, name] of (setup.summons || []).slice(0, 2).entries())
+    actions.push('summon' + (i + 1) + ': ' + mh.equipSlot(name, 'Summon' + (i + 1)));
+  for (const raw of setup.potions || []) {
+    const name = (${potionItemName.toString()})(raw);
+    const result = mh.equipSlot(name, 'Consumable');
+    actions.push('potion: ' + (/not equipment|invalid slot/.test(result) ? 'skipped ' + name + ' (' + result + ')' : result));
+  }
+  for (const name of setup.prayers || []) {
+    const prayer = game.prayers?.allObjects?.find(p => p.name === name);
+    const toggle = p.togglePrayer || game.combat.player.togglePrayer;
+    const active = p.activePrayers;
+    const already = active?.has?.(prayer) || active?.includes?.(prayer) || active?.some?.(x => x === prayer || x.name === name);
+    if (already) { actions.push('prayer: already active ' + name); continue; }
+    if (prayer && toggle) {
+      try { toggle.call(p, prayer); actions.push('prayer: toggled ' + name); }
+      catch (e) { actions.push('prayer: skipped ' + name + ' (' + e.message + ')'); }
+    } else actions.push('prayer: skipped ' + name + ' (API not found)');
+  }
+  return { name: game.characterName, dungeon: setup.dungeon, status: 'prepared', actions };
 })()`;
 
 function printSlots(r) {
@@ -917,6 +976,19 @@ async function readSourcesByName() {
   return { slots, sources: Object.fromEntries(sourceOfTruth(slots).map(s => [s.name, s])) };
 }
 
+async function withCharacterWrite(name, fn) {
+  const { sources } = await readSourcesByName();
+  const before = sources[name] || null;
+  const result = await withCharacterSource(name, before?.source, async client => {
+    const result = await fn(client);
+    const saved = await evalExpr(client, 'mh.save()', 60000);
+    return { ...result, saved };
+  });
+  const afterSlots = await readSlots();
+  const after = sourceOfTruth(afterSlots).find(s => s.name === name) || null;
+  return { ...result, sourceBefore: before?.source || 'unknown', sourceAfter: after?.source || 'unknown' };
+}
+
 // Offline status change: appends a ledger event and refreshes latest.json + dashboard.
 function runJournalAction(id, status) {
   const allowed = ['approved', 'dismissed', 'done', 'blocked'];
@@ -986,7 +1058,7 @@ function lock(retry = true) {
   }
 }
 
-module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth };
+module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName };
 if (require.main === module) (async () => {
   if (cmd === 'journal-action') return runJournalAction(who, arg3);
   const unlock = lock();
@@ -1019,11 +1091,19 @@ if (require.main === module) (async () => {
 
     if (cmd === 'combat-run') {
       if (who === 'all' || !arg3) throw Error('usage: ./melvor-report.js combat-run <character> <dungeon name|id>');
-      const { sources } = await readSourcesByName();
-      const data = await withCharacterSource(who, sources[who]?.source, client =>
+      const data = await withCharacterWrite(who, client =>
         evalExpr(client, combatRunScript(arg3, process.env.MELVOR_COMBAT_RUN_TIMEOUT_MS || 10 * 60 * 1000), Number(process.env.MELVOR_COMBAT_RUN_TIMEOUT_MS || 10 * 60 * 1000) + 60000));
       if (data.status === 'error') throw Error(data.error);
       printCombatRun(data);
+      recordCombatRewardOptions(data);
+      return;
+    }
+
+    if (cmd === 'combat-setup') {
+      if (who === 'all') throw Error('usage: ./melvor-report.js combat-setup <character>');
+      const data = await withCharacterWrite(who, client => evalExpr(client, combatSetupScript, 60000));
+      if (data.status === 'error') throw Error(data.error);
+      printCombatSetup(data);
       return;
     }
 
