@@ -154,6 +154,8 @@ async function ensureChrome() {
     `--user-data-dir=${PROFILE}`,
     '--headless=new',
     '--disable-gpu',
+    '--no-sandbox',
+    '--disable-dev-shm-usage',
     '--no-first-run',
     '--no-default-browser-check',
     'about:blank',
