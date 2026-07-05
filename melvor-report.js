@@ -385,7 +385,11 @@ async function loginSmoke() {
     } catch (e) {
       if (!/navigated|closed/i.test(String(e.message || e))) throw e;
     }
-    await sleep(8000);
+    try {
+      await waitFor(client, "!/DEMO VERSION/.test(document.body?.innerText || '') && /Select your Character/.test(document.body?.innerText || '')", 45000);
+    } catch {
+      throw Error('login did not reach character selection (wrong credentials, captcha, or slow load)');
+    }
   } finally {
     client.close();
     await closeTab(tab.id);
