@@ -235,7 +235,7 @@
         requirements: (d.entryRequirements ?? d.unlockRequirements ?? d.requirements ?? []).map(reqInfo),
       };
     });
-    return {
+    const goals = {
       cappedSkills: game.skills.allObjects
         .filter(s => s.level >= s.currentLevelCap || (s.abyssalLevel ?? 0) >= (s.currentAbyssalLevelCap ?? Infinity))
         .map(s => ({
@@ -250,6 +250,37 @@
         .filter(d => d.requirements.every(r => r.met))
         .sort((a, b) => a.maxCombatLevel - b.maxCombatLevel),
     };
+    const beats = { melee: 'magic', ranged: 'melee', magic: 'ranged' };
+    const next = goals.unclearedDungeons[0] ?? null;
+    const style = next ? beats[next.bossAttackType] ?? null : null;
+    const p = game.combat.player;
+    const setInfo = (set, index) => {
+      const equipped = set.equipment.equippedArray.filter(s => !s.isEmpty);
+      const item = slot => equipped.find(s => s.slot.localID === slot)?.item;
+      return {
+        index,
+        attackType: item('Weapon')?.attackType ?? null,
+        weapon: item('Weapon')?.name ?? null,
+        cape: item('Cape')?.name ?? null,
+        consumable: item('Consumable')?.name ?? null,
+      };
+    };
+    const set = next ? p.equipmentSets.map(setInfo).find(s => style && s.attackType === style) ?? null : null;
+    const bankQty = name => { const item = findBank(name); return item ? game.bank.items.get(item).quantity : 0; };
+    goals.nextSetup = next ? {
+      dungeon: next.name,
+      boss: next.boss,
+      bossAttackType: next.bossAttackType,
+      set,
+      prayers: [
+        style === 'ranged' ? 'Rigour' : style === 'melee' ? 'Piety' : style === 'magic' ? 'Augury' : null,
+        next.bossAttackType === 'magic' ? 'Protect from Magic' : next.bossAttackType === 'ranged' ? 'Protect from Ranged' : next.bossAttackType === 'melee' ? 'Protect from Melee' : null,
+      ].filter(Boolean),
+      gearNotes: [
+        set?.cape !== 'Maximum Skillcape' && bankQty('Maximum Skillcape') > 0 ? `Cape: ${set?.cape || 'empty'} -> Maximum Skillcape` : null,
+      ].filter(Boolean),
+    } : null;
+    return goals;
   };
 
   // An item's passives (modifiers) — bank, equipped, or global registry.

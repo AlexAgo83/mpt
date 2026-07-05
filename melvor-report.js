@@ -323,6 +323,8 @@ function combatGoalLines(report) {
   return [
     capped.length ? `capped standard skills: ${capped.join(', ')}` : null,
     dungeons.length ? `uncleared accessible candidates: ${dungeons.join('; ')}` : null,
+    goals.nextSetup ? `next combat setup: ${goals.nextSetup.dungeon} with set ${goals.nextSetup.set?.index ?? '?'} ${goals.nextSetup.set?.attackType || 'unknown'} (${goals.nextSetup.set?.weapon || 'no weapon'}); prayers ${goals.nextSetup.prayers.join(' + ') || 'none'}` : null,
+    ...(goals.nextSetup?.gearNotes || []),
   ].filter(Boolean);
 }
 
@@ -348,6 +350,10 @@ function printCombatPlan(r) {
     const reqs = d.requirements.length ? d.requirements.map(req => req.dungeon || req.skill || req.purchase || req.type).join(', ') : 'none';
     console.log(`  dungeon: ${d.name} | boss ${d.boss || 'unknown'} (${d.bossAttackType || 'unknown'}, CL ${d.maxCombatLevel})`);
     console.log(`    use set ${set.index ?? '?'} ${set.attackType || 'unknown'}: ${set.weapon || 'no weapon'} / ${set.cape || 'no cape'} | reqs ${reqs}`);
+  }
+  if (goals.nextSetup) {
+    console.log(`  next setup: prayers ${goals.nextSetup.prayers.join(' + ') || 'none'}`);
+    for (const note of goals.nextSetup.gearNotes || []) console.log(`  next setup: ${note}`);
   }
 }
 
