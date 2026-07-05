@@ -11,7 +11,7 @@ Changes should stay traceable to the helper surface, CLI reports, or Logics cont
 Use a recent Node.js runtime. The CLI has no install step and no package dependencies.
 
 ```bash
-./melvor-report.js --help
+npm run help
 ```
 
 The browser workflow depends on the shared Chrome profile documented in
@@ -30,9 +30,8 @@ The browser workflow depends on the shared Chrome profile documented in
 Run the smallest useful checks for your change:
 
 ```bash
-node --check melvor-report.js
-node -e "const fs=require('fs'); new Function(fs.readFileSync('melvor-helpers.js','utf8')); console.log('helper syntax ok')"
-./melvor-report.js --help
+npm run check
+npm run help
 ```
 
 For Logics changes:
@@ -45,8 +44,8 @@ logics-manager audit --group-by-doc
 For live Melvor reads, start with read-only commands:
 
 ```bash
-./melvor-report.js slots
-./melvor-report.js source-of-truth
+npm run slots
+npm run source
 ```
 
 ## Safety Rules

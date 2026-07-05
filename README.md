@@ -60,6 +60,8 @@ Rules:
 ## Commands
 
 ```bash
+npm run slots
+npm run source
 ./melvor-report.js slots
 ./melvor-report.js diff-slots
 ./melvor-report.js source-of-truth
@@ -103,6 +105,7 @@ If login expires, open the same profile visibly, let the user log in, then retur
 
 - [`melvor-report.js`](./melvor-report.js): read-only CLI reports and source-of-truth checks
 - [`melvor-helpers.js`](./melvor-helpers.js): injected `window.mh` browser helper library
+- [`package.json`](./package.json): standard local command aliases, no dependencies
 - [`MELVOR.md`](./MELVOR.md): full operating manual for AI assistants
 - [`MELVOR_RUNBOOK.md`](./MELVOR_RUNBOOK.md): short runbook for common workflows
 - [`AI_IMPROVEMENTS.md`](./AI_IMPROVEMENTS.md): ledger for repeated assistant failures and improvements
@@ -115,9 +118,8 @@ If login expires, open the same profile visibly, let the user log in, then retur
 ## Validation
 
 ```bash
-node --check melvor-report.js
-node -e "const fs=require('fs'); new Function(fs.readFileSync('melvor-helpers.js','utf8')); console.log('helper syntax ok')"
-./melvor-report.js --help
+npm run check
+npm run help
 ```
 
 For workflow docs:
@@ -138,6 +140,11 @@ Current focus:
 - safe assistant handoff between Codex and Claude
 - compact account audits and recommendations
 - promoting repeated manual browser scripts into CLI commands only when they keep recurring
+
+## Framework decision
+
+The project intentionally stays as plain Node.js scripts: no build step, no runtime
+dependencies, no custom framework. `package.json` only provides standard command aliases.
 
 ## References
 
