@@ -32,6 +32,7 @@ const usage = `usage:
   ./melvor-report.js audit [all|character]
   ./melvor-report.js plan [all|character]
   ./melvor-report.js combat-plan [all|character]
+  ./melvor-report.js combat-run <character> <dungeon name|id>
   ./melvor-report.js gear <character>
   ./melvor-report.js skilling <character>
   ./melvor-report.js export-state [all|character]
@@ -46,7 +47,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'export-state', 'journal', 'journal-action'].includes(cmd)) {
+  if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-run', 'export-state', 'journal', 'journal-action'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -349,6 +350,68 @@ function printCombatPlan(r) {
     console.log(`    use set ${set.index ?? '?'} ${set.attackType || 'unknown'}: ${set.weapon || 'no weapon'} / ${set.cape || 'no cape'} | reqs ${reqs}`);
   }
 }
+
+function printCombatRun(r) {
+  console.log(`${r.name} | combat-run | ${r.dungeon} | ${r.status}`);
+  console.log(`  set ${r.set?.index ?? '?'} ${r.set?.attackType || 'unknown'}: ${r.set?.weapon || 'no weapon'} / ${r.set?.cape || 'no cape'}`);
+  for (const s of r.samples) {
+    console.log(`  ${s.t} progress ${s.progress} | completed ${s.completed} | ${s.monster || 'none'} hp ${s.enemyHP ?? '-'} | player ${s.hp}/${s.maxHP} | fight ${s.fight}`);
+  }
+  if (r.capButtons.length) console.log(`  pending: ${[...new Set(r.capButtons)].join(', ')}`);
+  console.log(`  saved: ${r.saved}`);
+}
+
+const combatRunScript = (dungeonRef, timeoutMs) => `(async () => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const beats = { melee: 'magic', ranged: 'melee', magic: 'ranged' };
+  const allDungeons = game.dungeons.allObjects;
+  const ref = ${JSON.stringify(dungeonRef)}.toLowerCase();
+  const dungeon = allDungeons.find(d => d.id.toLowerCase() === ref)
+    ?? allDungeons.find(d => d.name.toLowerCase() === ref)
+    ?? allDungeons.find(d => d.name.toLowerCase().includes(ref));
+  if (!dungeon) return { status: 'error', error: 'unknown dungeon: ${dungeonRef.replace(/'/g, "\\'")}' };
+  const monsters = dungeon.monsters ?? [];
+  const boss = monsters[monsters.length - 1];
+  const style = beats[boss?.attackType] || null;
+  const p = game.combat.player;
+  const setInfo = (set, index) => {
+    const equipped = set.equipment.equippedArray.filter(s => !s.isEmpty);
+    const item = slot => equipped.find(s => s.slot.localID === slot)?.item;
+    return { index, attackType: item('Weapon')?.attackType ?? null, weapon: item('Weapon')?.name ?? null, cape: item('Cape')?.name ?? null };
+  };
+  const sets = p.equipmentSets.map(setInfo);
+  const set = sets.find(s => style && s.attackType === style) || sets.find(s => s.attackType);
+  if (!set) return { status: 'error', dungeon: dungeon.name, error: 'no combat set found' };
+  const beforeCompleted = game.combat.getDungeonCompleteCount(dungeon);
+  p.changeEquipmentSet(set.index);
+  if (game.activeAction?.name !== 'Combat' || game.combat.selectedArea?.id !== dungeon.id)
+    game.combat.selectDungeon(dungeon);
+  await sleep(5000);
+  const samples = [];
+  const started = Date.now();
+  let status = 'timeout';
+  while (Date.now() - started < ${Number(timeoutMs)}) {
+    const sample = {
+      t: new Date().toISOString(),
+      progress: game.combat.areaProgress,
+      completed: game.combat.getDungeonCompleteCount(dungeon),
+      monster: game.combat.enemy?.monster?.name ?? null,
+      enemyHP: game.combat.enemy?.hitpoints ?? null,
+      fight: game.combat.fightInProgress,
+      hp: p.hitpoints,
+      maxHP: p.stats.maxHitpoints,
+    };
+    samples.push(sample);
+    if (sample.completed > beforeCompleted) { status = 'completed'; break; }
+    if (sample.hp < sample.maxHP * 0.35) { status = 'low-hp'; break; }
+    await sleep(10000);
+  }
+  const capButtons = [...document.querySelectorAll('button')]
+    .map(b => b.innerText.trim())
+    .filter(t => /^Claim$|^Increase .*Level Cap$/.test(t));
+  const saved = await mh.save();
+  return { name: game.characterName, dungeon: dungeon.name, status, set, samples, capButtons, saved };
+})()`;
 
 function printSlots(r) {
   for (const mode of ['local', 'cloud']) {
@@ -941,6 +1004,16 @@ if (require.main === module) (async () => {
 
     if (cmd === 'journal') {
       await runJournal();
+      return;
+    }
+
+    if (cmd === 'combat-run') {
+      if (who === 'all' || !arg3) throw Error('usage: ./melvor-report.js combat-run <character> <dungeon name|id>');
+      const { sources } = await readSourcesByName();
+      const data = await withCharacterSource(who, sources[who]?.source, client =>
+        evalExpr(client, combatRunScript(arg3, process.env.MELVOR_COMBAT_RUN_TIMEOUT_MS || 10 * 60 * 1000), Number(process.env.MELVOR_COMBAT_RUN_TIMEOUT_MS || 10 * 60 * 1000) + 60000));
+      if (data.status === 'error') throw Error(data.error);
+      printCombatRun(data);
       return;
     }
 

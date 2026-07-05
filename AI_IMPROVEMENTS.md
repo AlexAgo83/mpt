@@ -34,8 +34,8 @@ Purpose: capture what made the assistant less reliable, then promote only repeat
 - Observed: `Lair of the Spider Queen` cleared on Edalbraw with set 0 melee; HP stayed safe, ending at 1135/1175, then combat stopped with `Claim` and many `Increase Level Cap` / `Increase Abyssal Level Cap` buttons visible.
 - Impact: The assistant can start and monitor a dungeon, but cannot yet summarize post-clear reward/cap choices or choose a cap safely.
 - Root cause: Combat automation is still one-off CDP scripting; `combat-plan` predicts targets but does not execute, monitor, or detect post-clear decisions.
-- Fix shipped: Journal refreshed after the clear so future planning sees the new state.
-- Follow-up: Add a `combat-run <character> <dungeon>` command that source-loads, equips the recommended set, starts combat, monitors transitions where `fightInProgress=false` between enemies, saves on completion, and reports pending reward/cap buttons without choosing them.
+- Fix shipped: Journal refreshed after the clear so future planning sees the new state; `combat-run <character> <dungeon>` now source-loads, equips the recommended set, starts combat, monitors transitions where `fightInProgress=false` between enemies, saves on completion, and reports pending reward/cap buttons without choosing them.
+- Follow-up: Add reward/cap-choice inspection so the assistant can explain the pending cap options before asking the user to choose.
 
 ### 2026-07-05 - Melvor report lock ergonomics
 - Observed: I accidentally ran `source-of-truth` in parallel with `journal --record`; the port lock correctly rejected one command.
