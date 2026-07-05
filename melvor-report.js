@@ -14,8 +14,8 @@ const helper = fs.readFileSync(path.join(__dirname, 'melvor-helpers.js'), 'utf8'
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const [cmd = 'summary', who = 'all'] = process.argv.slice(2);
-if (!['summary', 'gear', 'skilling', 'audit'].includes(cmd)) {
-  console.error('usage: node melvor-report.js summary|gear|skilling|audit [all|character]');
+if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'plan'].includes(cmd)) {
+  console.error('usage: node melvor-report.js summary|gear|skilling|audit|plan [all|character] | slots');
   process.exit(2);
 }
 
@@ -108,6 +108,21 @@ async function withCharacter(name, fn) {
   }
 }
 
+async function withPage(fn) {
+  const tab = await newTab(URL);
+  const client = await cdp(tab.webSocketDebuggerUrl);
+  try {
+    await client.send('Runtime.enable');
+    await client.send('Page.enable');
+    await waitFor(client, "document.readyState === 'complete'", 90000);
+    await sleep(2200);
+    return await fn(client);
+  } finally {
+    client.close();
+    await closeTab(tab.id);
+  }
+}
+
 async function ensureChrome() {
   const version = await req('GET', '/json/version').catch(() => null);
   if (version?.status === 200) return null;
@@ -136,6 +151,15 @@ function fmtNum(n) {
   return Intl.NumberFormat('en-US', { notation: Math.abs(n) >= 1e9 ? 'compact' : 'standard', maximumFractionDigits: 2 }).format(n);
 }
 
+const scorePrefixes = attackType => ({
+  melee: ['stabAttackBonus', 'slashAttackBonus', 'blockAttackBonus', 'meleeStrengthBonus', 'meleeDefenceBonus', 'resistance'],
+  ranged: ['rangedAttackBonus', 'rangedStrengthBonus', 'rangedDefenceBonus', 'resistance'],
+  magic: ['magicAttackBonus', 'magicDamageBonus', 'magicDefenceBonus', 'resistance'],
+}[attackType] || []);
+
+const scoreItem = (item, prefixes) => prefixes.reduce((sum, p) =>
+  sum + Math.max(0, ...Object.entries(item?.stats || {}).filter(([k]) => k.startsWith(p)).map(([, v]) => v)), 0);
+
 function printSummary(r) {
   const low = r.lowSkills.map(s => `${s.name}:${s.level}`).join(', ') || 'none';
   console.log(`${r.name} | ${r.mode} | ${r.action} | total ${r.totalLevel} | max ${r.maxedSkills} | GP ${fmtNum(r.gp)}`);
@@ -147,16 +171,10 @@ function printGear(r) {
   const c = r.combat;
   console.log(`${r.name} | ${r.action}${c ? ` | ${c.area || 'no area'} / ${c.monster || 'no monster'} | hit ${Math.round(c.hitChance || 0)}%` : ''}`);
   for (const [slot, item] of Object.entries(r.equipped)) console.log(`  ${slot}: ${item.name}`);
-  const prefixes = {
-    melee: ['stabAttackBonus', 'slashAttackBonus', 'blockAttackBonus', 'meleeStrengthBonus', 'meleeDefenceBonus', 'resistance'],
-    ranged: ['rangedAttackBonus', 'rangedStrengthBonus', 'rangedDefenceBonus', 'resistance'],
-    magic: ['magicAttackBonus', 'magicDamageBonus', 'magicDefenceBonus', 'resistance'],
-  }[r.context?.attackType] || [];
-  const score = item => prefixes.reduce((sum, p) =>
-    sum + Math.max(0, ...Object.entries(item?.stats || {}).filter(([k]) => k.startsWith(p)).map(([, v]) => v)), 0);
+  const prefixes = scorePrefixes(r.context?.attackType);
   for (const [slot, items] of Object.entries(r.candidates)) {
     const best = items[0];
-    if (best && best.name !== r.equipped[slot]?.name && score(best) > score(r.equipped[slot]))
+    if (best && best.name !== r.equipped[slot]?.name && scoreItem(best, prefixes) > scoreItem(r.equipped[slot], prefixes))
       console.log(`  raw candidate ${slot}: ${best.name}`);
   }
 }
@@ -168,16 +186,10 @@ function printSkilling(r) {
 }
 
 function gearCandidates(r) {
-  const prefixes = {
-    melee: ['stabAttackBonus', 'slashAttackBonus', 'blockAttackBonus', 'meleeStrengthBonus', 'meleeDefenceBonus', 'resistance'],
-    ranged: ['rangedAttackBonus', 'rangedStrengthBonus', 'rangedDefenceBonus', 'resistance'],
-    magic: ['magicAttackBonus', 'magicDamageBonus', 'magicDefenceBonus', 'resistance'],
-  }[r.context?.attackType] || [];
-  const score = item => prefixes.reduce((sum, p) =>
-    sum + Math.max(0, ...Object.entries(item?.stats || {}).filter(([k]) => k.startsWith(p)).map(([, v]) => v)), 0);
+  const prefixes = scorePrefixes(r.context?.attackType);
   return Object.entries(r.candidates || {})
     .map(([slot, items]) => [slot, items[0]])
-    .filter(([slot, best]) => best && best.name !== r.equipped[slot]?.name && score(best) > score(r.equipped[slot]))
+    .filter(([slot, best]) => best && best.name !== r.equipped[slot]?.name && scoreItem(best, prefixes) > scoreItem(r.equipped[slot], prefixes))
     .map(([slot, best]) => `${slot}: ${best.name}`);
 }
 
@@ -209,6 +221,48 @@ function printAudit(r) {
   }
 }
 
+function planLines(r) {
+  const eq = r.report.equipment;
+  const bank = r.bank || {};
+  const lines = [];
+  const add = (slot, item, reason) => {
+    if (eq[slot] === item) return;
+    lines.push(`${slot}: ${eq[slot] || 'empty'} -> ${item} (${bank[item] > 0 ? `available x${bank[item]}` : 'not in bank'}; ${reason})`);
+  };
+  if (r.report.action === 'Fishing') add('Summon2', 'Octopus', 'Fishing yield');
+  if (r.report.action === 'Herblore') {
+    add('Weapon', 'Potion Stirrer', 'Herblore interval/potion preserve');
+    add('Summon1', 'Bear', 'Herblore resource preserve');
+    add('Amulet', 'Jeweled Necklace', 'remove Fishing-only amulet');
+  }
+  if (r.report.action === 'Astrology') {
+    add('Shield', 'Book of Scholars', 'global skill XP');
+    add('Ring', 'Ancient Ring of Mastery', 'mastery XP');
+    add('Consumable', 'Golden Star', 'Astrology stardust');
+  }
+  if (r.report.action === 'Agility') {
+    add('Amulet', 'Jeweled Necklace', 'remove Fishing-only amulet');
+    add('Summon2', 'Eagle', 'Agility interval');
+  }
+  return lines;
+}
+
+function printPlan(r) {
+  const lines = planLines(r);
+  console.log(`${r.report.name} | ${r.report.action}`);
+  if (!lines.length) console.log('  no obvious skilling swap');
+  for (const line of lines) console.log(`  would equip ${line}`);
+}
+
+function printSlots(r) {
+  for (const mode of ['local', 'cloud']) {
+    console.log(`${mode.toUpperCase()}`);
+    if (!r[mode]?.length) console.log('  no slots found');
+    for (const s of r[mode] || [])
+      console.log(`  #${s.slot} ${s.name || s.state} | ${s.total || '-'} | ${s.gp || '-'} | ${s.lastSave || '-'} | ${s.status || '-'}`);
+  }
+}
+
 function lock() {
   try {
     const fd = fs.openSync(LOCK, 'wx');
@@ -226,10 +280,53 @@ function lock() {
   const unlock = lock();
   const chrome = await ensureChrome();
   try {
+    if (cmd === 'slots') {
+      const data = await withPage(async client => {
+        await waitFor(client, "/Select your Character|Sign In|DEMO VERSION/.test(document.body?.innerText || '')", 90000);
+        return evalExpr(client, `(async () => {
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        const click = async (re) => {
+          const btn = [...document.querySelectorAll('button')].find(b => re.test(b.innerText));
+          if (btn) { btn.click(); await sleep(5000); return true; }
+          return false;
+        };
+        const scrape = (kind) => [...document.querySelectorAll('button')]
+          .map(button => button.innerText)
+          .filter(text => new RegExp(kind + ' Save').test(text) || /empty/i.test(text))
+          .map((text, i) => {
+            if (!new RegExp(kind + ' Save').test(text) && !/empty/i.test(text)) return null;
+            const lines = text.split('\\n').map(s => s.trim()).filter(Boolean);
+            const at = lines.findIndex(line => line === kind + ' Save');
+            return {
+              slot: String(i + 1),
+              state: /empty/i.test(text) ? 'empty' : kind,
+              name: at >= 0 ? lines[at + 1] : null,
+              total: (text.match(/([\\d,]+ Total Level)/) || [])[1] || null,
+              gp: (text.match(/\\n\\s*([^\\n]+ GP)\\n/) || [])[1]?.trim() || null,
+              lastSave: (text.match(/Last Save: ([^\\n]+)/) || [])[1] || null,
+              status: (text.match(/(Most recent save|Old save)/) || [])[1] || null,
+            };
+          }).filter(Boolean);
+        if (/Show Local Saves/i.test(document.body.innerText)) await click(/Show Local Saves/i);
+        const local = scrape('Local');
+        if (/Show Cloud Saves/i.test(document.body.innerText)) await click(/Show Cloud Saves/i);
+        const cloud = scrape('Cloud');
+        return { local, cloud };
+      })()`, 30000);
+      });
+      printSlots(data);
+      return;
+    }
+
     for (const name of names) {
       const data = await withCharacter(name, client => {
         if (cmd === 'summary') return evalExpr(client, 'mh.readOnlyReport()');
         if (cmd === 'skilling') return evalExpr(client, 'mh.skillingAudit()');
+        if (cmd === 'plan') return evalExpr(client, `(() => {
+          const wanted = ['Octopus','Potion Stirrer','Bear','Jeweled Necklace','Book of Scholars','Ancient Ring of Mastery','Golden Star','Eagle'];
+          const qty = name => { for (const [item, bi] of game.bank.items) if (item.name === name) return bi.quantity; return 0; };
+          return { report: mh.readOnlyReport(), bank: Object.fromEntries(wanted.map(name => [name, qty(name)])) };
+        })()`);
         if (cmd === 'audit') return evalExpr(client, `(() => {
           const gear = mh.gearAudit(game.combat.player.attackType, 2);
           return { report: mh.readOnlyReport(), skilling: mh.skillingAudit(), gear: {
@@ -246,6 +343,7 @@ function lock() {
       if (cmd === 'summary') printSummary(data);
       else if (cmd === 'skilling') printSkilling({ name, ...data });
       else if (cmd === 'audit') printAudit(data);
+      else if (cmd === 'plan') printPlan(data);
       else printGear(data);
     }
   } finally {

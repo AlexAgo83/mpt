@@ -138,21 +138,23 @@
     return { context: { attackType, hitChance: p.stats.hitChance, maxHit: p.stats.maxHit, attackInterval: p.stats.attackInterval }, equipped, candidates };
   };
 
-  // Equip an item (or a list) from the bank, returns a global stat diff.
-  const equipOne = (name) => {
+  mh.equipSlot = (name, slotName) => {
     const p = game.combat.player;
     const item = findBank(name);
     if (!item) return name + ': not in bank';
     if (!item.validSlots?.length) return name + ': not equipment';
-    p.equipItem(item, p.selectedEquipmentSet, item.validSlots[0], 1);
-    return name + ': equipped';
+    const slot = p.equipment.equippedArray.find(s => s.slot.localID === slotName)?.slot;
+    if (!slot) return slotName + ': unknown slot';
+    if (!item.validSlots.some(s => s.localID === slotName))
+      return name + ': invalid slot "' + slotName + '" (valid: ' + item.validSlots.map(s => s.localID).join(', ') + ')';
+    p.equipItem(item, p.selectedEquipmentSet, slot, 1);
+    return name + ': equipped in ' + slotName;
   };
+
+  // Explicit slot required; avoids accidental passive/summon/offhand swaps.
   mh.equip = (names) => {
-    const p = game.combat.player;
-    const snap = () => ({ maxHit: p.stats.maxHit, minHit: p.stats.minHit, accuracy: p.stats.accuracy, hitChance: p.stats.hitChance, attackInterval: p.stats.attackInterval });
-    const before = snap();
-    const results = (Array.isArray(names) ? names : [names]).map(equipOne);
-    return { results, before, after: snap() };
+    const list = Array.isArray(names) ? names : [names];
+    return list.map(name => name + ': use mh.equipSlot(name, slotName)');
   };
 
   // Current combat: area, monster, hit chance, slayer task.

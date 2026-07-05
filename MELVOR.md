@@ -34,6 +34,16 @@ server **without** `--headless`, let the user log in through the visible window,
 
 Cloud characters on this account: GrifhinZ, Rya, Dash, Edalbraw, Opa, Chap, Kang.
 
+Before any write, compare Local vs Cloud with:
+
+```bash
+./melvor-report.js slots
+```
+
+If Local says `Most recent save` and Cloud says `Old save`, do not load or overwrite cloud
+blindly. Stop and ask whether the newer local save should be pushed, or whether the older cloud
+save is intentional.
+
 ## Character switching (3 calls, tested)
 
 1. `evaluate_script`: `saveData(); cloudManager.forceUpdatePlayFabSave();`
@@ -68,7 +78,9 @@ Rules:
 - `mh.skillInfo("Fishing")` / `mh.skills()` — skill state
 - `mh.gearAudit()` — full audit: equipped gear + top 5 bank candidates per slot, stats and
   passives included, filtered by attackType. Large output: read it in chunks if needed.
-- `mh.equip("Item Name")` or `mh.equip([...names])` — equips from the bank, global stat diff
+- `mh.equipSlot("Item Name", "Slot")` — explicit equip from the bank; use this instead of
+  guessing slots for passive/summon/offhand items
+- `mh.equip("Item Name")` — deprecated guard; returns a reminder to use `mh.equipSlot`
 - `mh.combatInfo()` — area, monster, hit chance, slayer task
 - `mh.itemPassives("Item Name")` — an item's modifiers/passives (bank, equipped or registry);
   always check passives before drawing conclusions from raw stats
@@ -86,6 +98,8 @@ Rules:
 
 - UI actions (loading a character, some buttons) open swal2 popups: always check
   `.swal2-popup` after a click, confirm via `mh.dismissModal()`.
+- Cloud saves can be older than local saves even when logged in. Always run `./melvor-report.js slots`
+  before writes and treat `Old save` as a stop sign unless the user explicitly approves.
 - `evaluate_script` only returns JSON-serializable values — never return a raw game object
   (circular references), always map to primitives.
 - The `game` object is huge: go through the helpers rather than exploring blindly.
