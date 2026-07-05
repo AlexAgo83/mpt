@@ -18,7 +18,7 @@ const usage = `usage:
   ./melvor-report.js slots
   ./melvor-report.js diff-slots
   ./melvor-report.js source-of-truth
-  ./melvor-report.js improve
+  ./melvor-report.js improve [--record]
   ./melvor-report.js summary [all|character]
   ./melvor-report.js audit [all|character]
   ./melvor-report.js plan [all|character]
@@ -37,6 +37,7 @@ if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'diff-slots', 'source-of-
 }
 
 const names = who === 'all' ? CHARS : [who];
+const recordImprovement = cmd === 'improve' && who === '--record';
 const req = (method, path) => new Promise((resolve, reject) => {
   const r = http.request({ host: '127.0.0.1', port: PORT, method, path }, res => {
     let data = '';
@@ -367,7 +368,7 @@ function printSourceOfTruth(r) {
   }
 }
 
-function printImprovementReport(slots) {
+function improvementReport(slots) {
   const sources = sourceOfTruth(slots);
   const risks = [];
   const ideas = [];
@@ -385,18 +386,29 @@ function printImprovementReport(slots) {
   if (!risks.length)
     ideas.push('No state-risk automation needed right now; keep using plan/export-state before writes.');
 
-  console.log(`# Melvor AI improvement report`);
-  console.log(`Generated: ${new Date().toISOString()}`);
-  console.log('');
-  console.log('## Risks observed');
-  for (const risk of risks.length ? risks : ['No immediate save-source risk detected.'])
-    console.log(`- ${risk}`);
-  console.log('');
-  console.log('## Improvement candidates');
-  for (const idea of ideas) console.log(`- ${idea}`);
-  console.log('');
-  console.log('## Next command');
-  console.log('- Run `./melvor-report.js export-state all > /tmp/melvor-state.json` before deep recommendations.');
+  const lines = [
+    '# Melvor AI improvement report',
+    `Generated: ${new Date().toISOString()}`,
+    '',
+    '## Risks observed',
+    ...(risks.length ? risks : ['No immediate save-source risk detected.']).map(risk => `- ${risk}`),
+    '',
+    '## Improvement candidates',
+    ...ideas.map(idea => `- ${idea}`),
+    '',
+    '## Next command',
+    '- Run `./melvor-report.js export-state all > /tmp/melvor-state.json` before deep recommendations.',
+  ];
+  return lines.join('\n');
+}
+
+function printImprovementReport(slots) {
+  const report = improvementReport(slots);
+  console.log(report);
+  if (recordImprovement) {
+    fs.appendFileSync(path.join(__dirname, 'AI_IMPROVEMENTS.md'), `\n\n${report}\n`);
+    console.log('\nRecorded in AI_IMPROVEMENTS.md');
+  }
 }
 
 function lock() {
