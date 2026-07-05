@@ -1,10 +1,10 @@
 ## item_004_document_journal_lifecycle_and_ai_handoff_rules - Document journal lifecycle and AI handoff rules
 > From version: 0.1.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90
 > Confidence: 85
-> Progress: 0
+> Progress: 100%
 > Complexity: Medium
 > Theme: Melvor assistant operations
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -62,3 +62,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs`
+
+# Notes
+- Task `task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs` was finished via `logics-manager flow finish task` on 2026-07-05.

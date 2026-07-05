@@ -6,7 +6,8 @@
 > Related task: `task_001_implement_and_validate_character_journal_generation`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
-> Confidence: 85
+> Confidence: 90
+> Non-semantic edit: closeout tooling refreshed the product back-reference on 2026-07-05.
 
 # Overview
 Extend the Melvin local assistant with a lightweight, append-only journal and local interactive dashboard that turn current Melvor account readings into per-character planning notes. The journal is a durable handoff surface for future AI sessions: what each character is doing, what the assistant recommends next, what actions are proposed, and what safety checks matter before writes. The dashboard is the player's fast visual entrypoint for scanning all characters.
@@ -57,5 +58,5 @@ flowchart TD
 - Existing validation stays green with no new runtime dependencies.
 
 # References
-- Product back-reference: `req_000_character_journal_generation_for_melvor_planning`
+- Product back-reference: `item_001_add_append_only_character_journal_command`
 - Task back-reference: `task_001_implement_and_validate_character_journal_generation`

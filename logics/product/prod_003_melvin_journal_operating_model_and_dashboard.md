@@ -2,7 +2,7 @@
 > Date: 2026-07-05
 > Status: Settled
 > Related request: `req_001_journal_operating_model_and_interactive_dashboard`
-> Related backlog: `item_002_create_structured_journal_snapshot_and_action_ledger`, `item_003_generate_interactive_offline_journal_dashboard`, `item_004_document_journal_lifecycle_and_ai_handoff_rules`
+> Related backlog: `item_002_create_structured_journal_snapshot_and_action_ledger`
 > Related task: `task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
@@ -60,5 +60,5 @@ flowchart TD
 - Existing checks stay green and no runtime dependencies are added.
 
 # References
-- Product back-reference: `req_001_journal_operating_model_and_interactive_dashboard`
+- Product back-reference: `item_002_create_structured_journal_snapshot_and_action_ledger`
 - Task back-reference: `task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs`

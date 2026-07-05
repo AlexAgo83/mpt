@@ -1,10 +1,10 @@
 ## task_001_implement_and_validate_character_journal_generation - Implement and validate character journal generation
 > From version: 0.1.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90
 > Confidence: 85
-> Progress: 75
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -23,22 +23,22 @@
 - [x] 5. Generate `journal/index.html` from the same sanitized latest-state data with embedded CSS/JS, no external assets, and no server requirement.
 - [x] 6. Include dashboard search plus action/risk filters, compact character cards/rows, top recommendations, proposed actions, and links to Markdown files.
 - [x] 7. Update README and MELVOR_RUNBOOK command docs.
-- [ ] 8. Run `npm run check`, `./melvor-report.js --help`, one dry-run journal command, and one recorded dashboard generation.
-- [ ] 9. If live browser access is unavailable, stop after syntax/docs validation and mark the live dry run/dashboard generation as blocked with the exact reason.
-- [ ] GATE: do not close until lint, audit, and scaffold validation pass.
+- [x] 8. Run `npm run check`, `./melvor-report.js --help`, one dry-run journal command, and one recorded dashboard generation.
+- [x] 9. If live browser access is unavailable, stop after syntax/docs validation and mark the live dry run/dashboard generation as blocked with the exact reason.
+- [x] GATE: do not close until lint, audit, and scaffold validation pass.
 
 # Backlog
 - `item_001_add_append_only_character_journal_command`
 
 # Definition of Done (DoD)
-- [ ] `journal [all|character] [--record]` is implemented and listed in CLI help.
-- [ ] Single-character journal output includes State, Recommendations, Optimization plan, Proposed actions, and History.
-- [ ] `--record` appends deterministic per-character Markdown files under `journal/`.
-- [ ] `--record` for all characters refreshes `journal/index.html`.
-- [ ] The dashboard is interactive offline: search, action/risk filters, expandable details or equivalent compact browsing.
-- [ ] README and MELVOR_RUNBOOK document the command.
-- [ ] No secrets, save strings, credentials, local Chrome profile paths, or unnecessary remote debug details are written.
-- [ ] `npm run check`, `./melvor-report.js --help`, one journal dry run, and one dashboard generation are recorded in the closeout.
+- [x] `journal [all|character] [--record]` is implemented and listed in CLI help.
+- [x] Single-character journal output includes State, Recommendations, Optimization plan, Proposed actions, and History.
+- [x] `--record` appends deterministic per-character Markdown files under `journal/`.
+- [x] `--record` for all characters refreshes `journal/index.html`.
+- [x] The dashboard is interactive offline: search, action/risk filters, expandable details or equivalent compact browsing.
+- [x] README and MELVOR_RUNBOOK document the command.
+- [x] No secrets, save strings, credentials, local Chrome profile paths, or unnecessary remote debug details are written.
+- [x] `npm run check`, `./melvor-report.js --help`, one journal dry run, and one dashboard generation are recorded in the closeout.
 
 # AC Traceability
 - request-AC1 -> This task. Proof: CLI help and README list `journal [all|character] [--record]`.
@@ -59,9 +59,23 @@
 - Run `logics-manager flow validate logics/request/req_000_character_journal_generation_for_melvor_planning.md`.
 - Run `logics-manager lint --require-status`.
 - Run `logics-manager audit --group-by-doc`.
+- npm run check + test-journal.js passed; --help lists journal; live dry run journal GrifhinZ ok; journal all --record wrote 7 md + latest.json + actions.jsonl + index.html; dashboard verified offline; sanitization grep clean; flow validate 0 findings
+- Finish workflow executed on 2026-07-05.
+- Linked backlog/request close verification passed.
 
 # Report
-- Not implemented yet. Ready for a development agent.
+- Implemented 2026-07-05. `journal [all|character] [--record]` added to `melvor-report.js`, reusing `readOnlyReport`/`skillingAudit`/`planActions`/`sourceOfTruth`; docs updated in README and MELVOR_RUNBOOK.
+- Validation run 2026-07-05:
+  - `npm run check` passed (syntax checks + `test-journal.js` offline self-check).
+  - `./melvor-report.js --help` lists the journal command.
+  - Dry run `journal GrifhinZ` printed a Markdown entry with State, Recommendations, Optimization plan, Proposed actions, and History; no files written.
+  - `journal all --record` (live, read-only) wrote 7 per-character Markdown files, `latest.json`, `actions.jsonl` (6 proposed events), and `index.html`.
+  - Dashboard rendered offline from disk (headless Chrome screenshot): summary indicators, search, action/risk/status filters, 7 character cards with Markdown links.
+  - Sanitization grep over `journal/` found no credentials, profile paths, ports, or env values; `journal/` is git-ignored and untracked.
+  - `logics-manager flow validate` on the request returned 0 findings; lint OK.
+- Finished on 2026-07-05.
+- Linked backlog item(s): `item_001_add_append_only_character_journal_command`
+- Related request(s): `req_000_character_journal_generation_for_melvor_planning`
 
 # AI Context
 - Summary: Implement and validate character journal generation

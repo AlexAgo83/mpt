@@ -1,10 +1,10 @@
 ## item_002_create_structured_journal_snapshot_and_action_ledger - Create structured journal snapshot and action ledger
 > From version: 0.1.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90
 > Confidence: 85
-> Progress: 0
+> Progress: 100%
 > Complexity: High
 > Theme: Melvor assistant journal data
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -70,3 +70,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs`
+
+# Notes
+- Task `task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs` was finished via `logics-manager flow finish task` on 2026-07-05.

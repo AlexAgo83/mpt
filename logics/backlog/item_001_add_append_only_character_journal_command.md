@@ -1,10 +1,10 @@
 ## item_001_add_append_only_character_journal_command - Add append-only character journal command
 > From version: 0.1.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90
 > Confidence: 85
-> Progress: 0
+> Progress: 100%
 > Complexity: Medium
 > Theme: Melvor assistant reporting
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -72,3 +72,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_001_implement_and_validate_character_journal_generation`
+
+# Notes
+- Task `task_001_implement_and_validate_character_journal_generation` was finished via `logics-manager flow finish task` on 2026-07-05.

@@ -1,10 +1,10 @@
 ## task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs - Implement journal data model, ledger, dashboard, and lifecycle docs
 > From version: 0.1.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90
 > Confidence: 86
-> Progress: 75
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -21,9 +21,9 @@
 - [x] 4. Add stale/dismissed handling before building visual filters.
 - [x] 5. Generate `journal/index.html` from sanitized latest-state data with embedded CSS/JS and no external assets.
 - [x] 6. Document the artifact lifecycle and AI handoff rules.
-- [ ] 7. Run `npm run check`, `./melvor-report.js --help`, a single-character journal dry run, `./melvor-report.js journal all --record`, and inspect `journal/index.html`.
-- [ ] 8. Run Logics validation, lint, and audit before closeout.
-- [ ] GATE: do not close until lint, audit, and scaffold validation pass.
+- [x] 7. Run `npm run check`, `./melvor-report.js --help`, a single-character journal dry run, `./melvor-report.js journal all --record`, and inspect `journal/index.html`.
+- [x] 8. Run Logics validation, lint, and audit before closeout.
+- [x] GATE: do not close until lint, audit, and scaffold validation pass.
 
 # Backlog
 - `item_002_create_structured_journal_snapshot_and_action_ledger`
@@ -31,16 +31,16 @@
 - `item_004_document_journal_lifecycle_and_ai_handoff_rules`
 
 # Definition of Done (DoD)
-- [ ] `journal all --record` writes per-character Markdown, `journal/latest.json`, `journal/actions.jsonl` when needed, and `journal/index.html`.
-- [ ] `latest.json` separates `observed`, `analysis`, and `decisions` per character.
-- [ ] `actions.jsonl` is append-only JSON Lines with stable action ids, statuses, timestamps, risk, reason, and context metadata.
-- [ ] Reruns suppress duplicate recommendations and respect dismissed/done/blocked actions unless context changes.
-- [ ] Stale actions are detectable when observed state invalidates the recommendation context.
-- [ ] `journal/index.html` works offline with search, action/risk/status filters, stale highlighting, account indicators, and per-character detail.
-- [ ] README and MELVOR_RUNBOOK document artifacts, lifecycle statuses, handoff rules, and read-only safety boundaries.
-- [ ] `.gitignore` excludes `journal/`, and generated player journal artifacts are never staged or committed.
-- [ ] No generated artifact contains credentials, save strings, environment variables, absolute profile paths, or raw browser debugging URLs.
-- [ ] `npm run check`, `./melvor-report.js --help`, one dry-run journal command, one recorded `journal all --record`, and Logics validation/lint/audit are recorded at closeout.
+- [x] `journal all --record` writes per-character Markdown, `journal/latest.json`, `journal/actions.jsonl` when needed, and `journal/index.html`.
+- [x] `latest.json` separates `observed`, `analysis`, and `decisions` per character.
+- [x] `actions.jsonl` is append-only JSON Lines with stable action ids, statuses, timestamps, risk, reason, and context metadata.
+- [x] Reruns suppress duplicate recommendations and respect dismissed/done/blocked actions unless context changes.
+- [x] Stale actions are detectable when observed state invalidates the recommendation context.
+- [x] `journal/index.html` works offline with search, action/risk/status filters, stale highlighting, account indicators, and per-character detail.
+- [x] README and MELVOR_RUNBOOK document artifacts, lifecycle statuses, handoff rules, and read-only safety boundaries.
+- [x] `.gitignore` excludes `journal/`, and generated player journal artifacts are never staged or committed.
+- [x] No generated artifact contains credentials, save strings, environment variables, absolute profile paths, or raw browser debugging URLs.
+- [x] `npm run check`, `./melvor-report.js --help`, one dry-run journal command, one recorded `journal all --record`, and Logics validation/lint/audit are recorded at closeout.
 
 # AC Traceability
 - request-AC1 -> This task. Proof: one read-only `journal all --record` pass writes Markdown, `latest.json`, and `index.html`.
@@ -65,9 +65,21 @@
 - Run `logics-manager flow validate logics/request/req_001_journal_operating_model_and_interactive_dashboard.md`.
 - Run `logics-manager lint --require-status`.
 - Run `logics-manager audit --group-by-doc`.
+- npm run check + test-journal.js (ids, dedup, dismissed, stale, latest.json shape, escaping) passed; live journal GrifhinZ dry run and journal all --record ok (7 md, valid latest.json + actions.jsonl, index.html); dashboard verified offline via headless screenshot; sanitization grep clean; journal/ git-ignored; flow validate 0 findings
+- Finish workflow executed on 2026-07-05.
+- Linked backlog/request close verification passed.
 
 # Report
-- Not implemented yet. Ready for a development agent.
+- Implemented 2026-07-05. Data model first: `buildCharacterJournal` (observed/analysis/decisions), `mergeLedger` (stable sha1 action ids + context hashes, dedup, dismissed/done/blocked respected until context changes, stale detection), `buildLatest` (snapshot merge), then `renderDashboard` (embedded JSON, textContent-only DOM, no external assets). Lifecycle and AI handoff rules documented in README and MELVOR_RUNBOOK.
+- Validation run 2026-07-05:
+  - `npm run check` passed; `test-journal.js` covers stable ids, rerun dedup, dismissed non-re-proposal, context-change re-proposal, stale transition, latest.json shape, Markdown sections, JSON escaping, and sanitization.
+  - Live `journal GrifhinZ` dry run and `journal all --record` succeeded; artifacts: 7 Markdown files, valid `latest.json` (7 characters, observed/analysis/decisions each), valid `actions.jsonl` (6 proposed events), `index.html`.
+  - Dashboard verified offline via headless Chrome screenshot: account indicators (last scan, save risks, stale, proposed/approved/blocked), search, filters, stale-only toggle, per-character detail.
+  - Sanitization grep over `journal/` clean; `journal/` git-ignored and untracked.
+  - `logics-manager flow validate` returned 0 findings for the request; lint OK.
+- Finished on 2026-07-05.
+- Linked backlog item(s): `item_002_create_structured_journal_snapshot_and_action_ledger`, `item_003_generate_interactive_offline_journal_dashboard`, `item_004_document_journal_lifecycle_and_ai_handoff_rules`
+- Related request(s): `req_001_journal_operating_model_and_interactive_dashboard`
 
 # AI Context
 - Summary: Implement journal data model, ledger, dashboard, and lifecycle docs

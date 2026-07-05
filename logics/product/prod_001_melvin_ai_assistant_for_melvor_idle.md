@@ -1,7 +1,7 @@
 ## prod_001_melvin_ai_assistant_for_melvor_idle - Melvin - AI assistant for Melvor Idle
 > Date: 2026-07-04
 > Status: Settled
-> Related request: (none yet)
+> Related request: `req_000_character_journal_generation_for_melvor_planning`, `req_001_journal_operating_model_and_interactive_dashboard`
 > Related backlog: (none yet)
 > Related task: (none yet)
 > Related architecture: (none yet)
