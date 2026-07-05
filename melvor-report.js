@@ -638,6 +638,127 @@ function buildLatest(chars, latest, previous, now) {
   };
 }
 
+// Offline dashboard: data embedded as JSON (script tag, `<` escaped), rendered with
+// textContent-only DOM building so no journal value is ever parsed as HTML.
+function renderDashboard(snap) {
+  const json = JSON.stringify(snap).replace(/</g, '\\u003c');
+  return `<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Melvor journal</title>
+<style>
+:root { color-scheme: light dark; font-family: ui-monospace, Menlo, monospace; }
+body { margin: 1rem auto; max-width: 72rem; padding: 0 1rem; font-size: 14px; line-height: 1.45; }
+h1 { font-size: 1.1rem; }
+#summary { display: flex; flex-wrap: wrap; gap: .6rem 1.4rem; padding: .6rem .8rem; border: 1px solid #8884; border-radius: 6px; }
+#summary b { font-size: 1.05rem; }
+#filters { display: flex; flex-wrap: wrap; gap: .5rem; margin: .8rem 0; align-items: center; }
+input, select { font: inherit; padding: .25rem .4rem; }
+.card { border: 1px solid #8884; border-radius: 6px; margin: .5rem 0; }
+.card summary { cursor: pointer; padding: .5rem .8rem; display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: baseline; }
+.card summary::-webkit-details-marker { display: none; }
+.card .body { padding: 0 .8rem .8rem; }
+.badge { border: 1px solid; border-radius: 4px; padding: 0 .35rem; font-size: .85em; }
+.badge.risk { color: #b00020; border-color: #b00020; font-weight: bold; }
+.badge.stale { color: #8a5a00; border-color: #8a5a00; font-weight: bold; }
+.badge.ok { color: #2e7d32; border-color: #2e7d32; }
+.muted { opacity: .7; }
+ul { margin: .2rem 0 .6rem; padding-left: 1.2rem; }
+h3 { font-size: .95rem; margin: .6rem 0 .2rem; }
+</style>
+<body>
+<h1>Melvor journal dashboard</h1>
+<div id="summary"></div>
+<div id="filters">
+  <input id="q" type="search" placeholder="search character / action / item">
+  <select id="fAction"><option value="">any action</option></select>
+  <select id="fRisk"><option value="">any risk</option><option value="risk">save risk</option><option value="ok">no save risk</option></select>
+  <select id="fStatus"><option value="">any action status</option></select>
+  <label><input id="fStale" type="checkbox"> stale only</label>
+</div>
+<div id="cards"></div>
+<script id="data" type="application/json">${json}</script>
+<script>
+const snap = JSON.parse(document.getElementById('data').textContent);
+const STATUSES = ['proposed', 'approved', 'done', 'blocked', 'dismissed', 'stale'];
+const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
+const isStale = name => snap.account.staleCharacters.includes(name);
+const hasRisk = name => snap.account.saveRisks.includes(name);
+
+const summary = document.getElementById('summary');
+const stat = (label, value) => { const d = el('div'); d.append(el('b', '', String(value)), ' ', el('span', 'muted', label)); summary.append(d); };
+stat('last scan', new Date(snap.generatedAt).toLocaleString());
+stat('characters', Object.keys(snap.characters).length);
+stat('save risks', snap.account.saveRisks.length);
+stat('stale', snap.account.staleCharacters.length);
+stat('proposed', snap.actionsSummary.proposed);
+stat('approved', snap.actionsSummary.approved);
+stat('blocked', snap.actionsSummary.blocked);
+
+const fAction = document.getElementById('fAction');
+for (const a of [...new Set(Object.values(snap.characters).map(c => c.observed.action || 'idle'))].sort()) fAction.append(new Option(a, a));
+const fStatus = document.getElementById('fStatus');
+for (const s of STATUSES) fStatus.append(new Option(s, s));
+
+const cards = document.getElementById('cards');
+function render() {
+  const q = document.getElementById('q').value.toLowerCase();
+  const wantAction = fAction.value, wantRisk = document.getElementById('fRisk').value, wantStatus = fStatus.value;
+  const staleOnly = document.getElementById('fStale').checked;
+  cards.replaceChildren();
+  for (const [name, c] of Object.entries(snap.characters)) {
+    const action = c.observed.action || 'idle';
+    const haystack = (name + ' ' + action + ' ' + JSON.stringify(c.analysis.recommendations) + ' ' + JSON.stringify(c.decisions)).toLowerCase();
+    if (q && !haystack.includes(q)) continue;
+    if (wantAction && action !== wantAction) continue;
+    if (wantRisk === 'risk' && !hasRisk(name)) continue;
+    if (wantRisk === 'ok' && hasRisk(name)) continue;
+    if (wantStatus && !(c.decisions[wantStatus] || []).length) continue;
+    if (staleOnly && !isStale(name)) continue;
+
+    const details = el('details', 'card');
+    const head = el('summary');
+    head.append(el('b', '', name), el('span', 'muted', action));
+    if (hasRisk(name)) head.append(el('span', 'badge risk', 'SAVE RISK'));
+    if (isStale(name)) head.append(el('span', 'badge stale', 'STALE'));
+    if (!hasRisk(name) && !isStale(name)) head.append(el('span', 'badge ok', 'ok'));
+    head.append(el('span', 'muted', 'seen ' + new Date(c.observed.at).toLocaleString()));
+    details.append(head);
+
+    const body = el('div', 'body');
+    body.append(el('div', 'muted', 'total ' + c.observed.totalLevel + ' | maxed ' + c.observed.maxedSkills + ' | GP ' + c.observed.gp.toLocaleString() + ' | ' + (c.observed.mode || '')));
+    const section = (title, items, fmt) => {
+      body.append(el('h3', '', title));
+      const ul = el('ul');
+      if (!items.length) ul.append(el('li', 'muted', 'none'));
+      for (const it of items) ul.append(el('li', '', fmt ? fmt(it) : it));
+      body.append(ul);
+    };
+    section('Top recommendations', c.analysis.recommendations.slice(0, 5));
+    for (const s of STATUSES) {
+      const xs = c.decisions[s] || [];
+      if (xs.length) section(s + ' actions', xs, a => '[' + a.id + '] equip ' + a.item + ' in ' + a.slot + ' (risk ' + a.risk + '; ' + a.reason + ')');
+    }
+    if (c.analysis.riskNotes.length) section('Risk notes', c.analysis.riskNotes);
+    const p = el('p');
+    const link = el('a', '', name + '.md');
+    link.href = encodeURIComponent(name) + '.md';
+    p.append('Journal: ', link);
+    body.append(p);
+    details.append(body);
+    cards.append(details);
+  }
+  if (!cards.children.length) cards.append(el('p', 'muted', 'no character matches the filters'));
+}
+for (const id of ['q', 'fAction', 'fRisk', 'fStatus', 'fStale']) document.getElementById(id).addEventListener('input', render);
+render();
+</script>
+</body>
+</html>
+`;
+}
+
 async function collectJournal(name) {
   return withCharacter(name, client => evalExpr(client, `(() => {
     const wanted = ${JSON.stringify(JOURNAL_WANTED)};
@@ -671,6 +792,8 @@ async function runJournal() {
   const snapshot = buildLatest(chars, latest, previous, now);
   fs.writeFileSync(path.join(JOURNAL_DIR, 'latest.json'), JSON.stringify(snapshot, null, 2));
   console.log('recorded journal/latest.json');
+  fs.writeFileSync(path.join(JOURNAL_DIR, 'index.html'), renderDashboard(snapshot));
+  console.log('recorded journal/index.html');
 }
 
 function lock() {
@@ -686,7 +809,7 @@ function lock() {
   }
 }
 
-module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, sourceOfTruth };
+module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth };
 if (require.main === module) (async () => {
   const unlock = lock();
   const chrome = await ensureChrome();

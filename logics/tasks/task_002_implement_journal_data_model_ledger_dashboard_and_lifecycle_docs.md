@@ -4,7 +4,7 @@
 > Status: Ready
 > Understanding: 90
 > Confidence: 86
-> Progress: 40
+> Progress: 55
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -19,7 +19,7 @@
 - [x] 2. Implement `latest.json` and `actions.jsonl` generation first; do not start with dashboard markup.
 - [x] 3. Make recommendation-to-action ids stable and suppress duplicates from existing action ledger entries.
 - [x] 4. Add stale/dismissed handling before building visual filters.
-- [ ] 5. Generate `journal/index.html` from sanitized latest-state data with embedded CSS/JS and no external assets.
+- [x] 5. Generate `journal/index.html` from sanitized latest-state data with embedded CSS/JS and no external assets.
 - [ ] 6. Document the artifact lifecycle and AI handoff rules.
 - [ ] 7. Run `npm run check`, `./melvor-report.js --help`, a single-character journal dry run, `./melvor-report.js journal all --record`, and inspect `journal/index.html`.
 - [ ] 8. Run Logics validation, lint, and audit before closeout.

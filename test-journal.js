@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Offline self-check for journal pure logic: ids, dedup, dismissed, stale, latest.json shape.
 const assert = require('assert');
-const { buildCharacterJournal, journalMd, mergeLedger, buildLatest } = require('./melvor-report.js');
+const { buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard } = require('./melvor-report.js');
 
 const data = {
   report: {
@@ -62,5 +62,15 @@ const md = journalMd(c);
 for (const s of ['### State', '### Recommendations', '### Optimization plan', '### Proposed actions', '### History'])
   assert.ok(md.includes(s), `markdown has ${s}`);
 assert.ok(!/Users\/|HOME|password|profile/i.test(md), 'markdown is sanitized');
+
+// dashboard: self-contained, data escaped, no sensitive content
+const evil = buildCharacterJournal('TestChar', {
+  ...data, skilling: { notes: ['<script>alert(1)</script>'] },
+}, save);
+const html = renderDashboard(buildLatest([evil], first.latest, null, now));
+assert.ok(!/<script>alert/.test(html), 'embedded JSON escapes <');
+assert.ok(!/https?:\/\/(?!melvoridle)/.test(html), 'no external assets');
+assert.ok(html.includes('SAVE RISK') && html.includes('stale only'), 'risk badge and stale filter present');
+assert.ok(!/Users\/|password|9223|chrome-profile/i.test(html), 'dashboard is sanitized');
 
 console.log('journal self-check ok');
