@@ -14,8 +14,8 @@ const helper = fs.readFileSync(path.join(__dirname, 'melvor-helpers.js'), 'utf8'
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const [cmd = 'summary', who = 'all'] = process.argv.slice(2);
-if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'plan'].includes(cmd)) {
-  console.error('usage: node melvor-report.js summary|gear|skilling|audit|plan [all|character] | slots');
+if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'diff-slots', 'plan', 'export-state'].includes(cmd)) {
+  console.error('usage: node melvor-report.js summary|gear|skilling|audit|plan|export-state [all|character] | slots|diff-slots');
   process.exit(2);
 }
 
@@ -263,6 +263,64 @@ function printSlots(r) {
   }
 }
 
+async function readSlots() {
+  return withPage(async client => {
+    await waitFor(client, "/Select your Character|Sign In|DEMO VERSION/.test(document.body?.innerText || '')", 90000);
+    return evalExpr(client, `(async () => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const click = async (re) => {
+        const btn = [...document.querySelectorAll('button')].find(b => re.test(b.innerText));
+        if (btn) { btn.click(); await sleep(5000); return true; }
+        return false;
+      };
+      const scrape = (kind) => [...document.querySelectorAll('button')]
+        .map(button => button.innerText)
+        .filter(text => new RegExp(kind + ' Save').test(text) || /empty/i.test(text))
+        .map((text, i) => {
+          if (!new RegExp(kind + ' Save').test(text) && !/empty/i.test(text)) return null;
+          const lines = text.split('\\n').map(s => s.trim()).filter(Boolean);
+          const at = lines.findIndex(line => line === kind + ' Save');
+          return {
+            slot: String(i + 1),
+            state: /empty/i.test(text) ? 'empty' : kind,
+            name: at >= 0 ? lines[at + 1] : null,
+            total: (text.match(/([\\d,]+ Total Level)/) || [])[1] || null,
+            gp: (text.match(/\\n\\s*([^\\n]+ GP)\\n/) || [])[1]?.trim() || null,
+            lastSave: (text.match(/Last Save: ([^\\n]+)/) || [])[1] || null,
+            status: (text.match(/(Most recent save|Old save)/) || [])[1] || null,
+          };
+        }).filter(Boolean);
+      if (/Show Local Saves/i.test(document.body.innerText)) await click(/Show Local Saves/i);
+      const local = scrape('Local');
+      if (/Show Cloud Saves/i.test(document.body.innerText)) await click(/Show Cloud Saves/i);
+      const cloud = scrape('Cloud');
+      return { local, cloud };
+    })()`, 30000);
+  });
+}
+
+function parseSaveTime(value) {
+  return Date.parse(String(value || '').replace(' Europe/Paris', ''));
+}
+
+function printSlotDiffs(r) {
+  const byName = xs => Object.fromEntries((xs || []).filter(s => s.name).map(s => [s.name, s]));
+  const local = byName(r.local);
+  const cloud = byName(r.cloud);
+  for (const name of CHARS) {
+    const l = local[name], c = cloud[name];
+    if (!l || !c) {
+      console.log(`${name}: missing ${!l ? 'local' : 'cloud'} slot`);
+      continue;
+    }
+    const diffMs = parseSaveTime(l.lastSave) - parseSaveTime(c.lastSave);
+    const mins = Math.round(Math.abs(diffMs) / 60000);
+    if (!Number.isFinite(diffMs)) console.log(`${name}: cannot compare timestamps`);
+    else if (Math.abs(diffMs) < 60000) console.log(`${name}: local and cloud roughly aligned`);
+    else console.log(`${name}: ${diffMs > 0 ? 'local newer' : 'cloud newer'} by ${mins} min`);
+  }
+}
+
 function lock() {
   try {
     const fd = fs.openSync(LOCK, 'wx');
@@ -280,41 +338,35 @@ function lock() {
   const unlock = lock();
   const chrome = await ensureChrome();
   try {
-    if (cmd === 'slots') {
-      const data = await withPage(async client => {
-        await waitFor(client, "/Select your Character|Sign In|DEMO VERSION/.test(document.body?.innerText || '')", 90000);
-        return evalExpr(client, `(async () => {
-        const sleep = ms => new Promise(r => setTimeout(r, ms));
-        const click = async (re) => {
-          const btn = [...document.querySelectorAll('button')].find(b => re.test(b.innerText));
-          if (btn) { btn.click(); await sleep(5000); return true; }
-          return false;
-        };
-        const scrape = (kind) => [...document.querySelectorAll('button')]
-          .map(button => button.innerText)
-          .filter(text => new RegExp(kind + ' Save').test(text) || /empty/i.test(text))
-          .map((text, i) => {
-            if (!new RegExp(kind + ' Save').test(text) && !/empty/i.test(text)) return null;
-            const lines = text.split('\\n').map(s => s.trim()).filter(Boolean);
-            const at = lines.findIndex(line => line === kind + ' Save');
-            return {
-              slot: String(i + 1),
-              state: /empty/i.test(text) ? 'empty' : kind,
-              name: at >= 0 ? lines[at + 1] : null,
-              total: (text.match(/([\\d,]+ Total Level)/) || [])[1] || null,
-              gp: (text.match(/\\n\\s*([^\\n]+ GP)\\n/) || [])[1]?.trim() || null,
-              lastSave: (text.match(/Last Save: ([^\\n]+)/) || [])[1] || null,
-              status: (text.match(/(Most recent save|Old save)/) || [])[1] || null,
-            };
-          }).filter(Boolean);
-        if (/Show Local Saves/i.test(document.body.innerText)) await click(/Show Local Saves/i);
-        const local = scrape('Local');
-        if (/Show Cloud Saves/i.test(document.body.innerText)) await click(/Show Cloud Saves/i);
-        const cloud = scrape('Cloud');
-        return { local, cloud };
-      })()`, 30000);
-      });
-      printSlots(data);
+    if (cmd === 'slots' || cmd === 'diff-slots') {
+      const data = await readSlots();
+      if (cmd === 'diff-slots') printSlotDiffs(data);
+      else printSlots(data);
+      return;
+    }
+
+    if (cmd === 'export-state') {
+      const slots = await readSlots();
+      const characters = {};
+      for (const name of names) {
+        characters[name] = await withCharacter(name, client => evalExpr(client, `(() => {
+          const report = mh.readOnlyReport();
+          return {
+            mode: report.mode,
+            action: report.action,
+            gp: report.gp,
+            combatLevel: report.combatLevel,
+            totalLevel: report.totalLevel,
+            maxedSkills: report.maxedSkills,
+            lowSkills: report.lowSkills,
+            food: report.food,
+            foodQty: report.foodQty,
+            equipment: report.equipment,
+            combat: report.combat,
+          };
+        })()`));
+      }
+      console.log(JSON.stringify({ collectedAt: new Date().toISOString(), slots, characters }, null, 2));
       return;
     }
 
