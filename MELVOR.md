@@ -38,11 +38,12 @@ Before any write, compare Local vs Cloud with:
 
 ```bash
 ./melvor-report.js slots
+./melvor-report.js source-of-truth
 ```
 
-If Local says `Most recent save` and Cloud says `Old save`, do not load or overwrite cloud
-blindly. Stop and ask whether the newer local save should be pushed, or whether the older cloud
-save is intentional.
+Source of truth is the newest save, local or cloud. If Local says `Most recent save` and
+Cloud says `Old save`, do not load or overwrite cloud blindly. Use the newer local save unless
+the user explicitly asks for the older cloud save.
 
 ## Character switching (3 calls, tested)
 

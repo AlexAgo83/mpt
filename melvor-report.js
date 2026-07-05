@@ -17,6 +17,7 @@ const [cmd = 'summary', who = 'all'] = process.argv.slice(2);
 const usage = `usage:
   ./melvor-report.js slots
   ./melvor-report.js diff-slots
+  ./melvor-report.js source-of-truth
   ./melvor-report.js summary [all|character]
   ./melvor-report.js audit [all|character]
   ./melvor-report.js plan [all|character]
@@ -29,7 +30,7 @@ if (cmd === '--help' || cmd === '-h' || cmd === 'help') {
   console.log(usage);
   process.exit(0);
 }
-if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'diff-slots', 'plan', 'export-state'].includes(cmd)) {
+if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'diff-slots', 'source-of-truth', 'plan', 'export-state'].includes(cmd)) {
   console.error(usage);
   process.exit(2);
 }
@@ -336,6 +337,35 @@ function printSlotDiffs(r) {
   }
 }
 
+function sourceOfTruth(r) {
+  const byName = xs => Object.fromEntries((xs || []).filter(s => s.name).map(s => [s.name, s]));
+  const local = byName(r.local);
+  const cloud = byName(r.cloud);
+  return CHARS.map(name => {
+    const l = local[name], c = cloud[name];
+    const localTime = parseSaveTime(l?.lastSave);
+    const cloudTime = parseSaveTime(c?.lastSave);
+    const diffMs = localTime - cloudTime;
+    let source = 'unknown';
+    if (l && !c) source = 'local';
+    else if (!l && c) source = 'cloud';
+    else if (Number.isFinite(diffMs)) source = diffMs > 0 ? 'local' : 'cloud';
+    return { name, source, local: l || null, cloud: c || null, diffMs: Number.isFinite(diffMs) ? diffMs : null };
+  });
+}
+
+function printSourceOfTruth(r) {
+  for (const s of sourceOfTruth(r)) {
+    const delta = s.diffMs === null ? 'unknown delta' : Math.abs(s.diffMs) < 60000 ? '<1 min' : `${Math.round(Math.abs(s.diffMs) / 60000)} min`;
+    const reason = s.diffMs === null
+      ? `missing ${s.local ? 'cloud' : 'local'}`
+      : s.diffMs === 0
+        ? 'timestamps aligned, cloud default'
+        : `${s.source} newer by ${delta}`;
+    console.log(`${s.name}: ${s.source} (${reason})`);
+  }
+}
+
 function lock() {
   try {
     const fd = fs.openSync(LOCK, 'wx');
@@ -353,9 +383,10 @@ function lock() {
   const unlock = lock();
   const chrome = await ensureChrome();
   try {
-    if (cmd === 'slots' || cmd === 'diff-slots') {
+    if (cmd === 'slots' || cmd === 'diff-slots' || cmd === 'source-of-truth') {
       const data = await readSlots();
       if (cmd === 'diff-slots') printSlotDiffs(data);
+      else if (cmd === 'source-of-truth') printSourceOfTruth(data);
       else printSlots(data);
       return;
     }

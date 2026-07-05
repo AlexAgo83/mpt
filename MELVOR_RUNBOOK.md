@@ -5,11 +5,13 @@
 ```bash
 ./melvor-report.js slots
 ./melvor-report.js diff-slots
+./melvor-report.js source-of-truth
 ./melvor-report.js summary all
 ./melvor-report.js audit all
 ```
 
-If `diff-slots` shows local newer than cloud, report it before making recommendations that assume cloud is current.
+Source of truth is the newest save, local or cloud. If `source-of-truth` points at local,
+do not load older cloud unless the user explicitly asks.
 
 ## Propose gear or skilling changes
 
@@ -23,7 +25,7 @@ Plans are suggestions only. Check whether each item is available and whether the
 
 ## Apply a user-approved change
 
-1. Run `./melvor-report.js slots` and confirm the user wants to write to the save you will load.
+1. Run `./melvor-report.js source-of-truth` and confirm the user wants to write to that source.
 2. Load one character only.
 3. Use `mh.equipSlot("Item Name", "Slot")`.
 4. Run `await mh.save()`.
