@@ -822,7 +822,7 @@ async function runJournal() {
   console.log('recorded journal/index.html');
 }
 
-function lock() {
+function lock(retry = true) {
   try {
     const fd = fs.openSync(LOCK, 'wx');
     fs.writeFileSync(fd, String(process.pid));
@@ -831,6 +831,13 @@ function lock() {
     process.once('SIGTERM', () => { unlock(); process.exit(143); });
     return unlock;
   } catch {
+    // ponytail: kill(pid, 0) treats EPERM as alive — fine, this tool only locks its own pids
+    let holderAlive = false;
+    try { process.kill(Number(fs.readFileSync(LOCK, 'utf8').trim()), 0); holderAlive = true; } catch {}
+    if (!holderAlive && retry) {
+      try { fs.unlinkSync(LOCK); } catch {}
+      return lock(false);
+    }
     throw Error(`another melvor-report is already using port ${PORT}`);
   }
 }
