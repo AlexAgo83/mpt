@@ -174,6 +174,46 @@
     return item ? passivesOf(item) : `"${name}" not found`;
   };
 
+  // Read-only rollup for CLI reports. Do not call saveData/cloudManager here.
+  mh.readOnlyReport = () => {
+    const skills = mh.skills();
+    const snap = mh.snapshot();
+    return {
+      name: snap.character,
+      mode: game.currentGamemode?.name ?? null,
+      gp: snap.gp,
+      action: snap.activeAction,
+      combatLevel: snap.combatLevel,
+      totalLevel: skills.reduce((a, s) => a + s.level, 0),
+      maxedSkills: skills.filter(s => s.level >= 120).length + '/' + skills.length,
+      lowSkills: skills.filter(s => s.level < 120).sort((a, b) => a.level - b.level || a.xp - b.xp),
+      hp: snap.hp,
+      prayer: snap.prayerPoints,
+      food: snap.food,
+      foodQty: snap.foodQty,
+      bankSlots: game.bank.items.size,
+      equipment: snap.equipment,
+      combat: mh.combatInfo(),
+    };
+  };
+
+  mh.skillingAudit = () => {
+    const eq = mh.snapshot().equipment;
+    const wanted = ['Ancient Ring of Skills', 'Ancient Ring of Mastery', 'Book of Scholars', 'Golden Wreath'];
+    const bankQty = (name) => { const item = findBank(name); return item ? game.bank.items.get(item).quantity : 0; };
+    return {
+      action: game.activeAction?.name ?? null,
+      equipment: eq,
+      available: Object.fromEntries(wanted.map(name => [name, bankQty(name)])),
+      notes: [
+        eq.Amulet === 'Amulet of Fishing' && eq.Weapon !== 'Potion Stirrer' ? 'Amulet of Fishing is only useful for Fishing' : null,
+        eq.Weapon === 'Grappling Hook' && eq.Summon2 !== 'Eagle' ? 'Grappling Hook is a Thieving item; Eagle is the Agility summon' : null,
+        eq.Ring === 'Ancient Ring of Mastery' ? 'Mastery ring favors mastery XP over skill XP' : null,
+        eq.Ring === 'Ancient Ring of Skills' ? 'Skills ring favors level XP over mastery XP' : null,
+      ].filter(Boolean),
+    };
+  };
+
   window.mh = mh;
 
   // Auto-load: if window.__autoLoadChar is set (by navigate_page's initScript BEFORE
