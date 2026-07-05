@@ -1,0 +1,278 @@
+{
+  "budgets": {
+    "max_docs": 12,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_000_character_journal_generation_for_melvor_planning item_001_add_append_only_character_journal_command task_001_implement_and_validate_character_journal_generation --mode full --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "prod": [
+          "prod_001_melvin_ai_assistant_for_melvor_idle"
+        ]
+      },
+      "path": "logics/product/prod_001_melvin_ai_assistant_for_melvor_idle.md",
+      "ref": "prod_001_melvin_ai_assistant_for_melvor_idle",
+      "sections": {
+        "Goals": [
+          "- Chat-driven game control: every meaningful game action reachable through conversation,",
+          "  with the assistant doing the reading, deciding-support, and clicking.",
+          "- Rich helper layer (`window.mh`): grow from today's read/equip primitives to full action",
+          "  coverage \u2014 start/stop activities, combat area and monster selection, slayer tasks, shop",
+          "  purchases, bank management (sell/open/claim), food and prayer management.",
+          "- Multi-character operation: safe parallel control of the account's 7 characters"
+        ],
+        "Key product decisions": [
+          "- Reuse chrome-devtools MCP as the entire access layer \u2014 no custom extension, no custom MCP",
+          "  server, no CLI wrapper. Zero infra to maintain.",
+          "- Headless Chrome with a persistent logged-in profile; temporary visible mode only for",
+          "  login/captcha recovery.",
+          "- The helper library lives in one plain JS file injected per session (re-injected on reload",
+          "  via `navigate_page` initScript); no build step, no dependencies."
+        ],
+        "Overview": [
+          "Melvin (working title, project codename MPT) is an AI assistant for the browser game",
+          "Melvor Idle. The player talks to the assistant in a chat session (Claude Code today) and the",
+          "assistant reads and manipulates the live game directly through the browser console \u2014 auditing",
+          "gear, equipping items, switching characters, and eventually driving every in-game activity",
+          "across the account's 7 characters.",
+          "The core loop is already proven: a chrome-devtools MCP server drives a headless Chrome with a"
+        ],
+        "References": [
+          "- Product back-reference: (none yet)",
+          "- Task back-reference: (none yet)",
+          "- `MELVOR.md` \u2014 operating manual (setup, session flow, helpers, pitfalls)",
+          "- `melvor-helpers.js` \u2014 injected helper library (`window.mh`)",
+          "- `logics/external/melvin-cockpit-mockup.html` \u2014 UX mockup: game + chat + multi-character",
+          "  cockpit overlay (not versioned; also published at"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Melvin - AI assistant for Melvor Idle"
+    },
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_001_add_append_only_character_journal_command"
+        ],
+        "prod": [
+          "prod_002_melvin_character_journal_and_planning_log"
+        ],
+        "req": [
+          "req_000_character_journal_generation_for_melvor_planning"
+        ],
+        "task": [
+          "task_001_implement_and_validate_character_journal_generation"
+        ]
+      },
+      "path": "logics/product/prod_002_melvin_character_journal_and_planning_log.md",
+      "ref": "prod_002_melvin_character_journal_and_planning_log",
+      "sections": {
+        "Goals": [
+          "- Make each character's current state and next optimization steps reviewable without rerunning a full browser session.",
+          "- Give future AI sessions a concise historical trail per character.",
+          "- Keep the journal human-readable and git-friendly.",
+          "- Preserve the existing read-only safety model for report commands."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Extend the Melvin local assistant with a lightweight, append-only journal that turns current Melvor account readings into per-character planning notes. The journal is a durable handoff surface for future AI sessions: what each character is doing, what the assistant recommends next, what actions are proposed, and what safety checks matter before writes."
+        ],
+        "References": [
+          "- Product back-reference: `req_000_character_journal_generation_for_melvor_planning`",
+          "- Task back-reference: `task_001_implement_and_validate_character_journal_generation`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Melvin - character journal and planning log"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, character journal generation for melvor planning, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Character journal generation for Melvor planning",
+        "use when": "You need to implement or review the scaffolded workflow for Character journal generation for Melvor planning."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_001_add_append_only_character_journal_command"
+        ],
+        "prod": [
+          "prod_001_melvin_ai_assistant_for_melvor_idle",
+          "prod_002_melvin_character_journal_and_planning_log"
+        ],
+        "req": [
+          "req_000_character_journal_generation_for_melvor_planning"
+        ]
+      },
+      "path": "logics/request/req_000_character_journal_generation_for_melvor_planning.md",
+      "ref": "req_000_character_journal_generation_for_melvor_planning",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- A new CLI command `journal [all|character] [--record]` is documented in the help output and README command list.",
+          "- Running `journal <character>` prints a Markdown journal entry for exactly that character without writing files.",
+          "- Running `journal all --record` creates or appends one Markdown file per configured character under `journal/`.",
+          "- Each character entry includes state, source-of-truth/save-risk context, recommendations, an optimization plan, proposed actions, and a history note.",
+          "- Journal generation reuses existing read-only report/audit/plan data instead of duplicating browser scraping logic.",
+          "- No secrets, credentials, save strings, or absolute local profile paths are written into journal files."
+        ],
+        "Needs": [
+          "- Add a read-only journal command that produces and optionally records a per-character logbook.",
+          "- Capture recommendations, optimization plans, historical snapshots, and proposed actions per character.",
+          "- Keep the implementation local-first, dependency-free, and aligned with existing CLI/report patterns."
+        ]
+      },
+      "status": "Draft",
+      "title": "Character journal generation for Melvor planning"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, add append-only character journal command, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Add append-only character journal command",
+        "use when": "Implementing the scaffolded slice for Add append-only character journal command."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_001_add_append_only_character_journal_command"
+        ],
+        "prod": [
+          "prod_002_melvin_character_journal_and_planning_log"
+        ],
+        "req": [
+          "req_000_character_journal_generation_for_melvor_planning"
+        ],
+        "task": [
+          "task_001_implement_and_validate_character_journal_generation"
+        ]
+      },
+      "path": "logics/backlog/item_001_add_append_only_character_journal_command.md",
+      "ref": "item_001_add_append_only_character_journal_command",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- `./melvor-report.js journal GrifhinZ` prints Markdown with headings for State, Recommendations, Optimization plan, Proposed actions, and History.",
+          "- `./melvor-report.js journal all --record` appends per-character files in `journal/` with deterministic filenames based on configured character names.",
+          "- The command refuses unknown character names the same way other single-character commands do, or clearly reports the load failure without partial writes for that character.",
+          "- Entries include save-source risk text derived from the same slot/source-of-truth logic used by `source-of-truth`.",
+          "- Recommendations and proposed actions are derived from existing `planLines`, skilling notes, and audit candidates where available.",
+          "- Generated Markdown does not include environment variables, Chrome profile paths, remote debugging ports unless already part of normal smoke output, or save strings."
+        ],
+        "Problem": [
+          "- Recommendations and plans are currently transient CLI output.",
+          "- A new AI session has to rediscover each character's context unless the user summarizes it manually.",
+          "- There is no durable per-character place to track proposed actions and optimization history."
+        ]
+      },
+      "status": "Ready",
+      "title": "Add append-only character journal command"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Implement and validate character journal generation",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_001_add_append_only_character_journal_command"
+        ],
+        "prod": [
+          "prod_002_melvin_character_journal_and_planning_log"
+        ],
+        "req": [
+          "req_000_character_journal_generation_for_melvor_planning"
+        ],
+        "task": [
+          "task_001_implement_and_validate_character_journal_generation"
+        ]
+      },
+      "path": "logics/tasks/task_001_implement_and_validate_character_journal_generation.md",
+      "ref": "task_001_implement_and_validate_character_journal_generation",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- Run `python3 -m logics_manager lint --require-status`.",
+          "- Run scaffold command tests."
+        ]
+      },
+      "status": "Ready",
+      "title": "Implement and validate character journal generation"
+    }
+  ],
+  "estimates": {
+    "char_count": 9022,
+    "companion_doc_count": 2,
+    "doc_count": 3
+  },
+  "generated_at": "2026-07-05T11:09:03Z",
+  "handoff": {
+    "companion_doc_count": 2,
+    "enabled": true,
+    "source_refs": [
+      "req_000_character_journal_generation_for_melvor_planning",
+      "item_001_add_append_only_character_journal_command",
+      "task_001_implement_and_validate_character_journal_generation"
+    ],
+    "validation_summary_count": 1
+  },
+  "mode": "full",
+  "profile": "normal",
+  "ref": "req_000_character_journal_generation_for_melvor_planning,item_001_add_append_only_character_journal_command,task_001_implement_and_validate_character_journal_generation",
+  "refs": [
+    "req_000_character_journal_generation_for_melvor_planning",
+    "item_001_add_append_only_character_journal_command",
+    "task_001_implement_and_validate_character_journal_generation"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "Missing logics/release/contract.json."
+    ],
+    "configured": false,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "Run logics-manager release discover --write, then review and promote logics/release/contract.draft.json to logics/release/contract.json.",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "not_configured",
+    "target_version": null
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- Run `python3 -m logics_manager lint --require-status`.",
+        "- Run scaffold command tests."
+      ],
+      "path": "logics/tasks/task_001_implement_and_validate_character_journal_generation.md",
+      "ref": "task_001_implement_and_validate_character_journal_generation"
+    }
+  ]
+}

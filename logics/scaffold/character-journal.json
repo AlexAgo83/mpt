@@ -1,0 +1,113 @@
+{
+  "title": "Character journal generation for Melvor planning",
+  "references": [
+    "README.md",
+    "MELVOR.md",
+    "MELVOR_RUNBOOK.md",
+    "AI_IMPROVEMENTS.md",
+    "melvor-report.js",
+    "melvor-helpers.js",
+    "logics/product/prod_001_melvin_ai_assistant_for_melvor_idle.md"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Melvor assistant reporting",
+    "needs": [
+      "Add a read-only journal command that produces and optionally records a per-character logbook.",
+      "Capture recommendations, optimization plans, historical snapshots, and proposed actions per character.",
+      "Keep the implementation local-first, dependency-free, and aligned with existing CLI/report patterns."
+    ],
+    "context": [
+      "The repository is intentionally plain Node.js with no runtime dependencies.",
+      "Existing commands already expose slots, source-of-truth, summary, audit, plan, skilling, gear, improve, and export-state.",
+      "The first implementation should append Markdown files under journal/ instead of introducing a database, web app, or persistent service.",
+      "All report generation must remain read-only and must not mutate Melvor saves."
+    ],
+    "acceptance_criteria": [
+      "A new CLI command `journal [all|character] [--record]` is documented in the help output and README command list.",
+      "Running `journal <character>` prints a Markdown journal entry for exactly that character without writing files.",
+      "Running `journal all --record` creates or appends one Markdown file per configured character under `journal/`.",
+      "Each character entry includes state, source-of-truth/save-risk context, recommendations, an optimization plan, proposed actions, and a history note.",
+      "Journal generation reuses existing read-only report/audit/plan data instead of duplicating browser scraping logic.",
+      "No secrets, credentials, save strings, or absolute local profile paths are written into journal files.",
+      "`npm run check` passes after implementation."
+    ]
+  },
+  "product": {
+    "title": "Melvin - character journal and planning log",
+    "overview": "Extend the Melvin local assistant with a lightweight, append-only journal that turns current Melvor account readings into per-character planning notes. The journal is a durable handoff surface for future AI sessions: what each character is doing, what the assistant recommends next, what actions are proposed, and what safety checks matter before writes.",
+    "goals": [
+      "Make each character's current state and next optimization steps reviewable without rerunning a full browser session.",
+      "Give future AI sessions a concise historical trail per character.",
+      "Keep the journal human-readable and git-friendly.",
+      "Preserve the existing read-only safety model for report commands."
+    ],
+    "non_goals": [
+      "No database, hosted dashboard, or web UI.",
+      "No automatic execution of proposed actions.",
+      "No Markdown parser or task-state engine in the first iteration.",
+      "No account secrets or save backups in generated journal files."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Add append-only character journal command",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Melvor assistant reporting",
+      "request_acs": [
+        "A new CLI command `journal [all|character] [--record]` is documented in the help output and README command list.",
+        "Running `journal <character>` prints a Markdown journal entry for exactly that character without writing files.",
+        "Running `journal all --record` creates or appends one Markdown file per configured character under `journal/`.",
+        "Each character entry includes state, source-of-truth/save-risk context, recommendations, an optimization plan, proposed actions, and a history note.",
+        "Journal generation reuses existing read-only report/audit/plan data instead of duplicating browser scraping logic.",
+        "No secrets, credentials, save strings, or absolute local profile paths are written into journal files.",
+        "`npm run check` passes after implementation."
+      ],
+      "problem": [
+        "Recommendations and plans are currently transient CLI output.",
+        "A new AI session has to rediscover each character's context unless the user summarizes it manually.",
+        "There is no durable per-character place to track proposed actions and optimization history."
+      ],
+      "scope_in": [
+        "Add `journal` to the accepted command list and usage text in `melvor-report.js`.",
+        "Generate Markdown entries from existing report, audit, skilling, gear, plan, and source-of-truth data.",
+        "When `--record` is passed, append entries to `journal/<Character>.md` and create `journal/account.md` only if account-level source-of-truth notes are useful.",
+        "Document the command in README and MELVOR_RUNBOOK.",
+        "Add a minimal self-check if non-trivial formatting helpers are introduced."
+      ],
+      "scope_out": [
+        "Parsing or updating checkbox state from old journal entries.",
+        "Any write/apply-plan automation.",
+        "A web dashboard, database, or new dependency.",
+        "Recording raw save strings, credentials, or local profile paths."
+      ],
+      "acceptance_criteria": [
+        "`./melvor-report.js journal GrifhinZ` prints Markdown with headings for State, Recommendations, Optimization plan, Proposed actions, and History.",
+        "`./melvor-report.js journal all --record` appends per-character files in `journal/` with deterministic filenames based on configured character names.",
+        "The command refuses unknown character names the same way other single-character commands do, or clearly reports the load failure without partial writes for that character.",
+        "Entries include save-source risk text derived from the same slot/source-of-truth logic used by `source-of-truth`.",
+        "Recommendations and proposed actions are derived from existing `planLines`, skilling notes, and audit candidates where available.",
+        "Generated Markdown does not include environment variables, Chrome profile paths, remote debugging ports unless already part of normal smoke output, or save strings.",
+        "`npm run check`, `./melvor-report.js --help`, and a single-character dry run are executed and documented at closeout."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Implement and validate character journal generation",
+    "plan": [
+      "Read README, MELVOR_RUNBOOK, melvor-report.js, and this request chain.",
+      "Trace existing `summary`, `audit`, `plan`, `export-state`, `slots`, and `source-of-truth` flows before editing.",
+      "Add the smallest `journal` command that reuses existing collection helpers and prints Markdown by default.",
+      "Add `--record` file appending under `journal/` with no secrets or save strings.",
+      "Update README and MELVOR_RUNBOOK command docs.",
+      "Run `npm run check`, `./melvor-report.js --help`, and one dry-run journal command.",
+      "If live browser access is unavailable, stop after syntax/docs validation and mark the live dry run as blocked with the exact reason."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/character-journal.json",
+    "mode": "full",
+    "profile": "normal"
+  }
+}
