@@ -98,7 +98,7 @@ async function withCharacter(name, fn) {
     await sleep(2200);
     await evalExpr(client, helper);
     const load = await evalExpr(client, `mh.loadCharacter(${JSON.stringify(name)})`, 45000);
-    if (String(load).startsWith('refused:')) throw Error(load);
+    if (!String(load).startsWith('loading ')) throw Error(load);
     await waitFor(client, `typeof game !== 'undefined' && game.loopStarted && game.characterName === ${JSON.stringify(name)}`, 150000);
     await sleep(1500);
     return await fn(client);

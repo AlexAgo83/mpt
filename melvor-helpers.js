@@ -24,6 +24,8 @@
   mh.loadCharacter = async (name) => {
     const open = await mh.activeCharacters();
     if (open.includes(name)) return `refused: "${name}" already open in another tab`;
+    if (/DEMO VERSION|Buy the Full Game or Sign in/i.test(document.body.innerText))
+      return 'refused: not signed in to cloud';
     let btn = null;
     for (let i = 0; i < 30 && !btn; i++) {
       // the toggle can appear late: retry it on every iteration
@@ -35,6 +37,7 @@
       if (!btn) await new Promise(r => setTimeout(r, 1000));
     }
     if (!btn) return `no save button for "${name}"`;
+    if (/Local Save/i.test(btn.innerText)) return `refused: "${name}" is only visible as a local save`;
     btn.click();
     await new Promise(r => setTimeout(r, 800));
     const confirm = [...document.querySelectorAll('.swal2-popup button')]
