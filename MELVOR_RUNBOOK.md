@@ -22,7 +22,11 @@ Use `./melvor-report.js improve --record` after sessions with failures or confus
 ```bash
 ./melvor-report.js journal GrifhinZ        # dry run: prints Markdown, writes nothing
 ./melvor-report.js journal all --record    # appends journal/ files + refreshes dashboard
+./melvor-report.js journal-action <id> dismissed   # offline status change (approved|dismissed|done|blocked)
 ```
+
+When the user accepts or rejects a proposed action, record it with `journal-action` so the
+next scan does not re-propose it. Applied equips are detected automatically and marked `done`.
 
 Start-of-session rule for AI assistants: before recommending anything, read
 `journal/latest.json` (per character: `observed` = game state, `analysis` = prior

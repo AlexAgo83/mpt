@@ -20,7 +20,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const argv = process.argv.slice(2);
 const record = argv.includes('--record');
-const [cmd = 'summary', who = 'all'] = argv.filter(a => a !== '--record');
+const [cmd = 'summary', who = 'all', arg3] = argv.filter(a => a !== '--record');
 const usage = `usage:
   ./melvor-report.js slots
   ./melvor-report.js smoke
@@ -35,6 +35,7 @@ const usage = `usage:
   ./melvor-report.js skilling <character>
   ./melvor-report.js export-state [all|character]
   ./melvor-report.js journal [all|character] [--record]
+  ./melvor-report.js journal-action <id> <approved|dismissed|done|blocked>
 
 Read-only commands. Check slots/diff-slots before any manual write.
 journal prints a Markdown entry; --record appends it under journal/ and
@@ -44,7 +45,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'export-state', 'journal'].includes(cmd)) {
+  if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'export-state', 'journal', 'journal-action'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -633,7 +634,7 @@ function buildLatest(chars, latest, previous, now) {
     generatedAt: now,
     account: {
       name: ACCOUNT,
-      scannedNow: chars.map(c => c.name),
+      scannedNow: chars.length ? chars.map(c => c.name) : previous?.account?.scannedNow || [],
       saveRisks: Object.entries(characters).filter(([, v]) => v.analysis.riskNotes.some(n => /save/.test(n))).map(([k]) => k),
       staleCharacters: Object.entries(characters).filter(([, v]) => Date.parse(now) - Date.parse(v.observed.at) > staleMs).map(([k]) => k),
     },
@@ -771,6 +772,27 @@ async function collectJournal(name) {
   })()`));
 }
 
+// Offline status change: appends a ledger event and refreshes latest.json + dashboard.
+function runJournalAction(id, status) {
+  const allowed = ['approved', 'dismissed', 'done', 'blocked'];
+  if (!id || !allowed.includes(status)) throw Error(`usage: journal-action <id> <${allowed.join('|')}>`);
+  const latest = readLedger();
+  const prev = latest.get(id);
+  if (!prev) throw Error(`unknown action id ${id} (see journal/actions.jsonl)`);
+  const now = new Date().toISOString();
+  const event = { ...prev, ts: now, status, reason: `manually marked ${status}` };
+  fs.appendFileSync(LEDGER, JSON.stringify(event) + '\n');
+  latest.set(id, event);
+  let previous = null;
+  try { previous = JSON.parse(fs.readFileSync(path.join(JOURNAL_DIR, 'latest.json'), 'utf8')); } catch {}
+  if (previous) {
+    const snapshot = buildLatest([], latest, previous, now);
+    fs.writeFileSync(path.join(JOURNAL_DIR, 'latest.json'), JSON.stringify(snapshot, null, 2));
+    fs.writeFileSync(path.join(JOURNAL_DIR, 'index.html'), renderDashboard(snapshot));
+  }
+  console.log(`${id} -> ${status} (${prev.character}: ${prev.item} in ${prev.slot})`);
+}
+
 async function runJournal() {
   const slots = await readSlots();
   const sources = Object.fromEntries(sourceOfTruth(slots).map(s => [s.name, s]));
@@ -815,6 +837,7 @@ function lock() {
 
 module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth };
 if (require.main === module) (async () => {
+  if (cmd === 'journal-action') return runJournalAction(who, arg3);
   const unlock = lock();
   let chrome = null;
   try {

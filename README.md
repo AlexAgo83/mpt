@@ -79,6 +79,7 @@ npm run source
 ./melvor-report.js export-state all > /tmp/melvor-state.json
 ./melvor-report.js journal GrifhinZ
 ./melvor-report.js journal all --record
+./melvor-report.js journal-action <id> dismissed
 ```
 
 All report commands are read-only.
@@ -98,7 +99,9 @@ git-ignored `journal/` directory:
   stale highlighting, account indicators, per-character detail, links to the Markdown files)
 
 Action lifecycle statuses: `proposed` → `approved` → `done`, or `blocked` / `dismissed`;
-an open action becomes `stale` when the observed state no longer produces the recommendation.
+an open action becomes `done` automatically when the observed equipment matches it, or
+`stale` when the observed state no longer produces the recommendation. Change a status
+manually with `journal-action <id> <approved|dismissed|done|blocked>` (offline, no browser).
 Dismissed/done/blocked actions are not re-proposed unless their context hash changes.
 Journal generation is read-only against the game and never writes secrets, save strings, or
 local profile paths. `journal/` is private local player data: it is git-ignored and must
