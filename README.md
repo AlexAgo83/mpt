@@ -1,6 +1,7 @@
 # MPT - Melvor Personal Tooling
 
 [![Last Commit](https://img.shields.io/github/last-commit/AlexAgo83/mpt/main)](https://github.com/AlexAgo83/mpt/commits/main)
+[![License](https://img.shields.io/badge/license-MIT-4C8BF5)](./LICENSE)
 [![Melvor Idle](https://img.shields.io/badge/Melvor%20Idle-tooling-1f6feb)](https://melvoridle.com/)
 [![Runtime](https://img.shields.io/badge/runtime-Node.js-339933?logo=node.js&logoColor=white)](./melvor-report.js)
 [![Workflow](https://img.shields.io/badge/workflow-Logics-4C8BF5)](./logics/)
@@ -105,6 +106,9 @@ If login expires, open the same profile visibly, let the user log in, then retur
 - [`MELVOR.md`](./MELVOR.md): full operating manual for AI assistants
 - [`MELVOR_RUNBOOK.md`](./MELVOR_RUNBOOK.md): short runbook for common workflows
 - [`AI_IMPROVEMENTS.md`](./AI_IMPROVEMENTS.md): ledger for repeated assistant failures and improvements
+- [`CONTRIBUTING.md`](./CONTRIBUTING.md): contribution and validation workflow
+- [`SECURITY.md`](./SECURITY.md): local security model and reporting policy
+- [`LICENSE`](./LICENSE): MIT license
 - [`logics/`](./logics/): product and workflow context
 - [`AGENTS.md`](./AGENTS.md), [`CLAUDE.md`](./CLAUDE.md): assistant entrypoints
 
@@ -140,4 +144,6 @@ Current focus:
 - [Melvor operating manual](./MELVOR.md)
 - [Runbook](./MELVOR_RUNBOOK.md)
 - [AI improvement ledger](./AI_IMPROVEMENTS.md)
+- [Contributing](./CONTRIBUTING.md)
+- [Security policy](./SECURITY.md)
 - [Product brief](./logics/product/prod_001_melvin_ai_assistant_for_melvor_idle.md)
