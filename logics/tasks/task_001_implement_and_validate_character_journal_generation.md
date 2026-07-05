@@ -2,16 +2,17 @@
 > From version: 0.1.0
 > Schema version: 1.0
 > Status: Ready
-> Understanding: 90%
-> Confidence: 85%
-> Progress: 0%
+> Understanding: 90
+> Confidence: 85
+> Progress: 0
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 
 # Context
 - Implement the journal feature described by `req_000_character_journal_generation_for_melvor_planning` and `item_001_add_append_only_character_journal_command`.
-- Keep the first version dependency-free and append-only; do not introduce a database, web UI, or action-state parser.
+- Keep the first version dependency-free and local; do not introduce a database, server, frontend framework, or action-state parser.
+- The user wants an interactive dashboard, so `--record` should generate `journal/index.html` alongside Markdown files.
 - Report commands are read-only. Do not mutate Melvor saves while generating or recording journal entries.
 
 # Plan
@@ -19,9 +20,11 @@
 - [ ] 2. Trace existing `summary`, `audit`, `plan`, `export-state`, `slots`, and `source-of-truth` flows before editing.
 - [ ] 3. Add the smallest `journal` command that reuses existing collection helpers and prints Markdown by default.
 - [ ] 4. Add `--record` file appending under `journal/` with no secrets or save strings.
-- [ ] 5. Update README and MELVOR_RUNBOOK command docs.
-- [ ] 6. Run `npm run check`, `./melvor-report.js --help`, and one dry-run journal command.
-- [ ] 7. If live browser access is unavailable, stop after syntax/docs validation and mark the live dry run as blocked with the exact reason.
+- [ ] 5. Generate `journal/index.html` from the same sanitized latest-state data with embedded CSS/JS, no external assets, and no server requirement.
+- [ ] 6. Include dashboard search plus action/risk filters, compact character cards/rows, top recommendations, proposed actions, and links to Markdown files.
+- [ ] 7. Update README and MELVOR_RUNBOOK command docs.
+- [ ] 8. Run `npm run check`, `./melvor-report.js --help`, one dry-run journal command, and one recorded dashboard generation.
+- [ ] 9. If live browser access is unavailable, stop after syntax/docs validation and mark the live dry run/dashboard generation as blocked with the exact reason.
 - [ ] GATE: do not close until lint, audit, and scaffold validation pass.
 
 # Backlog
@@ -31,24 +34,28 @@
 - [ ] `journal [all|character] [--record]` is implemented and listed in CLI help.
 - [ ] Single-character journal output includes State, Recommendations, Optimization plan, Proposed actions, and History.
 - [ ] `--record` appends deterministic per-character Markdown files under `journal/`.
+- [ ] `--record` for all characters refreshes `journal/index.html`.
+- [ ] The dashboard is interactive offline: search, action/risk filters, expandable details or equivalent compact browsing.
 - [ ] README and MELVOR_RUNBOOK document the command.
-- [ ] No secrets, save strings, credentials, or local Chrome profile paths are written.
-- [ ] `npm run check`, `./melvor-report.js --help`, and one journal dry run are recorded in the closeout.
+- [ ] No secrets, save strings, credentials, local Chrome profile paths, or unnecessary remote debug details are written.
+- [ ] `npm run check`, `./melvor-report.js --help`, one journal dry run, and one dashboard generation are recorded in the closeout.
 
 # AC Traceability
 - request-AC1 -> This task. Proof: CLI help and README list `journal [all|character] [--record]`.
 - request-AC2 -> This task. Proof: `./melvor-report.js journal GrifhinZ` prints Markdown without writing files.
 - request-AC3 -> This task. Proof: `./melvor-report.js journal all --record` appends files under `journal/`.
-- request-AC4 -> This task. Proof: generated entries include state, save-risk context, recommendations, optimization plan, proposed actions, and history.
-- request-AC5 -> This task. Proof: implementation reuses existing report/audit/plan/source-of-truth helpers.
-- request-AC6 -> This task. Proof: generated output excludes credentials, save strings, environment variables, and local profile paths.
-- request-AC7 -> This task. Proof: `npm run check` passes.
+- request-AC4 -> This task. Proof: `journal/index.html` is generated or refreshed by `journal all --record`.
+- request-AC5 -> This task. Proof: dashboard shows all characters with filters, recommendations, proposed actions, and Markdown links.
+- request-AC6 -> This task. Proof: generated entries include state, save-risk context, recommendations, optimization plan, proposed actions, and history.
+- request-AC7 -> This task. Proof: implementation reuses existing report/audit/plan/source-of-truth helpers.
+- request-AC8 -> This task. Proof: generated output excludes credentials, save strings, environment variables, and local profile paths.
+- request-AC9 -> This task. Proof: `npm run check` passes.
 
 # Validation
 - Run `npm run check`.
 - Run `./melvor-report.js --help`.
 - Run `./melvor-report.js journal GrifhinZ`.
-- If recording is implemented, run `./melvor-report.js journal GrifhinZ --record` or explain why live browser access blocks it.
+- Run `./melvor-report.js journal all --record` and inspect/open `journal/index.html`, or explain why live browser access blocks it.
 - Run `logics-manager flow validate logics/request/req_000_character_journal_generation_for_melvor_planning.md`.
 - Run `logics-manager lint --require-status`.
 - Run `logics-manager audit --group-by-doc`.
