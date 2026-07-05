@@ -4,7 +4,7 @@
 > Status: Ready
 > Understanding: 90
 > Confidence: 85
-> Progress: 60
+> Progress: 75
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
@@ -22,7 +22,7 @@
 - [x] 4. Add `--record` file appending under `journal/` with no secrets or save strings.
 - [x] 5. Generate `journal/index.html` from the same sanitized latest-state data with embedded CSS/JS, no external assets, and no server requirement.
 - [x] 6. Include dashboard search plus action/risk filters, compact character cards/rows, top recommendations, proposed actions, and links to Markdown files.
-- [ ] 7. Update README and MELVOR_RUNBOOK command docs.
+- [x] 7. Update README and MELVOR_RUNBOOK command docs.
 - [ ] 8. Run `npm run check`, `./melvor-report.js --help`, one dry-run journal command, and one recorded dashboard generation.
 - [ ] 9. If live browser access is unavailable, stop after syntax/docs validation and mark the live dry run/dashboard generation as blocked with the exact reason.
 - [ ] GATE: do not close until lint, audit, and scaffold validation pass.

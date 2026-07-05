@@ -35,6 +35,7 @@ flowchart LR
 - Resolves the source of truth as the newest save
 - Generates account summaries, audits, gear views, skilling views, and plans
 - Exports structured state for deeper AI recommendations
+- Keeps an append-only character journal with a structured snapshot, action ledger, and offline dashboard
 - Records assistant-improvement reports after messy sessions
 - Documents the live browser workflow for Codex and Claude handoff
 
@@ -76,9 +77,33 @@ npm run source
 ./melvor-report.js gear <character>
 ./melvor-report.js skilling <character>
 ./melvor-report.js export-state all > /tmp/melvor-state.json
+./melvor-report.js journal GrifhinZ
+./melvor-report.js journal all --record
 ```
 
 All report commands are read-only.
+
+## Journal
+
+`journal [all|character]` prints a Markdown entry per character (state, save-risk context,
+recommendations, optimization plan, proposed actions, history). `--record` writes into the
+git-ignored `journal/` directory:
+
+- `journal/<Character>.md`: append-only Markdown journal per character
+- `journal/latest.json`: structured snapshot; per character it separates `observed` (game
+  state), `analysis` (assistant interpretation), and `decisions` (user/session decisions)
+- `journal/actions.jsonl`: append-only action ledger with stable action ids, status,
+  risk, reason, timestamps, and a context hash
+- `journal/index.html`: offline interactive dashboard (search, action/risk/status filters,
+  stale highlighting, account indicators, per-character detail, links to the Markdown files)
+
+Action lifecycle statuses: `proposed` → `approved` → `done`, or `blocked` / `dismissed`;
+an open action becomes `stale` when the observed state no longer produces the recommendation.
+Dismissed/done/blocked actions are not re-proposed unless their context hash changes.
+Journal generation is read-only against the game and never writes secrets, save strings, or
+local profile paths. `journal/` is private local player data: it is git-ignored and must
+never be committed. Executing actions stays out of scope — any future apply-action flow
+still requires `source-of-truth` checks and explicit user approval.
 
 ## Character roster
 
@@ -117,7 +142,9 @@ npm run test:slots
 
 - [`melvor-report.js`](./melvor-report.js): read-only CLI reports and source-of-truth checks
 - [`melvor-helpers.js`](./melvor-helpers.js): injected `window.mh` browser helper library
+- [`test-journal.js`](./test-journal.js): offline self-check for the journal logic (part of `npm run check`)
 - [`package.json`](./package.json): standard local command aliases, no dependencies
+- `journal/` (git-ignored): generated player journal — Markdown entries, `latest.json`, `actions.jsonl`, `index.html`
 - [`.env.example`](./.env.example): local-only account/profile configuration template
 - [`MELVOR.md`](./MELVOR.md): full operating manual for AI assistants
 - [`MELVOR_RUNBOOK.md`](./MELVOR_RUNBOOK.md): short runbook for common workflows

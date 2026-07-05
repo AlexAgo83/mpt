@@ -17,6 +17,28 @@ do not load older cloud unless the user explicitly asks.
 
 Use `./melvor-report.js improve --record` after sessions with failures or confusing behavior.
 
+## Character journal and dashboard
+
+```bash
+./melvor-report.js journal GrifhinZ        # dry run: prints Markdown, writes nothing
+./melvor-report.js journal all --record    # appends journal/ files + refreshes dashboard
+```
+
+Start-of-session rule for AI assistants: before recommending anything, read
+`journal/latest.json` (per character: `observed` = game state, `analysis` = prior
+assistant interpretation, `decisions` = user/session decisions) and `journal/actions.jsonl`
+(latest event per action id wins). Respect existing decisions:
+
+- `dismissed`, `done`, `blocked`: do not re-propose unless the context hash changed.
+- `proposed`, `approved`: still open; check for `stale` events before acting on them.
+- `stale`: the observed state invalidated the recommendation; re-evaluate from scratch.
+
+Open `journal/index.html` in a browser for account triage (works offline from disk).
+Journal generation is read-only and never mutates saves. `journal/` is private local
+player data and stays git-ignored — never stage or commit it. Executing proposed actions
+is out of scope: it still requires `source-of-truth` checks and explicit user approval
+(see "Apply a user-approved change").
+
 ## Propose gear or skilling changes
 
 ```bash
