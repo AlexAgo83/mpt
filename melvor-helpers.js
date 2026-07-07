@@ -172,7 +172,7 @@
     return { context: { attackType, hitChance: p.stats.hitChance, maxHit: p.stats.maxHit, attackInterval: p.stats.attackInterval }, equipped, candidates };
   };
 
-  mh.equipSlot = (name, slotName) => {
+  mh.equipSlot = (name, slotName, quantity) => {
     const p = game.combat.player;
     const item = findBank(name);
     if (!item) return name + ': not in bank';
@@ -181,8 +181,11 @@
     if (!slot) return slotName + ': unknown slot';
     if (!item.validSlots.some(s => s.localID === slotName))
       return name + ': invalid slot "' + slotName + '" (valid: ' + item.validSlots.map(s => s.localID).join(', ') + ')';
-    p.equipItem(item, p.selectedEquipmentSet, slot, 1);
-    return name + ': equipped in ' + slotName;
+    const bankQty = game.bank.items.get(item)?.quantity ?? 1;
+    const stackSlot = /^Summon[12]$|^Quiver$|^Consumable$/.test(slotName);
+    const qty = quantity ?? (stackSlot ? bankQty : 1);
+    p.equipItem(item, p.selectedEquipmentSet, slot, qty);
+    return name + ': equipped x' + qty + ' in ' + slotName;
   };
 
   // Explicit slot required; avoids accidental passive/summon/offhand swaps.
