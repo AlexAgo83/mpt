@@ -101,6 +101,14 @@
     const p = game.combat.player;
     const equipped = Object.fromEntries(equippedSlots().map(s => [s.slot.localID, { item: s.item.name, quantity: slotQty(s) }]));
     const notes = [];
+    const runways = [];
+    const addRunway = (slot, interval, unit) => {
+      const e = equipped[slot];
+      if (!e?.quantity || !interval) return;
+      const eta = fmtMs(e.quantity * interval);
+      runways.push({ slot, item: e.item, quantity: e.quantity, unit, eta });
+      notes.push(`${slot} ${e.item}: about ${eta} (${e.quantity} ${unit})`);
+    };
     if (action === 'Combat') {
       const attackInterval = p.stats.attackInterval;
       const slayerLeft = game.combat.slayerTask?.active ? game.combat.slayerTask.killsLeft : null;
@@ -110,22 +118,21 @@
         const attacks = Math.ceil((slayerLeft * enemyHP) / expectedHit);
         notes.push(`Slayer task ETA about ${fmtMs(attacks * attackInterval)} (${slayerLeft} kills left)`);
       }
-      for (const slot of ['Quiver', 'Consumable', 'Summon1', 'Summon2']) {
-        const e = equipped[slot];
-        if (e?.quantity) notes.push(`${slot} ${e.item}: roughly ${fmtMs(e.quantity * attackInterval)} at 1/use`);
-      }
-      if (p.food.currentSlot?.quantity) notes.push(`${p.food.currentSlot.item.name}: ${p.food.currentSlot.quantity} food equipped`);
+      addRunway('Quiver', attackInterval, 'attacks if every attack consumes ammo');
+      addRunway('Consumable', attackInterval, 'combat charges at 1/attack');
+      addRunway('Summon1', attackInterval, 'combat charges at 1/attack');
+      addRunway('Summon2', attackInterval, 'combat charges at 1/attack');
+      if (p.food.currentSlot?.quantity) notes.push(`${p.food.currentSlot.item.name}: ${p.food.currentSlot.quantity} food equipped; runway depends on damage taken`);
     } else {
       const interval = game.activeAction?.actionInterval ?? game.activeAction?.currentActionInteral ?? null;
       if (interval) notes.push(`current interval about ${fmtMs(interval)}`);
       if (interval) {
-        for (const slot of ['Consumable', 'Summon1', 'Summon2']) {
-          const e = equipped[slot];
-          if (e?.quantity) notes.push(`${slot} ${e.item}: roughly ${fmtMs(e.quantity * interval)} at 1/use`);
-        }
+        addRunway('Consumable', interval, 'skilling charges at 1/action');
+        addRunway('Summon1', interval, 'skilling charges at 1/action');
+        addRunway('Summon2', interval, 'skilling charges at 1/action');
       }
     }
-    return { name: action, notes: notes.filter(Boolean), equipment: equipped };
+    return { name: action, notes: notes.filter(Boolean), equipment: equipped, runways };
   };
 
   // Compact character overview.
