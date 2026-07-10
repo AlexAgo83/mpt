@@ -65,6 +65,27 @@ const afterDismiss = buildLatest([], dismissed, prevSnap, now);
 assert.strictEqual(afterDismiss.characters.TestChar.decisions.dismissed.length, 1, 'carried-over decisions refresh');
 assert.strictEqual(afterDismiss.characters.TestChar.decisions.proposed.length, 0);
 
+// Level ETA: computed only from comparable skill snapshots, then preserved on dashboard rebuilds.
+const withSkills = (xp, at, action = 'Fishing') => {
+  const entry = buildCharacterJournal('EtaChar', {
+    ...data,
+    report: { ...data.report, action, equipment: { Summon2: 'Octopus' } },
+    skills: [
+      { name: 'Fishing', level: 50, xp, levelCap: 99 },
+      { name: 'Attack', level: 40, xp: 40000, levelCap: 99 },
+    ],
+  }, save);
+  entry.observed.at = at;
+  return entry;
+};
+const etaPrev = buildLatest([withSkills(100000, '2026-07-05T12:00:00.000Z')], new Map(), null, now);
+const etaSnap = buildLatest([withSkills(106000, '2026-07-05T12:10:00.000Z')], new Map(), etaPrev, now);
+assert.ok(/Fishing: 6,000 XP gained/.test(etaSnap.characters.EtaChar.analysis.progressEtas[0]), 'skill ETA uses XP delta');
+const etaRebuild = buildLatest([], new Map(), etaSnap, '2026-07-05T12:11:00.000Z');
+assert.deepStrictEqual(etaRebuild.characters.EtaChar.analysis.progressEtas, etaSnap.characters.EtaChar.analysis.progressEtas, 'ETA survives rebuild without scan');
+const etaPending = buildLatest([withSkills(106000, '2026-07-05T12:10:00.000Z')], new Map(), prevSnap, now);
+assert.match(etaPending.characters.EtaChar.analysis.progressEtas[0], /previous journal snapshot has no skill XP/);
+
 // latest.json shape
 const snap = buildLatest([c], first.latest, null, now);
 assert.deepStrictEqual(Object.keys(snap).sort(), ['account', 'actionsSummary', 'characters', 'generatedAt']);
