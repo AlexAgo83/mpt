@@ -1048,6 +1048,7 @@ function progressEtas(current, previous) {
 
 function buildLatest(chars, latest, previous, now) {
   const characters = { ...(previous?.characters || {}) };
+  const scannedNames = new Set(chars.map(c => c.name));
   for (const c of chars) characters[c.name] = { observed: c.observed, analysis: c.analysis };
   // decisions always derive from the ledger, for scanned and carried-over characters alike
   for (const [name, entry] of Object.entries(characters)) {
@@ -1058,9 +1059,10 @@ function buildLatest(chars, latest, previous, now) {
       entry.analysis.currentActionPlan ??= [];
       entry.analysis.recommendations ??= [];
       if (!entry.analysis.currentActionPlan.includes(note)) entry.analysis.currentActionPlan.unshift(note);
-      if (!entry.analysis.recommendations.includes(note)) entry.analysis.recommendations.unshift(note);
+        if (!entry.analysis.recommendations.includes(note)) entry.analysis.recommendations.unshift(note);
     }
-    entry.analysis.progressEtas = progressEtas(entry, previousEntry);
+    if (scannedNames.has(name)) entry.analysis.progressEtas = progressEtas(entry, previousEntry);
+    else entry.analysis.progressEtas ??= previousEntry?.analysis?.progressEtas || [];
     const decisions = Object.fromEntries(ACTION_STATUSES.map(s => [s, []]));
     for (const e of latest.values()) {
       if (e.character !== name) continue;
