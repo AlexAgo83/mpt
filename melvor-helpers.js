@@ -76,6 +76,21 @@
     return 'saved (local + cloud)';
   };
 
+  mh.exportSaveString = () => {
+    const calls = [
+      ['game.generateSaveString', () => game.generateSaveString()],
+      ['game.getSaveString', () => game.getSaveString()],
+      ['getSaveString', () => getSaveString()],
+    ];
+    for (const [name, call] of calls) {
+      try {
+        const value = call();
+        if (typeof value === 'string' && value.length > 1000) return value;
+      } catch {}
+    }
+    throw Error('no Melvor save export function found');
+  };
+
   // Close any swal2 popup (confirm by default, cancel with accept=false).
   mh.dismissModal = (accept = true) => {
     const re = accept ? /confirm|ok|yes/i : /cancel|no/i;

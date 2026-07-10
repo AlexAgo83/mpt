@@ -21,7 +21,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const argv = process.argv.slice(2);
 const record = argv.includes('--record');
 const abyssalOnly = argv.includes('--abyssal');
-const [cmd = 'summary', who = 'all', arg3] = argv.filter(a => a !== '--record' && a !== '--abyssal');
+const saveBackup = argv.includes('--save-backup');
+const [cmd = 'summary', who = 'all', arg3] = argv.filter(a => !['--record', '--abyssal', '--save-backup'].includes(a));
 const usage = `usage:
   ./melvor-report.js slots
   ./melvor-report.js smoke
@@ -39,7 +40,8 @@ const usage = `usage:
   ./melvor-report.js gear <character>
   ./melvor-report.js skilling <character>
   ./melvor-report.js export-state [all|character]
-  ./melvor-report.js journal [all|character] [--record]
+  ./melvor-report.js save-backup [all|character]
+  ./melvor-report.js journal [all|character] [--record] [--save-backup]
   ./melvor-report.js journal-action <id> <approved|dismissed|done|blocked>
 
 Most commands are read-only. combat-setup and combat-run write, save, then verify source-of-truth.
@@ -50,7 +52,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'export-state', 'journal', 'journal-action'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'export-state', 'save-backup', 'journal', 'journal-action'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -838,11 +840,58 @@ function printImprovementReport(slots) {
 }
 
 const JOURNAL_DIR = path.join(__dirname, 'journal');
+const SAVE_DIR = path.join(JOURNAL_DIR, 'saves');
+const SAVE_MANIFEST = path.join(SAVE_DIR, 'manifest.jsonl');
 const JOURNAL_WANTED = ['Octopus', 'Potion Stirrer', 'Bear', 'Jeweled Necklace', 'Book of Scholars', 'Ancient Ring of Mastery', 'Golden Star', 'Eagle'];
 const sha = s => crypto.createHash('sha1').update(s).digest('hex').slice(0, 12);
 // ponytail: id = char+slot+item, contextHash = activity+currently equipped item; refine if dedup proves too coarse
 const actionId = (name, a) => sha(`${name}|${a.type}|${a.slot}|${a.item}`);
 const actionContextHash = (report, a) => sha(`${report.action}|${report.equipment[a.slot] || 'empty'}`);
+const safeFilePart = s => String(s).replace(/[^A-Za-z0-9_.-]/g, '_');
+const rel = p => path.relative(JOURNAL_DIR, p).split(path.sep).join('/');
+
+function readSaveBackups(file = SAVE_MANIFEST) {
+  const latest = new Map();
+  let text = '';
+  try { text = fs.readFileSync(file, 'utf8'); } catch { return latest; }
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    try {
+      const e = JSON.parse(line);
+      if (e.character) latest.set(e.character, e);
+    } catch {}
+  }
+  return latest;
+}
+
+function recordSaveBackup(name, source, saveString, now = new Date().toISOString()) {
+  if (typeof saveString !== 'string' || saveString.length < 1000) throw Error(`invalid save export for ${name}`);
+  fs.mkdirSync(SAVE_DIR, { recursive: true });
+  const base = safeFilePart(name);
+  const stamp = now.replace(/[:.]/g, '-');
+  const archive = path.join(SAVE_DIR, `${base}.${stamp}.txt`);
+  const latest = path.join(SAVE_DIR, `${base}.latest.txt`);
+  fs.writeFileSync(archive, saveString);
+  fs.writeFileSync(latest, saveString);
+  const entry = {
+    ts: now,
+    character: name,
+    source: source?.source || 'unknown',
+    diffMinutes: source?.diffMs === null || source?.diffMs === undefined ? null : Math.round(source.diffMs / 60000),
+    bytes: Buffer.byteLength(saveString, 'utf8'),
+    hash: sha(saveString),
+    path: rel(latest),
+    archive: rel(archive),
+  };
+  fs.appendFileSync(SAVE_MANIFEST, JSON.stringify(entry) + '\n');
+  const archives = fs.readdirSync(SAVE_DIR)
+    .filter(f => f.startsWith(`${base}.`) && f.endsWith('.txt') && f !== `${base}.latest.txt`)
+    .sort();
+  for (const f of archives.slice(0, Math.max(0, archives.length - 5))) {
+    try { fs.unlinkSync(path.join(SAVE_DIR, f)); } catch {}
+  }
+  return entry;
+}
 
 function buildCharacterJournal(name, data, save) {
   const report = data.report;
@@ -1056,6 +1105,7 @@ function levelEtaStatus(lines) {
 function buildLatest(chars, latest, previous, now) {
   const characters = { ...(previous?.characters || {}) };
   const scannedNames = new Set(chars.map(c => c.name));
+  const backups = readSaveBackups();
   for (const c of chars) characters[c.name] = { observed: c.observed, analysis: c.analysis };
   // decisions always derive from the ledger, for scanned and carried-over characters alike
   for (const [name, entry] of Object.entries(characters)) {
@@ -1070,6 +1120,7 @@ function buildLatest(chars, latest, previous, now) {
     }
     if (scannedNames.has(name)) entry.analysis.progressEtas = progressEtas(entry, previousEntry);
     else entry.analysis.progressEtas ??= previousEntry?.analysis?.progressEtas || [];
+    if (backups.has(name)) entry.observed.saveBackup = backups.get(name);
     const decisions = Object.fromEntries(ACTION_STATUSES.map(s => [s, []]));
     for (const e of latest.values()) {
       if (e.character !== name) continue;
@@ -1257,6 +1308,14 @@ function render() {
     const body = el('div', 'body');
     const abyssalMaxed = c.observed.abyssal?.maxed ? ' | abyssal ' + c.observed.abyssal.maxed : '';
     body.append(el('div', 'muted', 'total ' + c.observed.totalLevel + ' | maxed ' + c.observed.maxedSkills + abyssalMaxed + ' | GP ' + c.observed.gp.toLocaleString() + ' | ' + (c.observed.mode || '')));
+    if (c.observed.saveBackup) {
+      const b = c.observed.saveBackup;
+      const p = el('p', 'muted');
+      const link = el('a', '', 'save backup');
+      link.href = b.path;
+      p.append(link, ' ', new Date(b.ts).toLocaleString(), ' | ', b.source, ' | ', b.bytes.toLocaleString(), ' bytes | ', b.hash);
+      body.append(p);
+    }
     const section = (title, items, fmt) => {
       body.append(el('h3', '', title));
       const ul = el('ul');
@@ -1308,12 +1367,18 @@ render();
 `;
 }
 
-async function collectJournal(name, save) {
+async function collectJournal(name, save, includeSaveBackup = false) {
   return withCharacterSource(name, save?.source, client => evalExpr(client, `(() => {
     const wanted = ${JSON.stringify(JOURNAL_WANTED)};
     const qty = n => { for (const [item, bi] of game.bank.items) if (item.name === n) return bi.quantity; return 0; };
-    return { report: mh.readOnlyReport(), skills: mh.skills(), skilling: mh.skillingAudit(), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])) };
+    const out = { report: mh.readOnlyReport(), skills: mh.skills(), skilling: mh.skillingAudit(), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])) };
+    if (${JSON.stringify(includeSaveBackup)}) out.saveExport = mh.exportSaveString();
+    return out;
   })()`));
+}
+
+async function collectSaveBackup(name, source) {
+  return withCharacterSource(name, source?.source, client => evalExpr(client, 'mh.exportSaveString()', 60000));
 }
 
 async function readSourcesByName() {
@@ -1357,7 +1422,13 @@ function runJournalAction(id, status) {
 async function runJournal() {
   const { sources } = await readSourcesByName();
   const chars = [];
-  for (const name of names) chars.push(buildCharacterJournal(name, await collectJournal(name, sources[name]), sources[name]));
+  const backupEntries = [];
+  for (const name of names) {
+    const data = await collectJournal(name, sources[name], saveBackup);
+    if (saveBackup) backupEntries.push(recordSaveBackup(name, sources[name], data.saveExport));
+    chars.push(buildCharacterJournal(name, data, sources[name]));
+  }
+  for (const b of backupEntries) console.log(`recorded ${b.path} (${b.character}, ${b.source}, ${b.hash})`);
   const previous = readLatestSnapshot();
   const now = new Date().toISOString();
   for (const c of chars) c.analysis.progressEtas = progressEtas(c, previous?.characters?.[c.name] || null);
@@ -1380,6 +1451,14 @@ async function runJournal() {
   console.log('recorded journal/latest.json');
   fs.writeFileSync(path.join(JOURNAL_DIR, 'index.html'), renderDashboard(snapshot));
   console.log('recorded journal/index.html');
+}
+
+async function runSaveBackup() {
+  const { sources } = await readSourcesByName();
+  for (const name of names) {
+    const entry = recordSaveBackup(name, sources[name], await collectSaveBackup(name, sources[name]));
+    console.log(`recorded ${entry.path} (${entry.character}, ${entry.source}, ${entry.bytes} bytes, ${entry.hash})`);
+  }
 }
 
 function lock(retry = true) {
@@ -1430,6 +1509,11 @@ if (require.main === module) (async () => {
 
     if (cmd === 'journal') {
       await runJournal();
+      return;
+    }
+
+    if (cmd === 'save-backup') {
+      await runSaveBackup();
       return;
     }
 
