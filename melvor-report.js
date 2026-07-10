@@ -1459,6 +1459,13 @@ async function runSaveBackup() {
     const entry = recordSaveBackup(name, sources[name], await collectSaveBackup(name, sources[name]));
     console.log(`recorded ${entry.path} (${entry.character}, ${entry.source}, ${entry.bytes} bytes, ${entry.hash})`);
   }
+  const previous = readLatestSnapshot();
+  if (previous) {
+    const snapshot = buildLatest([], readLedger(), previous, new Date().toISOString());
+    fs.writeFileSync(path.join(JOURNAL_DIR, 'latest.json'), JSON.stringify(snapshot, null, 2));
+    fs.writeFileSync(path.join(JOURNAL_DIR, 'index.html'), renderDashboard(snapshot));
+    console.log('refreshed journal/latest.json and journal/index.html');
+  }
 }
 
 function lock(retry = true) {
