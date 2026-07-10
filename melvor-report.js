@@ -313,6 +313,41 @@ function planLines(r) {
   return planActions(r).map(a => `${a.slot}: ${a.current} -> ${a.item} (${a.available > 0 ? `available x${a.available}` : 'not in bank'}; ${a.reason})`);
 }
 
+function currentActionPlan(r) {
+  const report = r.report;
+  const eq = report.equipment || {};
+  const lines = [...(report.actionEstimate?.notes || []), ...(r.skilling?.notes || []), ...planLines(r)];
+  const add = note => { if (!lines.includes(note)) lines.push(note); };
+  const action = report.action || 'idle';
+  if (action === 'idle') {
+    add('current action: idle, no task is running');
+    add('current action: choose a new task or restart the previous one after checking resources');
+  } else if (action === 'Combat') {
+    const c = report.combat || {};
+    if (c.hitChance !== null && c.hitChance !== undefined && c.hitChance < 80)
+      add(`current combat: low hit chance ${Math.round(c.hitChance)}%, prefer accuracy/prayer/potion before DPS`);
+    if (!report.food || !report.foodQty) add('current combat: no food equipped');
+    if (report.mode === 'Hardcore Mode') add('current combat: Hardcore, verify max hit and resistance before gear swaps');
+    if (c.slayerTask?.monster) add(`current combat: finish Slayer task ${c.slayerTask.monster} (${c.slayerTask.left} left)`);
+  } else if (action === 'Agility') {
+    if (eq.Summon2 !== 'Eagle') add('current Agility: use Eagle summon for interval');
+    if (eq.Summon1 === 'Bear') add('current Agility: Bear is Herblore-focused, replace if another useful synergy is available');
+    if (eq.Consumable === 'Golden Star') add('current Agility: Golden Star is Astrology-focused, remove unless intentionally burning stock');
+  } else if (action === 'Astrology') {
+    if (eq.Consumable !== 'Golden Star') add('current Astrology: use Golden Star if available');
+    if (/Quill|Logbook/.test(`${eq.Weapon || ''} ${eq.Shield || ''}`)) add('current Astrology: Cartography tools equipped, swap to skilling XP/mastery gear');
+  } else if (action === 'Fishing') {
+    if (eq.Summon2 !== 'Octopus') add('current Fishing: use Octopus summon for yield');
+    if (eq.Amulet !== 'Amulet of Fishing') add('current Fishing: use Amulet of Fishing if available');
+  } else if (action === 'Herblore') {
+    if (eq.Weapon !== 'Potion Stirrer') add('current Herblore: use Potion Stirrer if available');
+    if (eq.Summon1 !== 'Bear') add('current Herblore: use Bear summon for preserve');
+  } else if (action && action !== 'idle') {
+    add(`current ${action}: verify ring choice, summon synergy, consumable, and mastery-vs-level XP goal`);
+  }
+  return lines.slice(0, 8);
+}
+
 function combatGoalLines(report) {
   const goals = report.combatGoals;
   if (!goals) return [];
@@ -347,6 +382,19 @@ const isAbyssalDungeon = d => /melvorItA/.test(d.id || '') || /Abyss/i.test(d.na
 const hasTrainableAbyssalLevels = s =>
   (s.abyssalCap ?? 0) > 1
   && !['melvorAoD:Cartography', 'melvorAoD:Archaeology'].includes(s.id);
+const xpForLevel = level => {
+  let points = 0;
+  for (let l = 1; l < level; l++) points += Math.floor(l + 300 * Math.pow(2, l / 7));
+  return Math.floor(points / 4);
+};
+const fmtDuration = ms => {
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  const min = Math.round(ms / 60000);
+  if (min < 90) return `${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 48) return `${h} h`;
+  return `${Math.round(h / 24)} d`;
+};
 
 function briefFromData(name, data, save) {
   const report = data.report;
@@ -371,8 +419,8 @@ function briefFromData(name, data, save) {
     abyssalDungeons[0] ? `clear abyssal dungeon: ${abyssalDungeons[0].name}` : null,
     ...abyssalOpen.slice(0, 3).map(s => `raise abyssal ${s.name} (${s.abyssalLevel ?? 0}/${s.abyssalCap})`),
   ].filter(Boolean);
+  const currentNext = currentActionPlan(data);
   const standardNext = [
-    ...planLines(data),
     ...standardOpen.slice(0, 3).map(s => `raise standard ${s.name} (${s.level}/${s.levelCap ?? 120})`),
     goals.nextSetup ? `combat setup: ${goals.nextSetup.dungeon} with set ${goals.nextSetup.set?.index ?? '?'} ${goals.nextSetup.set?.attackType || 'unknown'} (${goals.nextSetup.set?.weapon || 'no weapon'})` : null,
   ].filter(Boolean);
@@ -392,6 +440,11 @@ function briefFromData(name, data, save) {
       food: report.food,
       foodQty: report.foodQty,
       current: report.combat,
+    },
+    currentAction: {
+      name: report.action || 'idle',
+      next: currentNext,
+      estimate: report.actionEstimate || null,
     },
     standard: {
       total: report.totalLevel,
@@ -424,7 +477,7 @@ function briefFromData(name, data, save) {
       report.mode === 'Hardcore Mode' ? 'Hardcore: verify survivability before combat changes' : null,
     ].filter(Boolean),
     next: [
-      ...(data.skilling?.notes || []),
+      ...currentNext,
       ...standardNext,
       ...abyssalNext,
     ].filter(Boolean).slice(0, 8),
@@ -811,14 +864,18 @@ function buildCharacterJournal(name, data, save) {
       food: report.food,
       foodQty: report.foodQty,
       equipment: report.equipment,
+      equipmentQuantities: report.equipmentQuantities || {},
+      skills: data.skills || [],
       lowSkills: report.lowSkills.slice(0, 6),
       combatGoals: report.combatGoals || null,
+      currentAction: brief.currentAction,
       standard: brief.standard,
       abyssal: brief.abyssal,
       saveSource: save ? { source: save.source, diffMinutes: save.diffMs === null ? null : Math.round(save.diffMs / 60000) } : null,
     },
     analysis: {
       recommendations: brief.next,
+      currentActionPlan: brief.currentAction.next,
       optimizationPlan: brief.standard.next,
       standardPlan: brief.standard.next,
       abyssalPlan: brief.abyssal.next,
@@ -859,6 +916,8 @@ function recentJournalEntries(name, limit = 5) {
         at,
         state: sectionLines(block, 'State'),
         recommendations: sectionLines(block, 'Recommendations').filter(x => x !== 'none'),
+        currentActionPlan: sectionLines(block, 'Current action plan').filter(x => x !== 'none'),
+        progressEtas: sectionLines(block, 'Level ETA').filter(x => x !== 'none'),
         standardPlan: sectionLines(block, 'Optimization plan').filter(x => x !== 'none'),
         abyssalPlan: sectionLines(block, 'Abyssal plan').filter(x => x !== 'none'),
       };
@@ -883,6 +942,12 @@ function journalMd(c) {
     '',
     '### Recommendations',
     ...list(c.analysis.recommendations),
+    '',
+    '### Current action plan',
+    ...list(c.analysis.currentActionPlan || []),
+    '',
+    '### Level ETA',
+    ...list(c.analysis.progressEtas || []),
     '',
     '### Optimization plan',
     ...list(c.analysis.optimizationPlan),
@@ -951,11 +1016,51 @@ function mergeLedger(chars, latest, now) {
   return { events, latest: merged };
 }
 
+function progressEtas(current, previous) {
+  if (!(current.observed.skills || []).length) return ['ETA pending: run a fresh journal scan to record skill XP'];
+  if (!(previous?.observed?.skills || []).length) return ['ETA pending: previous journal snapshot has no skill XP; scan again after XP gain'];
+  const prevAt = Date.parse(previous?.observed?.at);
+  const curAt = Date.parse(current.observed.at);
+  const elapsed = curAt - prevAt;
+  if (!Number.isFinite(elapsed) || elapsed < 5 * 60000) return ['ETA pending: needs at least 5 minutes between comparable journal scans'];
+  const prevSkills = Object.fromEntries((previous?.observed?.skills || []).map(s => [s.name, s]));
+  const action = current.observed.action;
+  const etas = (current.observed.skills || [])
+    .filter(s => !action || s.name === action || (action === 'Combat' && ['Attack', 'Strength', 'Defence', 'Hitpoints', 'Ranged', 'Magic', 'Slayer'].includes(s.name)))
+    .map(s => {
+      const prev = prevSkills[s.name];
+      const dxp = s.xp - (prev?.xp ?? s.xp);
+      if (dxp <= 0) return null;
+      const xpPerMs = dxp / elapsed;
+      const nextLevel = Math.min((s.levelCap ?? 120), s.level + 1);
+      const nextTen = Math.min((s.levelCap ?? 120), Math.ceil((s.level + 1) / 10) * 10);
+      const cap = s.levelCap ?? 120;
+      const parts = [`${s.name}: ${fmtNum(dxp)} XP gained (${fmtNum(dxp * 3600000 / elapsed)}/h)`];
+      if (nextLevel > s.level) parts.push(`next level ETA ${fmtDuration((xpForLevel(nextLevel) - s.xp) / xpPerMs)}`);
+      if (nextTen > s.level) parts.push(`level ${nextTen} ETA ${fmtDuration((xpForLevel(nextTen) - s.xp) / xpPerMs)}`);
+      if (cap > s.level) parts.push(`cap ${cap} ETA ${fmtDuration((xpForLevel(cap) - s.xp) / xpPerMs)}`);
+      return parts.filter(Boolean).join('; ');
+    })
+    .filter(Boolean)
+    .slice(0, 5);
+  return etas.length ? etas : ['ETA pending: no XP gain detected for the current action since the previous scan'];
+}
+
 function buildLatest(chars, latest, previous, now) {
   const characters = { ...(previous?.characters || {}) };
   for (const c of chars) characters[c.name] = { observed: c.observed, analysis: c.analysis };
   // decisions always derive from the ledger, for scanned and carried-over characters alike
   for (const [name, entry] of Object.entries(characters)) {
+    const previousEntry = previous?.characters?.[name] || null;
+    const prevAction = previous?.characters?.[name]?.observed?.action || null;
+    if (!entry.observed.action && prevAction) {
+      const note = `current action stopped after ${prevAction}; check resources/recipe inputs before restarting`;
+      entry.analysis.currentActionPlan ??= [];
+      entry.analysis.recommendations ??= [];
+      if (!entry.analysis.currentActionPlan.includes(note)) entry.analysis.currentActionPlan.unshift(note);
+      if (!entry.analysis.recommendations.includes(note)) entry.analysis.recommendations.unshift(note);
+    }
+    entry.analysis.progressEtas = progressEtas(entry, previousEntry);
     const decisions = Object.fromEntries(ACTION_STATUSES.map(s => [s, []]));
     for (const e of latest.values()) {
       if (e.character !== name) continue;
@@ -1018,8 +1123,10 @@ h1 { margin: 0 0 .9rem; color: var(--gold); font-size: 1.7rem; letter-spacing: 0
 #summary { display: flex; flex-wrap: wrap; gap: .7rem 1.5rem; padding: .8rem 1rem; border: 1px solid var(--line); border-radius: 6px; background: #171f19d9; box-shadow: inset 0 0 0 1px #0008; }
 #summary b { color: var(--gold); font-size: 1.12rem; }
 #filters { display: flex; flex-wrap: wrap; gap: .55rem; margin: .9rem 0; align-items: center; }
-input, select { font: inherit; color: var(--ink); background: #101711; border: 1px solid var(--line); border-radius: 4px; padding: .34rem .48rem; }
-input:focus, select:focus { outline: 2px solid #d8aa4666; outline-offset: 1px; }
+button, input, select { font: inherit; color: var(--ink); background: #101711; border: 1px solid var(--line); border-radius: 4px; padding: .34rem .48rem; }
+button { cursor: pointer; }
+button:hover { border-color: var(--gold); }
+button:focus, input:focus, select:focus { outline: 2px solid #d8aa4666; outline-offset: 1px; }
 .card { border: 1px solid var(--line); border-radius: 6px; margin: .65rem 0; background: linear-gradient(180deg, var(--panel), #151d18); box-shadow: 0 10px 24px #0005; }
 .card summary { cursor: pointer; padding: .7rem .9rem; display: flex; flex-wrap: wrap; gap: .45rem .85rem; align-items: baseline; border-bottom: 1px solid #0000; }
 .card[open] summary { border-bottom-color: #0008; }
@@ -1033,6 +1140,13 @@ input:focus, select:focus { outline: 2px solid #d8aa4666; outline-offset: 1px; }
 ul { margin: .2rem 0 .6rem; padding-left: 1.2rem; }
 a { color: var(--gold); }
 h3 { color: var(--gold); font-size: 1rem; margin: .75rem 0 .25rem; }
+.history-link { margin-top: .45rem; }
+#historyShade { position: fixed; inset: 0; background: #0009; opacity: 0; pointer-events: none; transition: opacity .16s ease; }
+#historyDrawer { position: fixed; top: 0; right: 0; width: min(34rem, 92vw); height: 100vh; box-sizing: border-box; padding: 1rem; overflow: auto; background: #141d17; border-left: 1px solid var(--line); box-shadow: -18px 0 42px #0008; transform: translateX(100%); transition: transform .16s ease; }
+body.history-open #historyShade { opacity: 1; pointer-events: auto; }
+body.history-open #historyDrawer { transform: translateX(0); }
+#historyHead { display: flex; gap: .7rem; align-items: center; justify-content: space-between; margin-bottom: .65rem; }
+#historyHead h2 { margin: 0; color: var(--gold); font-size: 1.15rem; }
 .history-entry { margin: .45rem 0; padding: .55rem .65rem; border-left: 3px solid var(--gold); background: #0f1712; border-radius: 0 4px 4px 0; }
 .history-entry h4 { margin: 0 0 .25rem; color: var(--muted); font-size: .9rem; }
 </style>
@@ -1045,8 +1159,14 @@ h3 { color: var(--gold); font-size: 1rem; margin: .75rem 0 .25rem; }
   <select id="fRisk"><option value="">any risk</option><option value="risk">save risk</option><option value="ok">no save risk</option></select>
   <select id="fStatus"><option value="">any action status</option></select>
   <label><input id="fStale" type="checkbox"> stale only</label>
+  <button id="historyToggle" type="button">history</button>
 </div>
 <div id="cards"></div>
+<div id="historyShade"></div>
+<aside id="historyDrawer" aria-hidden="true">
+  <div id="historyHead"><h2>Journal history</h2><button id="historyClose" type="button">close</button></div>
+  <div id="historyBody"></div>
+</aside>
 <script id="data" type="application/json">${json}</script>
 <script>
 const snap = JSON.parse(document.getElementById('data').textContent);
@@ -1071,6 +1191,32 @@ const fStatus = document.getElementById('fStatus');
 for (const s of STATUSES) fStatus.append(new Option(s, s));
 
 const cards = document.getElementById('cards');
+const historyDrawer = document.getElementById('historyDrawer');
+const historyBody = document.getElementById('historyBody');
+function openHistory(onlyName) {
+  historyBody.replaceChildren();
+  const entries = Object.entries(snap.characters).filter(([name, c]) => (!onlyName || name === onlyName) && (c.history || []).length);
+  if (!entries.length) historyBody.append(el('p', 'muted', 'no journal history'));
+  for (const [name, c] of entries) {
+    historyBody.append(el('h3', '', name));
+    for (const h of c.history) {
+      const box = el('div', 'history-entry');
+      box.append(el('h4', '', new Date(h.at).toLocaleString()));
+      const lines = [...(h.currentActionPlan || []).slice(0, 3), ...(h.progressEtas || []).slice(0, 2), ...(h.recommendations || []).slice(0, 3), ...(h.abyssalPlan || []).slice(0, 2)];
+      const ul = el('ul');
+      if (!lines.length) ul.append(el('li', 'muted', 'none'));
+      for (const line of lines) ul.append(el('li', '', line));
+      box.append(ul);
+      historyBody.append(box);
+    }
+  }
+  historyDrawer.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('history-open');
+}
+function closeHistory() {
+  document.body.classList.remove('history-open');
+  historyDrawer.setAttribute('aria-hidden', 'true');
+}
 function render() {
   const q = document.getElementById('q').value.toLowerCase();
   const wantAction = fAction.value, wantRisk = document.getElementById('fRisk').value, wantStatus = fStatus.value;
@@ -1078,7 +1224,7 @@ function render() {
   cards.replaceChildren();
   for (const [name, c] of Object.entries(snap.characters)) {
     const action = c.observed.action || 'idle';
-    const haystack = (name + ' ' + action + ' ' + JSON.stringify(c.analysis.recommendations) + ' ' + JSON.stringify(c.analysis.standardPlan || []) + ' ' + JSON.stringify(c.analysis.abyssalPlan || []) + ' ' + JSON.stringify(c.decisions)).toLowerCase();
+    const haystack = (name + ' ' + action + ' ' + JSON.stringify(c.analysis.recommendations) + ' ' + JSON.stringify(c.analysis.currentActionPlan || []) + ' ' + JSON.stringify(c.analysis.progressEtas || []) + ' ' + JSON.stringify(c.analysis.standardPlan || []) + ' ' + JSON.stringify(c.analysis.abyssalPlan || []) + ' ' + JSON.stringify(c.decisions)).toLowerCase();
     if (q && !haystack.includes(q)) continue;
     if (wantAction && action !== wantAction) continue;
     if (wantRisk === 'risk' && !hasRisk(name)) continue;
@@ -1106,22 +1252,17 @@ function render() {
       body.append(ul);
     };
     section('Top recommendations', c.analysis.recommendations.slice(0, 5));
+    section('Current action', (c.analysis.currentActionPlan || c.observed.currentAction?.next || []).slice(0, 6));
+    section('Level ETA', (c.analysis.progressEtas || []).slice(0, 6));
     section('Standard plan', (c.analysis.standardPlan || c.analysis.optimizationPlan || []).slice(0, 6));
     section('Abyssal plan', (c.analysis.abyssalPlan || []).slice(0, 6));
     if (c.observed.abyssal?.lowest?.length)
       section('Abyssal lows', c.observed.abyssal.lowest.slice(0, 6), s => s.name + ' ' + s.abyssalLevel + '/' + s.abyssalCap);
     if ((c.history || []).length) {
-      body.append(el('h3', '', 'Journal history'));
-      for (const h of c.history) {
-        const box = el('div', 'history-entry');
-        box.append(el('h4', '', new Date(h.at).toLocaleString()));
-        const lines = [...(h.recommendations || []).slice(0, 4), ...(h.abyssalPlan || []).slice(0, 3)];
-        const ul = el('ul');
-        if (!lines.length) ul.append(el('li', 'muted', 'none'));
-        for (const line of lines) ul.append(el('li', '', line));
-        box.append(ul);
-        body.append(box);
-      }
+      const btn = el('button', 'history-link', 'history ' + c.history.length);
+      btn.type = 'button';
+      btn.dataset.historyName = name;
+      body.append(btn);
     }
     for (const s of STATUSES) {
       const xs = c.decisions[s] || [];
@@ -1139,6 +1280,14 @@ function render() {
   if (!cards.children.length) cards.append(el('p', 'muted', 'no character matches the filters'));
 }
 for (const id of ['q', 'fAction', 'fRisk', 'fStatus', 'fStale']) document.getElementById(id).addEventListener('input', render);
+document.getElementById('historyToggle').addEventListener('click', () => openHistory());
+document.getElementById('historyClose').addEventListener('click', closeHistory);
+document.getElementById('historyShade').addEventListener('click', closeHistory);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeHistory(); });
+cards.addEventListener('click', e => {
+  const btn = e.target.closest('[data-history-name]');
+  if (btn) openHistory(btn.dataset.historyName);
+});
 render();
 </script>
 </body>
@@ -1308,6 +1457,8 @@ if (require.main === module) (async () => {
             food: report.food,
             foodQty: report.foodQty,
             equipment: report.equipment,
+            equipmentQuantities: report.equipmentQuantities,
+            actionEstimate: report.actionEstimate,
             combat: report.combat,
             combatGoals: report.combatGoals,
           };

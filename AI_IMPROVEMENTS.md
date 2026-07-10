@@ -51,6 +51,13 @@ Purpose: capture what made the assistant less reliable, then promote only repeat
 - Fix shipped: `combatGoals.nextSetup` now records recommended set, simple prayers, summons, potions, and obvious cape swaps; the journal records those recommendations.
 - Follow-up: Add an apply command for approved combat setup changes, including prayers, without starting a dungeon.
 
+### 2026-07-11 - Dash idle Smithing miss
+- Observed: Dash had stopped Smithing after exhausting recipe inputs, but the assistant focused on broad progression instead of flagging the stopped current task.
+- Impact: The report missed the highest-priority operational issue: the character was no longer doing useful work.
+- Root cause: `currentActionPlan` treated `activeAction === null` as an empty state, and the dashboard did not compare the current action with the previous journal snapshot.
+- Fix shipped: `brief` and journal now flag idle/stopped actions, compare against the previous action, and estimate current-action intervals plus consumable/ammo/summon/Slayer runway where available.
+- Follow-up: Add recipe-specific missing-input detection for Smithing/Crafting/Cooking when the selected recipe is available from the game object.
+
 ## Entry template
 
 ```markdown

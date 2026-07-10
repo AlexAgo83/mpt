@@ -84,22 +84,67 @@
     return 'no modal';
   };
 
+  const equippedSlots = () => game.combat.player.equipment.equippedArray.filter(s => !s.isEmpty);
+  const slotQty = s => s.quantity ?? s.qty ?? s.item?.quantity ?? null;
+  const fmtMs = ms => {
+    if (!Number.isFinite(ms) || ms <= 0) return null;
+    if (ms < 60000) return `${Math.max(1, Math.round(ms / 1000))} s`;
+    const min = Math.round(ms / 60000);
+    if (min < 90) return `${min} min`;
+    const h = Math.round(min / 60);
+    if (h < 48) return `${h} h`;
+    return `${Math.round(h / 24)} d`;
+  };
+  const currentActionEstimate = () => {
+    const action = game.activeAction?.name ?? null;
+    if (!action) return { name: 'idle', notes: ['no task is running'] };
+    const p = game.combat.player;
+    const equipped = Object.fromEntries(equippedSlots().map(s => [s.slot.localID, { item: s.item.name, quantity: slotQty(s) }]));
+    const notes = [];
+    if (action === 'Combat') {
+      const attackInterval = p.stats.attackInterval;
+      const slayerLeft = game.combat.slayerTask?.active ? game.combat.slayerTask.killsLeft : null;
+      const enemyHP = game.combat.enemy?.monster?.hitpoints ?? game.combat.enemy?.hitpoints ?? null;
+      const expectedHit = (p.stats.hitChance / 100) * (p.stats.maxHit / 2);
+      if (slayerLeft && enemyHP && expectedHit > 0) {
+        const attacks = Math.ceil((slayerLeft * enemyHP) / expectedHit);
+        notes.push(`Slayer task ETA about ${fmtMs(attacks * attackInterval)} (${slayerLeft} kills left)`);
+      }
+      for (const slot of ['Quiver', 'Consumable', 'Summon1', 'Summon2']) {
+        const e = equipped[slot];
+        if (e?.quantity) notes.push(`${slot} ${e.item}: roughly ${fmtMs(e.quantity * attackInterval)} at 1/use`);
+      }
+      if (p.food.currentSlot?.quantity) notes.push(`${p.food.currentSlot.item.name}: ${p.food.currentSlot.quantity} food equipped`);
+    } else {
+      const interval = game.activeAction?.actionInterval ?? game.activeAction?.currentActionInteral ?? null;
+      if (interval) notes.push(`current interval about ${fmtMs(interval)}`);
+      if (interval) {
+        for (const slot of ['Consumable', 'Summon1', 'Summon2']) {
+          const e = equipped[slot];
+          if (e?.quantity) notes.push(`${slot} ${e.item}: roughly ${fmtMs(e.quantity * interval)} at 1/use`);
+        }
+      }
+    }
+    return { name: action, notes: notes.filter(Boolean), equipment: equipped };
+  };
+
   // Compact character overview.
-  mh.snapshot = () => ({
-    character: game.characterName,
-    gp: game.gp.amount,
-    activeAction: game.activeAction?.name ?? null,
-    combatLevel: game.playerCombatLevel,
-    hp: game.combat.player.hitpoints,
-    prayerPoints: game.combat.player.prayerPoints,
-    food: game.combat.player.food.currentSlot?.item?.name ?? null,
-    foodQty: game.combat.player.food.currentSlot?.quantity ?? 0,
-    equipment: Object.fromEntries(
-      game.combat.player.equipment.equippedArray
-        .filter(s => !s.isEmpty)
-        .map(s => [s.slot.localID, s.item.name])
-    ),
-  });
+  mh.snapshot = () => {
+    const slots = equippedSlots();
+    return {
+      character: game.characterName,
+      gp: game.gp.amount,
+      activeAction: game.activeAction?.name ?? null,
+      combatLevel: game.playerCombatLevel,
+      hp: game.combat.player.hitpoints,
+      prayerPoints: game.combat.player.prayerPoints,
+      food: game.combat.player.food.currentSlot?.item?.name ?? null,
+      foodQty: game.combat.player.food.currentSlot?.quantity ?? 0,
+      equipment: Object.fromEntries(slots.map(s => [s.slot.localID, s.item.name])),
+      equipmentQuantities: Object.fromEntries(slots.map(s => [s.slot.localID, slotQty(s)]).filter(([, q]) => q !== null)),
+      actionEstimate: currentActionEstimate(),
+    };
+  };
 
   // Bank search by substring (case-insensitive).
   mh.bankFind = (q) => {
@@ -345,6 +390,8 @@
       foodQty: snap.foodQty,
       bankSlots: game.bank.items.size,
       equipment: snap.equipment,
+      equipmentQuantities: snap.equipmentQuantities,
+      actionEstimate: snap.actionEstimate,
       combat: mh.combatInfo(),
       combatGoals: mh.combatGoals(),
     };

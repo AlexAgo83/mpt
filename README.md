@@ -34,8 +34,10 @@ flowchart LR
 - Compares local and cloud saves before risky work
 - Resolves the source of truth as the newest save
 - Generates account summaries, audits, gear views, skilling views, and plans
+- Generates compact `brief` JSON with source-of-truth, current-action, standard, and abyssal recommendations
+- Estimates current-action status, including idle/stopped actions, skill intervals, Slayer ETA, and equipped consumable/ammo runway
 - Exports structured state for deeper AI recommendations
-- Keeps an append-only character journal with a structured snapshot, action ledger, and offline dashboard
+- Keeps an append-only character journal with a structured snapshot, action ledger, Melvor-themed offline dashboard, and recent recommendation history
 - Records assistant-improvement reports after messy sessions
 - Documents the live browser workflow for Codex and Claude handoff
 
@@ -71,9 +73,13 @@ npm run source
 ./melvor-report.js source-of-truth
 ./melvor-report.js improve
 ./melvor-report.js improve --record
+./melvor-report.js brief all
+./melvor-report.js brief <character>
 ./melvor-report.js summary all
 ./melvor-report.js audit all
 ./melvor-report.js plan all
+./melvor-report.js combat-plan all
+./melvor-report.js combat-plan <character> --abyssal
 ./melvor-report.js gear <character>
 ./melvor-report.js skilling <character>
 ./melvor-report.js export-state all > /tmp/melvor-state.json
@@ -84,11 +90,24 @@ npm run source
 
 All report commands are read-only.
 
+`brief` is the preferred command for AI account triage. It returns one compact JSON object
+per character with:
+
+- `source`: newest-save source and write-block risk
+- `currentAction`: current task, action-specific recommendations, rough intervals, Slayer
+  ETA, equipped food, and ammo/scroll/summon/consumable runway when the game exposes enough
+  data
+- `standard`: standard-level gaps, accessible standard dungeons, and standard next steps
+- `abyssal`: abyssal-level gaps, abyssal dungeons such as `Into the Abyss`, and abyssal next
+  steps; Cartography and Archaeology are intentionally excluded because they do not have
+  trainable Abyssal Levels
+- `risks` and `next`: short top-level prompts for the assistant/user
+
 ## Journal
 
 `journal [all|character]` prints a Markdown entry per character (state, save-risk context,
-recommendations, optimization plan, proposed actions, history). `--record` writes into the
-git-ignored `journal/` directory:
+recommendations, current-action plan, standard plan, abyssal plan, proposed actions, history).
+`--record` writes into the git-ignored `journal/` directory:
 
 - `journal/<Character>.md`: append-only Markdown journal per character
 - `journal/latest.json`: structured snapshot; per character it separates `observed` (game
@@ -96,7 +115,18 @@ git-ignored `journal/` directory:
 - `journal/actions.jsonl`: append-only action ledger with stable action ids, status,
   risk, reason, timestamps, and a context hash
 - `journal/index.html`: offline interactive dashboard (search, action/risk/status filters,
-  stale highlighting, account indicators, per-character detail, links to the Markdown files)
+  stale highlighting, account indicators, per-character detail, Melvor-themed styling,
+  current-action recommendations, a side drawer for recent journal history, and links to
+  the Markdown files)
+- `Level ETA`: projected time to next level, next 10-level milestone, and current cap when
+  two journal snapshots have enough standard XP gain to estimate a rate; otherwise it
+  explains what data is still missing
+
+The dashboard highlights stopped/idle characters. If a character was previously doing a
+task and is now idle, the next journal refresh records a recommendation such as "current
+action stopped after Smithing; check resources/recipe inputs before restarting".
+Level ETA is intentionally snapshot-based: the first scan records XP, and later scans show
+projections only when enough time and XP changed to produce a useful estimate.
 
 Action lifecycle statuses: `proposed` → `approved` → `done`, or `blocked` / `dismissed`;
 an open action becomes `done` automatically when the observed equipment matches it, or

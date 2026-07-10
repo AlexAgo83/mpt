@@ -8,12 +8,18 @@
 ./melvor-report.js source-of-truth
 ./melvor-report.js improve
 ./melvor-report.js improve --record
+./melvor-report.js brief all
 ./melvor-report.js summary all
 ./melvor-report.js audit all
 ```
 
 Source of truth is the newest save, local or cloud. If `source-of-truth` points at local,
 do not load older cloud unless the user explicitly asks.
+
+Prefer `brief all` for account triage. It is the compact source for current-action status,
+standard progression, abyssal progression, save risks, and top recommendations. It also
+surfaces stopped/idle characters and rough runways for equipped consumables, ammo, summons,
+and Slayer tasks when the game exposes the needed values.
 
 Use `./melvor-report.js improve --record` after sessions with failures or confusing behavior.
 
@@ -38,6 +44,22 @@ assistant interpretation, `decisions` = user/session decisions) and `journal/act
 - `stale`: the observed state invalidated the recommendation; re-evaluate from scratch.
 
 Open `journal/index.html` in a browser for account triage (works offline from disk).
+The dashboard is Melvor-themed and shows:
+
+- `Current action`: task-specific recommendations, idle/stopped-task alerts, intervals,
+  Slayer ETA, and consumable/ammo/summon runway where available
+- `Level ETA`: time to next level, next 10-level milestone, and cap, when two journal
+  snapshots provide a measurable standard-XP rate; otherwise it explains what data is
+  still missing
+- `Standard plan`: standard-level gaps and standard combat setup direction
+- `Abyssal plan`: abyssal-level gaps and abyssal dungeon direction; Cartography and
+  Archaeology are excluded because they have no trainable Abyssal Levels
+- `Journal history`: a side drawer with recent prior recommendations per character, useful
+  for checking what changed since the last scan without bloating the main view
+
+Level ETA needs history. If it is empty after a fresh change, run another journal scan later
+after the character has gained XP.
+
 Journal generation is read-only and never mutates saves. `journal/` is private local
 player data and stays git-ignored — never stage or commit it. Executing proposed actions
 is out of scope: it still requires `source-of-truth` checks and explicit user approval
@@ -48,6 +70,7 @@ is out of scope: it still requires `source-of-truth` checks and explicit user ap
 ```bash
 ./melvor-report.js plan all
 ./melvor-report.js combat-plan Edalbraw
+./melvor-report.js combat-plan Chap --abyssal
 ./melvor-report.js combat-run Edalbraw "Lair of the Spider Queen"
 ./melvor-report.js gear <character>
 ./melvor-report.js skilling <character>
@@ -57,6 +80,7 @@ Plans are suggestions only. Check whether each item is available and whether the
 Read commands load the source-of-truth save for each character: local when local is newer, cloud otherwise.
 `gear` filters candidates the character cannot currently equip.
 `combat-plan` lists accessible uncleared dungeons, capped skills that may need new cap rolls, the saved combat set that best matches the boss attack type, and simple next-setup notes such as prayers, summons, potions, and obvious cape swaps.
+`combat-plan --abyssal` filters the readable plan to abyssal dungeons such as `Into the Abyss`.
 `combat-run` loads the source-of-truth save, equips the matching saved combat set, starts one dungeon, monitors until completion/timeout/low HP, saves, and reports pending reward buttons.
 After an Ancient Relics dungeon clear, stop before clicking `Claim` or any `Increase Level Cap` button unless the user has chosen the target cap; record the pending choice in the journal instead.
 
