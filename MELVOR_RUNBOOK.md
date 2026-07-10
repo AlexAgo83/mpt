@@ -28,6 +28,8 @@ Use `./melvor-report.js improve --record` after sessions with failures or confus
 ```bash
 ./melvor-report.js journal GrifhinZ        # dry run: prints Markdown, writes nothing
 ./melvor-report.js journal all --record    # appends journal/ files + refreshes dashboard
+./melvor-report.js journal all --record --save-backup  # also writes private save exports
+./melvor-report.js save-backup all         # private save exports only
 ./melvor-report.js journal-action <id> dismissed   # offline status change (approved|dismissed|done|blocked)
 ```
 
@@ -56,14 +58,18 @@ The dashboard is Melvor-themed and shows:
   Archaeology are excluded because they have no trainable Abyssal Levels
 - `Journal history`: a side drawer with recent prior recommendations per character, useful
   for checking what changed since the last scan without bloating the main view
+- `Save backup`: metadata and a local link when `save-backup` or `journal --save-backup`
+  has written a private export under `journal/saves/`
 
 Level ETA needs history. If it is empty after a fresh change, run another journal scan later
 after the character has gained XP.
 
-Journal generation is read-only and never mutates saves. `journal/` is private local
-player data and stays git-ignored — never stage or commit it. Executing proposed actions
-is out of scope: it still requires `source-of-truth` checks and explicit user approval
-(see "Apply a user-approved change").
+Journal generation is read-only and never mutates saves. Save backups are raw Melvor save
+exports, so keep them only under git-ignored `journal/saves/`; the dashboard should show
+metadata/hash/link, not embed the raw string. `journal/` is private local player data and
+stays git-ignored — never stage or commit it. Executing proposed actions is out of scope:
+it still requires `source-of-truth` checks and explicit user approval (see "Apply a
+user-approved change").
 
 ## Propose gear or skilling changes
 

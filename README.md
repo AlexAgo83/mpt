@@ -83,8 +83,9 @@ npm run source
 ./melvor-report.js gear <character>
 ./melvor-report.js skilling <character>
 ./melvor-report.js export-state all > /tmp/melvor-state.json
+./melvor-report.js save-backup all
 ./melvor-report.js journal GrifhinZ
-./melvor-report.js journal all --record
+./melvor-report.js journal all --record --save-backup
 ./melvor-report.js journal-action <id> dismissed
 ```
 
@@ -116,10 +117,13 @@ recommendations, current-action plan, standard plan, abyssal plan, proposed acti
   state), `analysis` (assistant interpretation), and `decisions` (user/session decisions)
 - `journal/actions.jsonl`: append-only action ledger with stable action ids, status,
   risk, reason, timestamps, and a context hash
+- `journal/saves/`: private save-string backups. `*.latest.txt` contains the latest raw
+  export per character, dated archives keep recent history, and `manifest.jsonl` stores
+  only metadata (timestamp, source, byte size, hash, relative path)
 - `journal/index.html`: offline interactive dashboard (search, action/risk/status filters,
   stale highlighting, account indicators, per-character detail, Melvor-themed styling,
-  current-action recommendations, a side drawer for recent journal history, and links to
-  the Markdown files)
+  current-action recommendations, save-backup metadata/link, a side drawer for recent
+  journal history, and links to the Markdown files)
 - `Level ETA`: projected time to next level, next 10-level milestone, and current cap when
   two journal snapshots have enough standard XP gain to estimate a rate; otherwise it
   explains what data is still missing
@@ -135,10 +139,12 @@ an open action becomes `done` automatically when the observed equipment matches 
 `stale` when the observed state no longer produces the recommendation. Change a status
 manually with `journal-action <id> <approved|dismissed|done|blocked>` (offline, no browser).
 Dismissed/done/blocked actions are not re-proposed unless their context hash changes.
-Journal generation is read-only against the game and never writes secrets, save strings, or
-local profile paths. `journal/` is private local player data: it is git-ignored and must
-never be committed. Executing actions stays out of scope — any future apply-action flow
-still requires `source-of-truth` checks and explicit user approval.
+Journal generation is read-only against the game and never writes local profile paths.
+Save backups are opt-in with `save-backup` or `journal --save-backup`; the raw save strings
+stay under git-ignored `journal/saves/` and are not embedded into `latest.json` or the
+dashboard. `journal/` is private local player data and must never be committed. Executing
+actions stays out of scope — any future apply-action flow still requires `source-of-truth`
+checks and explicit user approval.
 
 ## Character roster
 
