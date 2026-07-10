@@ -115,14 +115,31 @@
     const s = game.skills.find(s => s.name.toLowerCase() === name.toLowerCase());
     if (!s) return `unknown skill "${name}"`;
     return {
-      name: s.name, level: s.level, virtualLevel: s.virtualLevel, xp: Math.floor(s.xp),
+      name: s.name,
+      id: s.id,
+      level: s.level,
+      virtualLevel: s.virtualLevel,
+      xp: Math.floor(s.xp),
+      levelCap: s.currentLevelCap ?? null,
+      abyssalLevel: s.abyssalLevel ?? null,
+      abyssalXP: Math.floor(s.abyssalXP ?? 0),
+      abyssalCap: s.currentAbyssalLevelCap ?? null,
       isActive: game.activeAction === s,
     };
   };
 
   // All skills, one line each.
   mh.skills = () =>
-    game.skills.allObjects.map(s => ({ name: s.name, level: s.level, xp: Math.floor(s.xp) }));
+    game.skills.allObjects.map(s => ({
+      name: s.name,
+      id: s.id,
+      level: s.level,
+      xp: Math.floor(s.xp),
+      levelCap: s.currentLevelCap ?? null,
+      abyssalLevel: s.abyssalLevel ?? null,
+      abyssalXP: Math.floor(s.abyssalXP ?? 0),
+      abyssalCap: s.currentAbyssalLevelCap ?? null,
+    }));
 
   const findBank = (name) => { for (const [item] of game.bank.items) if (item.name === name) return item; return null; };
   const passivesOf = (item) => (item.modifiers?.map(m => m.print?.().text ?? '') ?? [])
@@ -212,6 +229,7 @@
     const completeCount = d => game.combat.getDungeonCompleteCount?.(d) ?? 0;
     const reqMet = r => {
       if (r.dungeon && r.count !== undefined) return completeCount(r.dungeon) >= r.count;
+      if (r.type === 'AbyssalLevel' && r.skill && r.level !== undefined) return (r.skill.abyssalLevel ?? 0) >= r.level;
       if (r.skill && r.level !== undefined) return r.skill.level >= r.level;
       if (r.purchase) return false;
       return true;

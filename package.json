@@ -11,6 +11,7 @@
     "login-smoke": "node --env-file-if-exists=.env.local melvor-report.js login-smoke",
     "slots": "node --env-file-if-exists=.env.local melvor-report.js slots",
     "source": "node --env-file-if-exists=.env.local melvor-report.js source-of-truth",
+    "brief": "node --env-file-if-exists=.env.local melvor-report.js brief",
     "improve": "node --env-file-if-exists=.env.local melvor-report.js improve --record",
     "test:smoke": "MELVOR_ACCOUNT=test node --env-file-if-exists=.env.local melvor-report.js smoke",
     "test:login-smoke": "MELVOR_ACCOUNT=test node --env-file-if-exists=.env.local melvor-report.js login-smoke",

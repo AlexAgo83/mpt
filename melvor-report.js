@@ -20,7 +20,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const argv = process.argv.slice(2);
 const record = argv.includes('--record');
-const [cmd = 'summary', who = 'all', arg3] = argv.filter(a => a !== '--record');
+const abyssalOnly = argv.includes('--abyssal');
+const [cmd = 'summary', who = 'all', arg3] = argv.filter(a => a !== '--record' && a !== '--abyssal');
 const usage = `usage:
   ./melvor-report.js slots
   ./melvor-report.js smoke
@@ -28,10 +29,11 @@ const usage = `usage:
   ./melvor-report.js diff-slots
   ./melvor-report.js source-of-truth
   ./melvor-report.js improve [--record]
+  ./melvor-report.js brief [all|character]
   ./melvor-report.js summary [all|character]
   ./melvor-report.js audit [all|character]
   ./melvor-report.js plan [all|character]
-  ./melvor-report.js combat-plan [all|character]
+  ./melvor-report.js combat-plan [all|character] [--abyssal]
   ./melvor-report.js combat-setup <character>
   ./melvor-report.js combat-run <character> <dungeon name|id>
   ./melvor-report.js gear <character>
@@ -48,7 +50,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'export-state', 'journal', 'journal-action'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'export-state', 'journal', 'journal-action'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -331,6 +333,104 @@ function combatGoalLines(report) {
   ].filter(Boolean);
 }
 
+const byLevelThenXp = (a, b) => a.level - b.level || a.xp - b.xp;
+const byAbyssalLevelThenXp = (a, b) => (a.abyssalLevel ?? 0) - (b.abyssalLevel ?? 0) || (a.abyssalXP ?? 0) - (b.abyssalXP ?? 0);
+const skillView = s => ({
+  name: s.name,
+  id: s.id ?? null,
+  level: s.level,
+  cap: s.levelCap ?? s.cap ?? null,
+  abyssalLevel: s.abyssalLevel ?? null,
+  abyssalCap: s.abyssalCap ?? null,
+});
+const isAbyssalDungeon = d => /melvorItA/.test(d.id || '') || /Abyss/i.test(d.name || '');
+const hasTrainableAbyssalLevels = s =>
+  (s.abyssalCap ?? 0) > 1
+  && !['melvorAoD:Cartography', 'melvorAoD:Archaeology'].includes(s.id);
+
+function briefFromData(name, data, save) {
+  const report = data.report;
+  const skills = data.skills || [];
+  const goals = report.combatGoals || {};
+  const standardOpen = skills
+    .filter(s => (s.levelCap ?? 120) > 1 && s.level < (s.levelCap ?? 120))
+    .sort(byLevelThenXp);
+  const abyssalSkills = skills.filter(hasTrainableAbyssalLevels);
+  const abyssalOpen = abyssalSkills
+    .filter(s => (s.abyssalLevel ?? 0) < s.abyssalCap)
+    .sort(byAbyssalLevelThenXp);
+  const dungeons = goals.unclearedDungeons || [];
+  const abyssalDungeons = dungeons.filter(isAbyssalDungeon);
+  const standardDungeons = dungeons.filter(d => !isAbyssalDungeon(d));
+  const saveRisk = !save || save.source === 'unknown'
+    ? 'save source of truth unknown'
+    : save.source === 'local' && save.diffMs > 5 * 60000
+      ? `local save newer than cloud by ${Math.round(save.diffMs / 60000)} min`
+      : null;
+  const abyssalNext = [
+    abyssalDungeons[0] ? `clear abyssal dungeon: ${abyssalDungeons[0].name}` : null,
+    ...abyssalOpen.slice(0, 3).map(s => `raise abyssal ${s.name} (${s.abyssalLevel ?? 0}/${s.abyssalCap})`),
+  ].filter(Boolean);
+  const standardNext = [
+    ...planLines(data),
+    ...standardOpen.slice(0, 3).map(s => `raise standard ${s.name} (${s.level}/${s.levelCap ?? 120})`),
+    goals.nextSetup ? `combat setup: ${goals.nextSetup.dungeon} with set ${goals.nextSetup.set?.index ?? '?'} ${goals.nextSetup.set?.attackType || 'unknown'} (${goals.nextSetup.set?.weapon || 'no weapon'})` : null,
+  ].filter(Boolean);
+  return {
+    name,
+    mode: report.mode,
+    action: report.action,
+    source: save ? {
+      current: save.source,
+      diffMinutes: save.diffMs === null ? null : Math.round(save.diffMs / 60000),
+      writeBlocked: save.source === 'local' && save.diffMs > 5 * 60000,
+    } : { current: 'unknown', diffMinutes: null, writeBlocked: true },
+    gp: report.gp,
+    combat: {
+      level: report.combatLevel,
+      hp: report.hp,
+      food: report.food,
+      foodQty: report.foodQty,
+      current: report.combat,
+    },
+    standard: {
+      total: report.totalLevel,
+      maxed: report.maxedSkills,
+      lowest: standardOpen.slice(0, 8).map(skillView),
+      dungeons: standardDungeons.slice(0, 5).map(d => ({
+        name: d.name,
+        id: d.id,
+        boss: d.boss,
+        bossAttackType: d.bossAttackType,
+        maxCombatLevel: d.maxCombatLevel,
+      })),
+      next: standardNext.slice(0, 6),
+    },
+    abyssal: {
+      maxed: `${abyssalSkills.filter(s => (s.abyssalLevel ?? 0) >= s.abyssalCap).length}/${abyssalSkills.length}`,
+      top: [...abyssalSkills].sort((a, b) => -byAbyssalLevelThenXp(a, b)).slice(0, 8).map(skillView),
+      lowest: abyssalOpen.slice(0, 8).map(skillView),
+      dungeons: abyssalDungeons.slice(0, 5).map(d => ({
+        name: d.name,
+        id: d.id,
+        boss: d.boss,
+        bossAttackType: d.bossAttackType,
+        maxCombatLevel: d.maxCombatLevel,
+      })),
+      next: abyssalNext.slice(0, 6),
+    },
+    risks: [
+      saveRisk,
+      report.mode === 'Hardcore Mode' ? 'Hardcore: verify survivability before combat changes' : null,
+    ].filter(Boolean),
+    next: [
+      ...(data.skilling?.notes || []),
+      ...standardNext,
+      ...abyssalNext,
+    ].filter(Boolean).slice(0, 8),
+  };
+}
+
 function printPlan(r) {
   const lines = planLines(r);
   console.log(`${r.report.name} | ${r.report.action}`);
@@ -338,15 +438,17 @@ function printPlan(r) {
   for (const line of lines) console.log(`  would equip ${line}`);
 }
 
-function printCombatPlan(r) {
+function printCombatPlan(r, options = {}) {
   const goals = r.report.combatGoals || {};
   const capped = (goals.cappedSkills || []).filter(s => s.level >= s.cap).slice(0, 8);
   const beats = { melee: 'magic', ranged: 'melee', magic: 'ranged' };
   console.log(`${r.report.name} | combat plan | ${r.report.mode} | combat ${r.report.combatLevel} | HP ${fmtNum(r.report.hp)}`);
   console.log(`  food: ${r.report.food || 'none'} x${fmtNum(r.report.foodQty || 0)}`);
   if (capped.length) console.log(`  capped: ${capped.map(s => `${s.name} ${s.level}/${s.cap}`).join(', ')}`);
-  const dungeons = (goals.unclearedDungeons || []).slice(0, 5);
-  if (!dungeons.length) console.log('  no accessible uncleared dungeon found');
+  const dungeons = (goals.unclearedDungeons || [])
+    .filter(d => !options.abyssalOnly || isAbyssalDungeon(d))
+    .slice(0, 5);
+  if (!dungeons.length) console.log(`  no accessible uncleared ${options.abyssalOnly ? 'abyssal ' : ''}dungeon found`);
   for (const d of dungeons) {
     const style = beats[d.bossAttackType] || null;
     const set = r.sets.find(s => style && s.attackType === style) || r.sets.find(s => s.attackType) || {};
@@ -354,7 +456,7 @@ function printCombatPlan(r) {
     console.log(`  dungeon: ${d.name} | boss ${d.boss || 'unknown'} (${d.bossAttackType || 'unknown'}, CL ${d.maxCombatLevel})`);
     console.log(`    use set ${set.index ?? '?'} ${set.attackType || 'unknown'}: ${set.weapon || 'no weapon'} / ${set.cape || 'no cape'} | reqs ${reqs}`);
   }
-  if (goals.nextSetup) {
+  if (goals.nextSetup && (!options.abyssalOnly || isAbyssalDungeon({ name: goals.nextSetup.dungeon, id: '' }))) {
     console.log(`  next setup: prayers ${goals.nextSetup.prayers.join(' + ') || 'none'}`);
     if (goals.nextSetup.summons?.length) console.log(`  next setup: summons ${goals.nextSetup.summons.join(' + ')}`);
     if (goals.nextSetup.potions?.length) console.log(`  next setup: potions ${goals.nextSetup.potions.join('; ')}`);
@@ -688,6 +790,7 @@ const actionContextHash = (report, a) => sha(`${report.action}|${report.equipmen
 
 function buildCharacterJournal(name, data, save) {
   const report = data.report;
+  const brief = briefFromData(name, data, save);
   const actions = planActions(data).map(a => ({ ...a, id: actionId(name, a), contextHash: actionContextHash(report, a) }));
   const saveRisk = !save || save.source === 'unknown'
     ? 'save source of truth unknown'
@@ -710,11 +813,15 @@ function buildCharacterJournal(name, data, save) {
       equipment: report.equipment,
       lowSkills: report.lowSkills.slice(0, 6),
       combatGoals: report.combatGoals || null,
+      standard: brief.standard,
+      abyssal: brief.abyssal,
       saveSource: save ? { source: save.source, diffMinutes: save.diffMs === null ? null : Math.round(save.diffMs / 60000) } : null,
     },
     analysis: {
-      recommendations: [...(data.skilling.notes || []), ...planLines(data), ...combatGoalLines(report)],
-      optimizationPlan: report.lowSkills.filter(s => s.level > 1).slice(0, 3).map(s => `raise ${s.name} (level ${s.level})`),
+      recommendations: brief.next,
+      optimizationPlan: brief.standard.next,
+      standardPlan: brief.standard.next,
+      abyssalPlan: brief.abyssal.next,
       riskNotes: [
         saveRisk,
         report.mode === 'Hardcore Mode' ? 'Hardcore character: verify survivability before any combat change' : null,
@@ -732,6 +839,32 @@ function journalHistoryCount(name) {
   } catch {
     return 0;
   }
+}
+
+function sectionLines(block, title) {
+  const re = new RegExp(`(?:^|\\n)### ${title}\\n([\\s\\S]*?)(?=\\n### |$)`);
+  const text = block.match(re)?.[1] || '';
+  return text.split('\n').map(s => s.trim()).filter(s => s.startsWith('- ')).map(s => s.slice(2));
+}
+
+function recentJournalEntries(name, limit = 5) {
+  let text = '';
+  try { text = fs.readFileSync(path.join(JOURNAL_DIR, `${name}.md`), 'utf8'); } catch { return []; }
+  return text.split(/^## /m)
+    .filter(Boolean)
+    .map(block => {
+      const [heading] = block.split('\n', 1);
+      const [at] = heading.split(' — ');
+      return {
+        at,
+        state: sectionLines(block, 'State'),
+        recommendations: sectionLines(block, 'Recommendations').filter(x => x !== 'none'),
+        standardPlan: sectionLines(block, 'Optimization plan').filter(x => x !== 'none'),
+        abyssalPlan: sectionLines(block, 'Abyssal plan').filter(x => x !== 'none'),
+      };
+    })
+    .slice(-limit)
+    .reverse();
 }
 
 function journalMd(c) {
@@ -753,6 +886,13 @@ function journalMd(c) {
     '',
     '### Optimization plan',
     ...list(c.analysis.optimizationPlan),
+    '',
+    '### Abyssal plan',
+    ...list(c.analysis.abyssalPlan || []),
+    '',
+    '### Abyssal status',
+    `- Maxed ${o.abyssal?.maxed || 'unknown'}`,
+    ...list((o.abyssal?.lowest || []).slice(0, 5).map(s => `${s.name} ${s.abyssalLevel}/${s.abyssalCap}`)),
     '',
     '### Combat goals',
     ...list(combatGoalLines({ combatGoals: o.combatGoals })),
@@ -821,7 +961,7 @@ function buildLatest(chars, latest, previous, now) {
       if (e.character !== name) continue;
       decisions[e.status]?.push({ id: e.id, slot: e.slot, item: e.item, risk: e.risk, reason: e.reason, ts: e.ts });
     }
-    characters[name] = { ...entry, decisions };
+    characters[name] = { ...entry, decisions, history: recentJournalEntries(name) };
   }
   const actionsSummary = Object.fromEntries(ACTION_STATUSES.map(s => [s, 0]));
   for (const e of latest.values()) if (e.status in actionsSummary) actionsSummary[e.status]++;
@@ -850,29 +990,54 @@ function renderDashboard(snap) {
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Melvor journal</title>
+<title>Melvor Journal</title>
 <style>
-:root { color-scheme: light dark; font-family: ui-monospace, Menlo, monospace; }
-body { margin: 1rem auto; max-width: 72rem; padding: 0 1rem; font-size: 14px; line-height: 1.45; }
-h1 { font-size: 1.1rem; }
-#summary { display: flex; flex-wrap: wrap; gap: .6rem 1.4rem; padding: .6rem .8rem; border: 1px solid #8884; border-radius: 6px; }
-#summary b { font-size: 1.05rem; }
-#filters { display: flex; flex-wrap: wrap; gap: .5rem; margin: .8rem 0; align-items: center; }
-input, select { font: inherit; padding: .25rem .4rem; }
-.card { border: 1px solid #8884; border-radius: 6px; margin: .5rem 0; }
-.card summary { cursor: pointer; padding: .5rem .8rem; display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: baseline; }
+:root {
+  color-scheme: dark;
+  --bg: #111814;
+  --panel: #1b261f;
+  --panel2: #243226;
+  --ink: #f2ead2;
+  --muted: #b8aa83;
+  --gold: #d8aa46;
+  --green: #6ea36a;
+  --red: #c9634b;
+  --line: #5b4a2b;
+  font-family: Georgia, "Times New Roman", serif;
+}
+body {
+  margin: 0 auto;
+  max-width: 76rem;
+  padding: 1.2rem;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: radial-gradient(circle at top, #273323 0, var(--bg) 34rem);
+}
+h1 { margin: 0 0 .9rem; color: var(--gold); font-size: 1.7rem; letter-spacing: 0; }
+#summary { display: flex; flex-wrap: wrap; gap: .7rem 1.5rem; padding: .8rem 1rem; border: 1px solid var(--line); border-radius: 6px; background: #171f19d9; box-shadow: inset 0 0 0 1px #0008; }
+#summary b { color: var(--gold); font-size: 1.12rem; }
+#filters { display: flex; flex-wrap: wrap; gap: .55rem; margin: .9rem 0; align-items: center; }
+input, select { font: inherit; color: var(--ink); background: #101711; border: 1px solid var(--line); border-radius: 4px; padding: .34rem .48rem; }
+input:focus, select:focus { outline: 2px solid #d8aa4666; outline-offset: 1px; }
+.card { border: 1px solid var(--line); border-radius: 6px; margin: .65rem 0; background: linear-gradient(180deg, var(--panel), #151d18); box-shadow: 0 10px 24px #0005; }
+.card summary { cursor: pointer; padding: .7rem .9rem; display: flex; flex-wrap: wrap; gap: .45rem .85rem; align-items: baseline; border-bottom: 1px solid #0000; }
+.card[open] summary { border-bottom-color: #0008; }
 .card summary::-webkit-details-marker { display: none; }
-.card .body { padding: 0 .8rem .8rem; }
-.badge { border: 1px solid; border-radius: 4px; padding: 0 .35rem; font-size: .85em; }
-.badge.risk { color: #b00020; border-color: #b00020; font-weight: bold; }
-.badge.stale { color: #8a5a00; border-color: #8a5a00; font-weight: bold; }
-.badge.ok { color: #2e7d32; border-color: #2e7d32; }
-.muted { opacity: .7; }
+.card .body { padding: .2rem .95rem .95rem; }
+.badge { border: 1px solid; border-radius: 4px; padding: .02rem .4rem; font-size: .82em; font-family: ui-monospace, Menlo, monospace; }
+.badge.risk { color: #ffd0c6; border-color: var(--red); background: #5d1f1688; font-weight: bold; }
+.badge.stale { color: #ffe1a1; border-color: var(--gold); background: #4a351188; font-weight: bold; }
+.badge.ok { color: #d9ffd5; border-color: var(--green); background: #193d2088; }
+.muted { color: var(--muted); }
 ul { margin: .2rem 0 .6rem; padding-left: 1.2rem; }
-h3 { font-size: .95rem; margin: .6rem 0 .2rem; }
+a { color: var(--gold); }
+h3 { color: var(--gold); font-size: 1rem; margin: .75rem 0 .25rem; }
+.history-entry { margin: .45rem 0; padding: .55rem .65rem; border-left: 3px solid var(--gold); background: #0f1712; border-radius: 0 4px 4px 0; }
+.history-entry h4 { margin: 0 0 .25rem; color: var(--muted); font-size: .9rem; }
 </style>
 <body>
-<h1>Melvor journal dashboard</h1>
+<h1>Melvor Journal</h1>
 <div id="summary"></div>
 <div id="filters">
   <input id="q" type="search" placeholder="search character / action / item">
@@ -913,7 +1078,7 @@ function render() {
   cards.replaceChildren();
   for (const [name, c] of Object.entries(snap.characters)) {
     const action = c.observed.action || 'idle';
-    const haystack = (name + ' ' + action + ' ' + JSON.stringify(c.analysis.recommendations) + ' ' + JSON.stringify(c.decisions)).toLowerCase();
+    const haystack = (name + ' ' + action + ' ' + JSON.stringify(c.analysis.recommendations) + ' ' + JSON.stringify(c.analysis.standardPlan || []) + ' ' + JSON.stringify(c.analysis.abyssalPlan || []) + ' ' + JSON.stringify(c.decisions)).toLowerCase();
     if (q && !haystack.includes(q)) continue;
     if (wantAction && action !== wantAction) continue;
     if (wantRisk === 'risk' && !hasRisk(name)) continue;
@@ -931,7 +1096,8 @@ function render() {
     details.append(head);
 
     const body = el('div', 'body');
-    body.append(el('div', 'muted', 'total ' + c.observed.totalLevel + ' | maxed ' + c.observed.maxedSkills + ' | GP ' + c.observed.gp.toLocaleString() + ' | ' + (c.observed.mode || '')));
+    const abyssalMaxed = c.observed.abyssal?.maxed ? ' | abyssal ' + c.observed.abyssal.maxed : '';
+    body.append(el('div', 'muted', 'total ' + c.observed.totalLevel + ' | maxed ' + c.observed.maxedSkills + abyssalMaxed + ' | GP ' + c.observed.gp.toLocaleString() + ' | ' + (c.observed.mode || '')));
     const section = (title, items, fmt) => {
       body.append(el('h3', '', title));
       const ul = el('ul');
@@ -940,6 +1106,23 @@ function render() {
       body.append(ul);
     };
     section('Top recommendations', c.analysis.recommendations.slice(0, 5));
+    section('Standard plan', (c.analysis.standardPlan || c.analysis.optimizationPlan || []).slice(0, 6));
+    section('Abyssal plan', (c.analysis.abyssalPlan || []).slice(0, 6));
+    if (c.observed.abyssal?.lowest?.length)
+      section('Abyssal lows', c.observed.abyssal.lowest.slice(0, 6), s => s.name + ' ' + s.abyssalLevel + '/' + s.abyssalCap);
+    if ((c.history || []).length) {
+      body.append(el('h3', '', 'Journal history'));
+      for (const h of c.history) {
+        const box = el('div', 'history-entry');
+        box.append(el('h4', '', new Date(h.at).toLocaleString()));
+        const lines = [...(h.recommendations || []).slice(0, 4), ...(h.abyssalPlan || []).slice(0, 3)];
+        const ul = el('ul');
+        if (!lines.length) ul.append(el('li', 'muted', 'none'));
+        for (const line of lines) ul.append(el('li', '', line));
+        box.append(ul);
+        body.append(box);
+      }
+    }
     for (const s of STATUSES) {
       const xs = c.decisions[s] || [];
       if (xs.length) section(s + ' actions', xs, a => '[' + a.id + '] equip ' + a.item + ' in ' + a.slot + ' (risk ' + a.risk + '; ' + a.reason + ')');
@@ -967,7 +1150,7 @@ async function collectJournal(name, save) {
   return withCharacterSource(name, save?.source, client => evalExpr(client, `(() => {
     const wanted = ${JSON.stringify(JOURNAL_WANTED)};
     const qty = n => { for (const [item, bi] of game.bank.items) if (item.name === n) return bi.quantity; return 0; };
-    return { report: mh.readOnlyReport(), skilling: mh.skillingAudit(), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])) };
+    return { report: mh.readOnlyReport(), skills: mh.skills(), skilling: mh.skillingAudit(), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])) };
   })()`));
 }
 
@@ -1058,7 +1241,7 @@ function lock(retry = true) {
   }
 }
 
-module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName };
+module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger };
 if (require.main === module) (async () => {
   if (cmd === 'journal-action') return runJournalAction(who, arg3);
   const unlock = lock();
@@ -1120,6 +1303,7 @@ if (require.main === module) (async () => {
             combatLevel: report.combatLevel,
             totalLevel: report.totalLevel,
             maxedSkills: report.maxedSkills,
+            skills: mh.skills(),
             lowSkills: report.lowSkills,
             food: report.food,
             foodQty: report.foodQty,
@@ -1128,12 +1312,32 @@ if (require.main === module) (async () => {
             combatGoals: report.combatGoals,
           };
         })()`));
+        characters[name].source = sources[name] || null;
       }
       console.log(JSON.stringify({ collectedAt: new Date().toISOString(), slots, characters }, null, 2));
       return;
     }
 
     const { sources } = await readSourcesByName();
+    if (cmd === 'brief') {
+      const characters = {};
+      for (const name of names) {
+        const data = await withCharacterSource(name, sources[name]?.source, client => evalExpr(client, `(() => {
+          const wanted = ['Octopus','Potion Stirrer','Bear','Jeweled Necklace','Book of Scholars','Ancient Ring of Mastery','Golden Star','Eagle'];
+          const qty = name => { for (const [item, bi] of game.bank.items) if (item.name === name) return bi.quantity; return 0; };
+          return {
+            report: mh.readOnlyReport(),
+            skills: mh.skills(),
+            skilling: mh.skillingAudit(),
+            bank: Object.fromEntries(wanted.map(name => [name, qty(name)])),
+          };
+        })()`));
+        characters[name] = briefFromData(name, data, sources[name]);
+      }
+      console.log(JSON.stringify({ collectedAt: new Date().toISOString(), characters }, null, 2));
+      return;
+    }
+
     for (const name of names) {
       const data = await withCharacterSource(name, sources[name]?.source, client => {
         if (cmd === 'summary') return evalExpr(client, 'mh.readOnlyReport()');
@@ -1175,7 +1379,7 @@ if (require.main === module) (async () => {
       else if (cmd === 'skilling') printSkilling({ name, ...data });
       else if (cmd === 'audit') printAudit(data);
       else if (cmd === 'plan') printPlan(data);
-      else if (cmd === 'combat-plan') printCombatPlan(data);
+      else if (cmd === 'combat-plan') printCombatPlan(data, { abyssalOnly });
       else printGear(data);
     }
   } finally {
