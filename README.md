@@ -96,7 +96,8 @@ per character with:
 - `source`: newest-save source and write-block risk
 - `currentAction`: current task, action-specific recommendations, rough intervals, Slayer
   ETA, equipped food, and ammo/scroll/summon/consumable runway when the game exposes enough
-  data
+  data; when `journal/latest.json` exists it also includes `levelEtas` with either ready
+  ETA lines or the pending reason
 - `standard`: standard-level gaps, accessible standard dungeons, and standard next steps
 - `abyssal`: abyssal-level gaps, abyssal dungeons such as `Into the Abyss`, and abyssal next
   steps; Cartography and Archaeology are intentionally excluded because they do not have

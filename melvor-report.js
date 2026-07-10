@@ -396,7 +396,7 @@ const fmtDuration = ms => {
   return `${Math.round(h / 24)} d`;
 };
 
-function briefFromData(name, data, save) {
+function briefFromData(name, data, save, previousEntry, now = new Date().toISOString()) {
   const report = data.report;
   const skills = data.skills || [];
   const goals = report.combatGoals || {};
@@ -445,6 +445,9 @@ function briefFromData(name, data, save) {
       name: report.action || 'idle',
       next: currentNext,
       estimate: report.actionEstimate || null,
+      ...(previousEntry !== undefined ? {
+        levelEtas: levelEtaStatus(progressEtas({ observed: { at: now, action: report.action, skills } }, previousEntry)),
+      } : {}),
     },
     standard: {
       total: report.totalLevel,
@@ -1046,6 +1049,10 @@ function progressEtas(current, previous) {
   return etas.length ? etas : ['ETA pending: no XP gain detected for the current action since the previous scan'];
 }
 
+function levelEtaStatus(lines) {
+  return { status: lines.some(l => !/^ETA pending:/.test(l)) ? 'ready' : 'pending', lines };
+}
+
 function buildLatest(chars, latest, previous, now) {
   const characters = { ...(previous?.characters || {}) };
   const scannedNames = new Set(chars.map(c => c.name));
@@ -1087,6 +1094,10 @@ function buildLatest(chars, latest, previous, now) {
     characters,
     actionsSummary,
   };
+}
+
+function readLatestSnapshot() {
+  try { return JSON.parse(fs.readFileSync(path.join(JOURNAL_DIR, 'latest.json'), 'utf8')); } catch { return null; }
 }
 
 // Offline dashboard: data embedded as JSON (script tag, `<` escaped), rendered with
@@ -1334,8 +1345,7 @@ function runJournalAction(id, status) {
   const event = { ...prev, ts: now, status, reason: `manually marked ${status}` };
   fs.appendFileSync(LEDGER, JSON.stringify(event) + '\n');
   latest.set(id, event);
-  let previous = null;
-  try { previous = JSON.parse(fs.readFileSync(path.join(JOURNAL_DIR, 'latest.json'), 'utf8')); } catch {}
+  const previous = readLatestSnapshot();
   if (previous) {
     const snapshot = buildLatest([], latest, previous, now);
     fs.writeFileSync(path.join(JOURNAL_DIR, 'latest.json'), JSON.stringify(snapshot, null, 2));
@@ -1348,6 +1358,9 @@ async function runJournal() {
   const { sources } = await readSourcesByName();
   const chars = [];
   for (const name of names) chars.push(buildCharacterJournal(name, await collectJournal(name, sources[name]), sources[name]));
+  const previous = readLatestSnapshot();
+  const now = new Date().toISOString();
+  for (const c of chars) c.analysis.progressEtas = progressEtas(c, previous?.characters?.[c.name] || null);
   if (!record) {
     for (const c of chars) console.log(journalMd(c) + '\n');
     return;
@@ -1357,14 +1370,11 @@ async function runJournal() {
     fs.appendFileSync(path.join(JOURNAL_DIR, `${c.name}.md`), journalMd(c) + '\n\n');
     console.log(`recorded journal/${c.name}.md`);
   }
-  const now = new Date().toISOString();
   const { events, latest } = mergeLedger(chars, readLedger(), now);
   if (events.length) {
     fs.appendFileSync(LEDGER, events.map(e => JSON.stringify(e)).join('\n') + '\n');
     console.log(`recorded ${events.length} action event(s) in journal/actions.jsonl`);
   }
-  let previous = null;
-  try { previous = JSON.parse(fs.readFileSync(path.join(JOURNAL_DIR, 'latest.json'), 'utf8')); } catch {}
   const snapshot = buildLatest(chars, latest, previous, now);
   fs.writeFileSync(path.join(JOURNAL_DIR, 'latest.json'), JSON.stringify(snapshot, null, 2));
   console.log('recorded journal/latest.json');
@@ -1474,6 +1484,8 @@ if (require.main === module) (async () => {
     const { sources } = await readSourcesByName();
     if (cmd === 'brief') {
       const characters = {};
+      const previous = readLatestSnapshot();
+      const now = new Date().toISOString();
       for (const name of names) {
         const data = await withCharacterSource(name, sources[name]?.source, client => evalExpr(client, `(() => {
           const wanted = ['Octopus','Potion Stirrer','Bear','Jeweled Necklace','Book of Scholars','Ancient Ring of Mastery','Golden Star','Eagle'];
@@ -1485,9 +1497,9 @@ if (require.main === module) (async () => {
             bank: Object.fromEntries(wanted.map(name => [name, qty(name)])),
           };
         })()`));
-        characters[name] = briefFromData(name, data, sources[name]);
+        characters[name] = briefFromData(name, data, sources[name], previous?.characters?.[name] || null, now);
       }
-      console.log(JSON.stringify({ collectedAt: new Date().toISOString(), characters }, null, 2));
+      console.log(JSON.stringify({ collectedAt: now, characters }, null, 2));
       return;
     }
 
