@@ -65,6 +65,13 @@ Purpose: capture what made the assistant less reliable, then promote only repeat
 - Fix shipped: Lock errors now include holder PID, age, and command; recorded refreshes reread `latest.json`, require a newer timestamp, and summarize characters, save risks, and new alerts.
 - Follow-up: Use raw output for Melvor commands whose success must be confirmed; keep filtered wrappers for genuinely noisy diagnostics.
 
+### 2026-07-12 - Incident-driven improvement loop
+- Observed: Reliability lessons depended on manually noticing and transcribing failures after a session.
+- Impact: Recurring failures could remain invisible or be treated like one-off noise.
+- Root cause: The CLI had no private structured failure history or recurrence threshold connected to Logics intake.
+- Fix shipped: Failed CLI runs now append sanitized signed events under `journal/`; `improve` groups signatures seen twice, and explicit `improve --record` creates one Logics request per unpromoted candidate.
+- Follow-up: Keep human review between the generated request and any backlog, task, code, or game-state change.
+
 ## Entry template
 
 ```markdown

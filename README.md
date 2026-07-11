@@ -60,6 +60,9 @@ Rules:
 - Use `mh.equipSlot(item, slot)` for manual equipment changes.
 - After approved writes, save, wait for cloud push, reload, and verify.
 - After confusing behavior, run `./melvor-report.js improve --record`.
+- CLI failures are sanitized into private `journal/incidents.jsonl` events. `improve` groups
+  repeated signatures; only explicit `improve --record` creates an idempotent Logics request.
+  The loop never changes code or game state automatically.
 
 ## Commands
 
@@ -182,7 +185,7 @@ npm run test:slots
 - [`melvor-helpers.js`](./melvor-helpers.js): injected `window.mh` browser helper library
 - [`test-journal.js`](./test-journal.js): offline self-check for the journal logic (part of `npm run check`)
 - [`package.json`](./package.json): standard local command aliases, no dependencies
-- `journal/` (git-ignored): generated player journal — Markdown entries, `latest.json`, `actions.jsonl`, `index.html`
+- `journal/` (git-ignored): generated player journal, private incident history, promotion ledger, and dashboard
 - [`.env.example`](./.env.example): local-only account/profile configuration template
 - [`MELVOR.md`](./MELVOR.md): full operating manual for AI assistants
 - [`MELVOR_RUNBOOK.md`](./MELVOR_RUNBOOK.md): short runbook for common workflows

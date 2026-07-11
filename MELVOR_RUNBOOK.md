@@ -22,6 +22,10 @@ surfaces stopped/idle characters and rough runways for equipped consumables, amm
 and Slayer tasks when the game exposes the needed values.
 
 Use `./melvor-report.js improve --record` after sessions with failures or confusing behavior.
+Failed CLI runs are appended locally to `journal/incidents.jsonl` with sanitized messages and
+stable signatures. `improve` reports signatures seen at least twice; `improve --record` records
+the report and creates one Logics request per unpromoted recurring signature. It never changes
+implementation code or game state. Review the request before promoting it to backlog work.
 
 ## Character journal and dashboard
 
