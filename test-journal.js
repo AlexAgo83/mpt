@@ -85,6 +85,18 @@ const etaRebuild = buildLatest([], new Map(), etaSnap, '2026-07-05T12:11:00.000Z
 assert.deepStrictEqual(etaRebuild.characters.EtaChar.analysis.progressEtas, etaSnap.characters.EtaChar.analysis.progressEtas, 'ETA survives rebuild without scan');
 const etaPending = buildLatest([withSkills(106000, '2026-07-05T12:10:00.000Z')], new Map(), prevSnap, now);
 assert.match(etaPending.characters.EtaChar.analysis.progressEtas[0], /previous journal snapshot has no skill XP/);
+const withAbyssal = (abyssalXP, at) => {
+  const entry = buildCharacterJournal('AbyssEtaChar', {
+    ...data,
+    report: { ...data.report, action: 'Thieving', equipment: {} },
+    skills: [{ name: 'Thieving', level: 120, xp: 104000000, levelCap: 120, abyssalLevel: 1, abyssalCap: 60, abyssalXP }],
+  }, save);
+  entry.observed.at = at;
+  return entry;
+};
+const abyssPrev = buildLatest([withAbyssal(1000, '2026-07-05T12:00:00.000Z')], new Map(), null, now);
+const abyssSnap = buildLatest([withAbyssal(7000, '2026-07-05T12:10:00.000Z')], new Map(), abyssPrev, now);
+assert.ok(/Thieving: 6,000 abyssal XP gained/.test(abyssSnap.characters.AbyssEtaChar.analysis.progressEtas[0]), 'abyssal XP delta is reported');
 
 // latest.json shape
 const snap = buildLatest([c], first.latest, null, now);

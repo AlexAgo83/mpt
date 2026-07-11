@@ -1082,15 +1082,24 @@ function progressEtas(current, previous) {
     .map(s => {
       const prev = prevSkills[s.name];
       const dxp = s.xp - (prev?.xp ?? s.xp);
-      if (dxp <= 0) return null;
-      const xpPerMs = dxp / elapsed;
-      const nextLevel = Math.min((s.levelCap ?? 120), s.level + 1);
-      const nextTen = Math.min((s.levelCap ?? 120), Math.ceil((s.level + 1) / 10) * 10);
-      const cap = s.levelCap ?? 120;
-      const parts = [`${s.name}: ${fmtNum(dxp)} XP gained (${fmtNum(dxp * 3600000 / elapsed)}/h)`];
-      if (nextLevel > s.level) parts.push(`next level ETA ${fmtDuration((xpForLevel(nextLevel) - s.xp) / xpPerMs)}`);
-      if (nextTen > s.level) parts.push(`level ${nextTen} ETA ${fmtDuration((xpForLevel(nextTen) - s.xp) / xpPerMs)}`);
-      if (cap > s.level) parts.push(`cap ${cap} ETA ${fmtDuration((xpForLevel(cap) - s.xp) / xpPerMs)}`);
+      const daxp = (s.abyssalXP ?? 0) - (prev?.abyssalXP ?? s.abyssalXP ?? 0);
+      if (dxp <= 0 && daxp <= 0) return null;
+      const parts = [];
+      if (dxp > 0) {
+        const xpPerMs = dxp / elapsed;
+        const nextLevel = Math.min((s.levelCap ?? 120), s.level + 1);
+        const nextTen = Math.min((s.levelCap ?? 120), Math.ceil((s.level + 1) / 10) * 10);
+        const cap = s.levelCap ?? 120;
+        parts.push(`${s.name}: ${fmtNum(dxp)} XP gained (${fmtNum(dxp * 3600000 / elapsed)}/h)`);
+        if (nextLevel > s.level) parts.push(`next level ETA ${fmtDuration((xpForLevel(nextLevel) - s.xp) / xpPerMs)}`);
+        if (nextTen > s.level) parts.push(`level ${nextTen} ETA ${fmtDuration((xpForLevel(nextTen) - s.xp) / xpPerMs)}`);
+        if (cap > s.level) parts.push(`cap ${cap} ETA ${fmtDuration((xpForLevel(cap) - s.xp) / xpPerMs)}`);
+      }
+      if (daxp > 0) {
+        parts.push(`${s.name}: ${fmtNum(daxp)} abyssal XP gained (${fmtNum(daxp * 3600000 / elapsed)}/h)`);
+        parts.push(`abyssal level ${s.abyssalLevel ?? '?'}/${s.abyssalCap ?? '?'}`);
+        parts.push('abyssal ETA unavailable until abyssal XP thresholds are mapped');
+      }
       return parts.filter(Boolean).join('; ');
     })
     .filter(Boolean)
