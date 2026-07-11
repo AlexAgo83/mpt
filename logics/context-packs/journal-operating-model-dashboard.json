@@ -126,7 +126,7 @@
       "schema_version": "1.0",
       "sections": {
         "Acceptance criteria": [
-          "- `./melvor-report.js journal GrifhinZ` prints Markdown with headings for State, Recommendations, Optimization plan, Proposed actions, and History.",
+          "- `./melvor-report.js journal CharacterA` prints Markdown with headings for State, Recommendations, Optimization plan, Proposed actions, and History.",
           "- `./melvor-report.js journal all --record` appends per-character files in `journal/` with deterministic filenames based on configured character names.",
           "- `./melvor-report.js journal all --record` writes `journal/index.html` with embedded CSS/JS and enough embedded sanitized data to browse the latest generated state offline.",
           "- The dashboard shows all configured characters with current action, source-of-truth/save-risk status, top recommendations, and proposed actions.",
@@ -222,7 +222,7 @@
         "Validation": [
           "- Run `npm run check`.",
           "- Run `./melvor-report.js --help`.",
-          "- Run `./melvor-report.js journal GrifhinZ`.",
+          "- Run `./melvor-report.js journal CharacterA`.",
           "- Run `./melvor-report.js journal all --record`.",
           "- Open or inspect `journal/index.html` for dashboard rendering and filters.",
           "- Validate `journal/latest.json` with `node -e \"JSON.parse(require('fs').readFileSync('journal/latest.json','utf8'))\"`."

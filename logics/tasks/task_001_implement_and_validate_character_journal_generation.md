@@ -7,6 +7,7 @@
 > Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
+> Non-semantic edit: anonymized public example character names.
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 
 # Context
@@ -42,7 +43,7 @@
 
 # AC Traceability
 - request-AC1 -> This task. Proof: CLI help and README list `journal [all|character] [--record]`.
-- request-AC2 -> This task. Proof: `./melvor-report.js journal GrifhinZ` prints Markdown without writing files.
+- request-AC2 -> This task. Proof: `./melvor-report.js journal CharacterA` prints Markdown without writing files.
 - request-AC3 -> This task. Proof: `./melvor-report.js journal all --record` appends files under `journal/`.
 - request-AC4 -> This task. Proof: `journal/index.html` is generated or refreshed by `journal all --record`.
 - request-AC5 -> This task. Proof: dashboard shows all characters with filters, recommendations, proposed actions, and Markdown links.
@@ -54,12 +55,12 @@
 # Validation
 - Run `npm run check`.
 - Run `./melvor-report.js --help`.
-- Run `./melvor-report.js journal GrifhinZ`.
+- Run `./melvor-report.js journal CharacterA`.
 - Run `./melvor-report.js journal all --record` and inspect/open `journal/index.html`, or explain why live browser access blocks it.
 - Run `logics-manager flow validate logics/request/req_000_character_journal_generation_for_melvor_planning.md`.
 - Run `logics-manager lint --require-status`.
 - Run `logics-manager audit --group-by-doc`.
-- npm run check + test-journal.js passed; --help lists journal; live dry run journal GrifhinZ ok; journal all --record wrote 7 md + latest.json + actions.jsonl + index.html; dashboard verified offline; sanitization grep clean; flow validate 0 findings
+- npm run check + test-journal.js passed; --help lists journal; live dry run journal CharacterA ok; journal all --record wrote 7 md + latest.json + actions.jsonl + index.html; dashboard verified offline; sanitization grep clean; flow validate 0 findings
 - Finish workflow executed on 2026-07-05.
 - Linked backlog/request close verification passed.
 
@@ -68,7 +69,7 @@
 - Validation run 2026-07-05:
   - `npm run check` passed (syntax checks + `test-journal.js` offline self-check).
   - `./melvor-report.js --help` lists the journal command.
-  - Dry run `journal GrifhinZ` printed a Markdown entry with State, Recommendations, Optimization plan, Proposed actions, and History; no files written.
+  - Dry run `journal CharacterA` printed a Markdown entry with State, Recommendations, Optimization plan, Proposed actions, and History; no files written.
   - `journal all --record` (live, read-only) wrote 7 per-character Markdown files, `latest.json`, `actions.jsonl` (6 proposed events), and `index.html`.
   - Dashboard rendered offline from disk (headless Chrome screenshot): summary indicators, search, action/risk/status filters, 7 character cards with Markdown links.
   - Sanitization grep over `journal/` found no credentials, profile paths, ports, or env values; `journal/` is git-ignored and untracked.

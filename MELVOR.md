@@ -30,9 +30,9 @@ server **without** `--headless`, let the user log in through the visible window,
 
 1. `new_page` → `https://melvoridle.com/index_game.php` (lands on the character selection screen, already logged in).
 2. Inject `melvor-helpers.js` (paste its content into an `evaluate_script` call) → exposes `window.mh`.
-3. `mh.loadCharacter("GrifhinZ")` → clicks the slot + confirms the popup. Wait ~4s then check `game.characterName`.
+3. `mh.loadCharacter("<character>")` → clicks the slot + confirms the popup. Wait ~4s then check `game.characterName`.
 
-Cloud characters on this account: GrifhinZ, Rya, Dash, Edalbraw, Opa, Chap, Kang.
+The private account roster lives in `.env.local` as `MELVOR_CHARACTERS`.
 
 Before any write, compare Local vs Cloud with:
 

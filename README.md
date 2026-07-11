@@ -84,7 +84,7 @@ npm run source
 ./melvor-report.js skilling <character>
 ./melvor-report.js export-state all > /tmp/melvor-state.json
 ./melvor-report.js save-backup all
-./melvor-report.js journal GrifhinZ
+./melvor-report.js journal <character>
 ./melvor-report.js journal all --record --save-backup
 ./melvor-report.js journal-status all
 ./melvor-report.js journal-diff all
@@ -154,18 +154,6 @@ dashboard. `journal/` is private local player data and must never be committed. 
 actions stays out of scope — any future apply-action flow still requires `source-of-truth`
 checks and explicit user approval.
 
-## Character roster
-
-The current configured account roster is:
-
-- `GrifhinZ`
-- `Rya`
-- `Dash`
-- `Edalbraw`
-- `Opa`
-- `Chap`
-- `Kang`
-
 ## Browser setup
 
 The tooling uses Chrome DevTools against the shared profile:
@@ -179,7 +167,8 @@ That profile must stay logged into Melvor Cloud. Chrome locks the profile, so on
 If login expires, open the same profile visibly, let the user log in, then return to headless operation.
 
 Local account settings can live in `.env.local`, copied from [`.env.example`](./.env.example).
-That file is git-ignored. It supports both the main profile and a separate test profile:
+That file is git-ignored. Put the private character roster there as
+`MELVOR_CHARACTERS=Main,Alt1,Alt2`. It supports both the main profile and a separate test profile:
 
 ```bash
 cp .env.example .env.local

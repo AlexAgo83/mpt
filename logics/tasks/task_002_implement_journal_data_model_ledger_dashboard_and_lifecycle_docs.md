@@ -7,6 +7,7 @@
 > Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
+> Non-semantic edit: anonymized public example character names.
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 
 # Context
@@ -57,7 +58,7 @@
 # Validation
 - Run `npm run check`.
 - Run `./melvor-report.js --help`.
-- Run `./melvor-report.js journal GrifhinZ`.
+- Run `./melvor-report.js journal CharacterA`.
 - Run `./melvor-report.js journal all --record`.
 - Open or inspect `journal/index.html` for dashboard rendering and filters.
 - Validate `journal/latest.json` with `node -e "JSON.parse(require('fs').readFileSync('journal/latest.json','utf8'))"`.
@@ -65,7 +66,7 @@
 - Run `logics-manager flow validate logics/request/req_001_journal_operating_model_and_interactive_dashboard.md`.
 - Run `logics-manager lint --require-status`.
 - Run `logics-manager audit --group-by-doc`.
-- npm run check + test-journal.js (ids, dedup, dismissed, stale, latest.json shape, escaping) passed; live journal GrifhinZ dry run and journal all --record ok (7 md, valid latest.json + actions.jsonl, index.html); dashboard verified offline via headless screenshot; sanitization grep clean; journal/ git-ignored; flow validate 0 findings
+- npm run check + test-journal.js (ids, dedup, dismissed, stale, latest.json shape, escaping) passed; live journal CharacterA dry run and journal all --record ok (7 md, valid latest.json + actions.jsonl, index.html); dashboard verified offline via headless screenshot; sanitization grep clean; journal/ git-ignored; flow validate 0 findings
 - Finish workflow executed on 2026-07-05.
 - Linked backlog/request close verification passed.
 
@@ -73,7 +74,7 @@
 - Implemented 2026-07-05. Data model first: `buildCharacterJournal` (observed/analysis/decisions), `mergeLedger` (stable sha1 action ids + context hashes, dedup, dismissed/done/blocked respected until context changes, stale detection), `buildLatest` (snapshot merge), then `renderDashboard` (embedded JSON, textContent-only DOM, no external assets). Lifecycle and AI handoff rules documented in README and MELVOR_RUNBOOK.
 - Validation run 2026-07-05:
   - `npm run check` passed; `test-journal.js` covers stable ids, rerun dedup, dismissed non-re-proposal, context-change re-proposal, stale transition, latest.json shape, Markdown sections, JSON escaping, and sanitization.
-  - Live `journal GrifhinZ` dry run and `journal all --record` succeeded; artifacts: 7 Markdown files, valid `latest.json` (7 characters, observed/analysis/decisions each), valid `actions.jsonl` (6 proposed events), `index.html`.
+  - Live `journal CharacterA` dry run and `journal all --record` succeeded; artifacts: 7 Markdown files, valid `latest.json` (7 characters, observed/analysis/decisions each), valid `actions.jsonl` (6 proposed events), `index.html`.
   - Dashboard verified offline via headless Chrome screenshot: account indicators (last scan, save risks, stale, proposed/approved/blocked), search, filters, stale-only toggle, per-character detail.
   - Sanitization grep over `journal/` clean; `journal/` git-ignored and untracked.
   - `logics-manager flow validate` returned 0 findings for the request; lint OK.

@@ -7,6 +7,7 @@
 > Progress: 100%
 > Complexity: Medium
 > Theme: Melvor assistant reporting
+> Non-semantic edit: anonymized public example character names.
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
 
 # Problem
@@ -31,7 +32,7 @@
   - Recording raw save strings, credentials, or local profile paths.
 
 # Acceptance criteria
-- `./melvor-report.js journal GrifhinZ` prints Markdown with headings for State, Recommendations, Optimization plan, Proposed actions, and History.
+- `./melvor-report.js journal CharacterA` prints Markdown with headings for State, Recommendations, Optimization plan, Proposed actions, and History.
 - `./melvor-report.js journal all --record` appends per-character files in `journal/` with deterministic filenames based on configured character names.
 - `./melvor-report.js journal all --record` writes `journal/index.html` with embedded CSS/JS and enough embedded sanitized data to browse the latest generated state offline.
 - The dashboard shows all configured characters with current action, source-of-truth/save-risk status, top recommendations, and proposed actions.
@@ -43,7 +44,7 @@
 - `npm run check`, `./melvor-report.js --help`, a single-character dry run, and a recorded all-character dashboard generation are executed and documented at closeout.
 
 # AC Traceability
-- request-A new CLI command `journal [all|character] [--record]` is documented in the help output and README command list. -> This backlog slice. Proof: `./melvor-report.js journal GrifhinZ` prints Markdown with headings for State, Recommendations, Optimization plan, Proposed actions, and History.
+- request-A new CLI command `journal [all|character] [--record]` is documented in the help output and README command list. -> This backlog slice. Proof: `./melvor-report.js journal CharacterA` prints Markdown with headings for State, Recommendations, Optimization plan, Proposed actions, and History.
 - request-Running `journal <character>` prints a Markdown journal entry for exactly that character without writing files. -> This backlog slice. Proof: `./melvor-report.js journal all --record` appends per-character files in `journal/` with deterministic filenames based on configured character names.
 - request-Running `journal all --record` creates or appends one Markdown file per configured character under `journal/`. -> This backlog slice. Proof: `journal/index.html` is refreshed with offline dashboard data.
 - request-Running `journal all --record` also generates or refreshes `journal/index.html` as a local interactive dashboard. -> This backlog slice. Proof: The dashboard shows current action, save-risk status, top recommendations, and proposed actions.

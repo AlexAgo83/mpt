@@ -16,22 +16,22 @@ Purpose: capture what made the assistant less reliable, then promote only repeat
 - Combat recommendations must check equip requirements and source-of-truth before proposing or applying an item.
 - Avoid parallel `melvor-report.js` calls on the same account; the debug-port lock is intentional.
 
-### 2026-07-05 - GrifhinZ ranged recommendation miss
-- Observed: I proposed `Blighted Feather Bow` from raw ranged stats, then the equip failed because GrifhinZ had Abyssal Ranged 16 and the bow requires 18.
+### 2026-07-05 - CharacterA ranged recommendation miss
+- Observed: I proposed `Blighted Feather Bow` from raw ranged stats, then the equip failed because CharacterA had Abyssal Ranged 16 and the bow requires 18.
 - Impact: Wasted an apply attempt and only the cape swap succeeded.
 - Root cause: `gear` ranks raw candidates without checking equip requirements.
 - Fix shipped: `mh.gearAudit` now filters candidates that fail static equip requirements.
 - Follow-up: Add readable locked-item reasons if we need to explain why a candidate is absent.
 
 ### 2026-07-05 - Local-first journal gap
-- Observed: Several characters, including Edalbraw, had newer local saves while journal collection loaded cloud by default.
+- Observed: Several characters, including CharacterB, had newer local saves while journal collection loaded cloud by default.
 - Impact: Journal entries could describe stale gear/caps for local-first characters.
 - Root cause: `collectJournal` reused the cloud-oriented character loader.
 - Fix shipped: journal, summary, gear, audit, plan, combat-plan, and export-state now load the source-of-truth save.
 - Follow-up: Reuse the source-aware loader in future write/apply workflows.
 
-### 2026-07-05 - Edalbraw dungeon run dogfood
-- Observed: `Lair of the Spider Queen` cleared on Edalbraw with set 0 melee; HP stayed safe, ending at 1135/1175, then combat stopped with `Claim` and many `Increase Level Cap` / `Increase Abyssal Level Cap` buttons visible.
+### 2026-07-05 - CharacterB dungeon run dogfood
+- Observed: `Lair of the Spider Queen` cleared on CharacterB with set 0 melee; HP stayed safe, ending at 1135/1175, then combat stopped with `Claim` and many `Increase Level Cap` / `Increase Abyssal Level Cap` buttons visible.
 - Impact: The assistant can start and monitor a dungeon, but cannot yet summarize post-clear reward/cap choices or choose a cap safely.
 - Root cause: Combat automation is still one-off CDP scripting; `combat-plan` predicts targets but does not execute, monitor, or detect post-clear decisions.
 - Fix shipped: Journal refreshed after the clear so future planning sees the new state; `combat-run <character> <dungeon>` now source-loads, equips the recommended set, starts combat, monitors transitions where `fightInProgress=false` between enemies, saves on completion, and reports pending reward/cap buttons without choosing them.
@@ -44,15 +44,15 @@ Purpose: capture what made the assistant less reliable, then promote only repeat
 - Fix shipped: none.
 - Follow-up: Never parallelize `melvor-report.js` commands for the same account; optionally add a small queue/retry wrapper for read-only commands.
 
-### 2026-07-05 - Edalbraw combat setup recommendations
-- Observed: Edalbraw's next target is `Cursed Forest`; set 1 ranged is appropriate, but no prayers were active and the cape can improve from `Ancient Infernal Cape` to `Maximum Skillcape`.
+### 2026-07-05 - CharacterB combat setup recommendations
+- Observed: CharacterB's next target is `Cursed Forest`; set 1 ranged is appropriate, but no prayers were active and the cape can improve from `Ancient Infernal Cape` to `Maximum Skillcape`.
 - Impact: `combat-plan` needed to surface setup recommendations, not only target dungeon names.
 - Root cause: Combat planning separated target choice from pre-run setup.
 - Fix shipped: `combatGoals.nextSetup` now records recommended set, simple prayers, summons, potions, and obvious cape swaps; the journal records those recommendations.
 - Follow-up: Add an apply command for approved combat setup changes, including prayers, without starting a dungeon.
 
-### 2026-07-11 - Dash idle Smithing miss
-- Observed: Dash had stopped Smithing after exhausting recipe inputs, but the assistant focused on broad progression instead of flagging the stopped current task.
+### 2026-07-11 - CharacterC idle Smithing miss
+- Observed: CharacterC had stopped Smithing after exhausting recipe inputs, but the assistant focused on broad progression instead of flagging the stopped current task.
 - Impact: The report missed the highest-priority operational issue: the character was no longer doing useful work.
 - Root cause: `currentActionPlan` treated `activeAction === null` as an empty state, and the dashboard did not compare the current action with the previous journal snapshot.
 - Fix shipped: `brief` and journal now flag idle/stopped actions, compare against the previous action, and estimate current-action intervals plus consumable/ammo/summon/Slayer runway where available.

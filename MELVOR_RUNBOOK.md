@@ -26,7 +26,7 @@ Use `./melvor-report.js improve --record` after sessions with failures or confus
 ## Character journal and dashboard
 
 ```bash
-./melvor-report.js journal GrifhinZ        # dry run: prints Markdown, writes nothing
+./melvor-report.js journal <character>    # dry run: prints Markdown, writes nothing
 ./melvor-report.js journal all --record    # appends journal/ files + refreshes dashboard
 ./melvor-report.js journal all --record --save-backup  # also writes private save exports
 ./melvor-report.js save-backup all         # private save exports only
@@ -81,9 +81,9 @@ user-approved change").
 
 ```bash
 ./melvor-report.js plan all
-./melvor-report.js combat-plan Edalbraw
-./melvor-report.js combat-plan Chap --abyssal
-./melvor-report.js combat-run Edalbraw "Lair of the Spider Queen"
+./melvor-report.js combat-plan <character>
+./melvor-report.js combat-plan <character> --abyssal
+./melvor-report.js combat-run <character> "Lair of the Spider Queen"
 ./melvor-report.js gear <character>
 ./melvor-report.js skilling <character>
 ```

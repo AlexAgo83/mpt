@@ -5,11 +5,13 @@ const http = require('http');
 const path = require('path');
 const { spawn } = require('child_process');
 
+loadEnvLocal();
+
 const ACCOUNT = process.env.MELVOR_ACCOUNT || 'main';
 const PORT = Number(ACCOUNT === 'test' ? (process.env.MELVOR_TEST_PORT || 9224) : (process.env.MELVOR_PORT || 9223));
 const URL = 'https://melvoridle.com/index_game.php';
 const AUTH_URL = 'https://melvoridle.com/index.php';
-const CHARS = ['GrifhinZ', 'Rya', 'Dash', 'Edalbraw', 'Opa', 'Chap', 'Kang'];
+const CHARS = (process.env.MELVOR_CHARACTERS || '').split(',').map(s => s.trim()).filter(Boolean);
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const PROFILE = ACCOUNT === 'test'
   ? (process.env.MELVOR_TEST_PROFILE || `${process.env.HOME}/.cache/mpt-melvor-test-profile`)
@@ -17,6 +19,16 @@ const PROFILE = ACCOUNT === 'test'
 const LOCK = path.join('/tmp', `melvor-report-${PORT}.lock`);
 const helper = fs.readFileSync(path.join(__dirname, 'melvor-helpers.js'), 'utf8');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function loadEnvLocal() {
+  const file = path.join(__dirname, '.env.local');
+  if (!fs.existsSync(file)) return;
+  for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)\s*$/);
+    if (!m || process.env[m[1]] !== undefined) continue;
+    process.env[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2');
+  }
+}
 
 const argv = process.argv.slice(2);
 const record = argv.includes('--record');
@@ -58,6 +70,11 @@ if (require.main === module) {
     console.error(usage);
     process.exit(2);
   }
+}
+
+if (require.main === module && who === 'all' && !['slots', 'smoke', 'login-smoke'].includes(cmd) && !CHARS.length) {
+  console.error('Set MELVOR_CHARACTERS in .env.local, comma-separated, to use all-character commands.');
+  process.exit(2);
 }
 
 const names = who === 'all' ? CHARS : [who];
