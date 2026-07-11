@@ -86,6 +86,8 @@ npm run source
 ./melvor-report.js save-backup all
 ./melvor-report.js journal GrifhinZ
 ./melvor-report.js journal all --record --save-backup
+./melvor-report.js journal-status all
+./melvor-report.js journal-diff all
 ./melvor-report.js journal-action <id> dismissed
 ```
 
@@ -114,7 +116,8 @@ recommendations, current-action plan, standard plan, abyssal plan, proposed acti
 
 - `journal/<Character>.md`: append-only Markdown journal per character
 - `journal/latest.json`: structured snapshot; per character it separates `observed` (game
-  state), `analysis` (assistant interpretation), and `decisions` (user/session decisions)
+  state), `previousObserved` (minimal prior snapshot for diffs), `analysis` (assistant
+  interpretation), and `decisions` (user/session decisions)
 - `journal/actions.jsonl`: append-only action ledger with stable action ids, status,
   risk, reason, timestamps, and a context hash
 - `journal/saves/`: private save-string backups. `*.latest.txt` contains the latest raw
@@ -125,8 +128,13 @@ recommendations, current-action plan, standard plan, abyssal plan, proposed acti
   current-action recommendations, save-backup metadata/link, a side drawer for recent
   journal history, and links to the Markdown files)
 - `Level ETA`: projected time to next level, next 10-level milestone, and current cap when
-  two journal snapshots have enough standard XP gain to estimate a rate; otherwise it
-  explains what data is still missing
+  two journal snapshots have enough standard or abyssal XP gain to estimate a rate; abyssal
+  thresholds come from the game `abyssalExp.levelToXP` table; otherwise it explains what
+  data is still missing
+
+`journal-status` and `journal-diff` are offline, compact views over `journal/latest.json`.
+Use them before asking for a full scan: they summarize current actions, ETA lines, alerts,
+save risks, backups, XP deltas, and consumed equipment quantities without opening Chrome.
 
 The dashboard highlights stopped/idle characters. If a character was previously doing a
 task and is now idle, the next journal refresh records a recommendation such as "current

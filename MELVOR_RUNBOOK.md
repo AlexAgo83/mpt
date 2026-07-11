@@ -30,6 +30,8 @@ Use `./melvor-report.js improve --record` after sessions with failures or confus
 ./melvor-report.js journal all --record    # appends journal/ files + refreshes dashboard
 ./melvor-report.js journal all --record --save-backup  # also writes private save exports
 ./melvor-report.js save-backup all         # private save exports only
+./melvor-report.js journal-status all      # compact offline account state
+./melvor-report.js journal-diff all        # compact offline delta since previous observed scan
 ./melvor-report.js journal-action <id> dismissed   # offline status change (approved|dismissed|done|blocked)
 ```
 
@@ -37,9 +39,11 @@ When the user accepts or rejects a proposed action, record it with `journal-acti
 next scan does not re-propose it. Applied equips are detected automatically and marked `done`.
 
 Start-of-session rule for AI assistants: before recommending anything, read
-`journal/latest.json` (per character: `observed` = game state, `analysis` = prior
-assistant interpretation, `decisions` = user/session decisions) and `journal/actions.jsonl`
-(latest event per action id wins). Respect existing decisions:
+`journal/latest.json` (per character: `observed` = game state, `previousObserved` =
+minimal prior state for diffs, `analysis` = prior assistant interpretation, `decisions` =
+user/session decisions) and `journal/actions.jsonl` (latest event per action id wins).
+Prefer `journal-status` and `journal-diff` before a full scan when local context is enough.
+Respect existing decisions:
 
 - `dismissed`, `done`, `blocked`: do not re-propose unless the context hash changed.
 - `proposed`, `approved`: still open; check for `stale` events before acting on them.
@@ -51,8 +55,10 @@ The dashboard is Melvor-themed and shows:
 - `Current action`: task-specific recommendations, idle/stopped-task alerts, intervals,
   Slayer ETA, and consumable/ammo/summon runway where available
 - `Level ETA`: time to next level, next 10-level milestone, and cap, when two journal
-  snapshots provide a measurable standard-XP rate; otherwise it explains what data is
-  still missing
+  snapshots provide a measurable standard or abyssal XP rate; abyssal thresholds are read
+  from the game `abyssalExp.levelToXP` table
+- `Alerts`: suspicious progress states such as active action with no positive XP or current
+  XP lower than the previous observed scan
 - `Standard plan`: standard-level gaps and standard combat setup direction
 - `Abyssal plan`: abyssal-level gaps and abyssal dungeon direction; Cartography and
   Archaeology are excluded because they have no trainable Abyssal Levels
