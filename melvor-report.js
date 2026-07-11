@@ -1423,6 +1423,7 @@ function render() {
       body.append(ul);
     };
     section('Top recommendations', c.analysis.recommendations.slice(0, 5));
+    if (c.analysis.alerts?.length) section('Alerts', c.analysis.alerts.slice(0, 5));
     section('Current action', (c.analysis.currentActionPlan || c.observed.currentAction?.next || []).slice(0, 6));
     section('Level ETA', (c.analysis.progressEtas || []).slice(0, 6));
     section('Standard plan', (c.analysis.standardPlan || c.analysis.optimizationPlan || []).slice(0, 6));
