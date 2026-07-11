@@ -58,6 +58,13 @@ Purpose: capture what made the assistant less reliable, then promote only repeat
 - Fix shipped: `brief` and journal now flag idle/stopped actions, compare against the previous action, and estimate current-action intervals plus consumable/ammo/summon/Slayer runway where available.
 - Follow-up: Add recipe-specific missing-input detection for Smithing/Crafting/Cooking when the selected recipe is available from the game object.
 
+### 2026-07-12 - Journal refresh failure hidden by filtered output
+- Observed: A journal refresh appeared to finish silently, but `latest.json` had not advanced because another Melvor report held the debug-port lock; the filtered shell output hid the useful error.
+- Impact: The refresh needed an unnecessary second diagnosis and retry.
+- Root cause: The assistant used an output-filtering wrapper where exact command output was required, and the lock error did not identify its holder.
+- Fix shipped: Lock errors now include holder PID, age, and command; recorded refreshes reread `latest.json`, require a newer timestamp, and summarize characters, save risks, and new alerts.
+- Follow-up: Use raw output for Melvor commands whose success must be confirmed; keep filtered wrappers for genuinely noisy diagnostics.
+
 ## Entry template
 
 ```markdown
