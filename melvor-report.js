@@ -42,6 +42,8 @@ const usage = `usage:
   ./melvor-report.js export-state [all|character]
   ./melvor-report.js save-backup [all|character]
   ./melvor-report.js journal [all|character] [--record] [--save-backup]
+  ./melvor-report.js journal-status [all|character]
+  ./melvor-report.js journal-diff [all|character]
   ./melvor-report.js journal-action <id> <approved|dismissed|done|blocked>
 
 Most commands are read-only. combat-setup and combat-run write, save, then verify source-of-truth.
@@ -52,7 +54,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'export-state', 'save-backup', 'journal', 'journal-action'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'export-state', 'save-backup', 'journal', 'journal-status', 'journal-diff', 'journal-action'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -1111,6 +1113,39 @@ function levelEtaStatus(lines) {
   return { status: lines.some(l => !/^ETA pending:/.test(l)) ? 'ready' : 'pending', lines };
 }
 
+function compactObserved(o) {
+  if (!o) return null;
+  return {
+    at: o.at,
+    action: o.action || 'idle',
+    saveSource: o.saveSource || null,
+    equipmentQuantities: o.equipmentQuantities || {},
+    skills: (o.skills || []).map(s => ({
+      name: s.name, level: s.level, xp: s.xp, levelCap: s.levelCap,
+      abyssalLevel: s.abyssalLevel, abyssalXP: s.abyssalXP, abyssalCap: s.abyssalCap,
+    })),
+  };
+}
+
+const actionSkillNames = action =>
+  action === 'Combat' ? ['Attack', 'Strength', 'Defence', 'Hitpoints', 'Ranged', 'Magic', 'Slayer'] : [action].filter(Boolean);
+
+function progressAlerts(entry) {
+  const lines = entry.analysis.progressEtas || [];
+  const action = entry.observed.action;
+  if (!action) return [];
+  const watched = new Set(actionSkillNames(action));
+  const skills = (entry.observed.skills || []).filter(s => watched.has(s.name));
+  const standardCapped = skills.length && skills.every(s => (s.levelCap ?? 120) <= s.level);
+  const abyssalProgress = lines.some(l => /abyssal XP gained/.test(l));
+  const noProgress = lines.some(l => /no XP gain detected/.test(l));
+  return [
+    noProgress ? 'action active but no standard or abyssal XP was detected since the previous scan' : null,
+    standardCapped && abyssalProgress ? 'standard level capped; current progress is abyssal XP' : null,
+    standardCapped && !abyssalProgress && !noProgress ? 'standard level capped; standard ETA has no remaining target' : null,
+  ].filter(Boolean);
+}
+
 function buildLatest(chars, latest, previous, now) {
   const characters = { ...(previous?.characters || {}) };
   const scannedNames = new Set(chars.map(c => c.name));
@@ -1129,6 +1164,8 @@ function buildLatest(chars, latest, previous, now) {
     }
     if (scannedNames.has(name)) entry.analysis.progressEtas = progressEtas(entry, previousEntry);
     else entry.analysis.progressEtas ??= previousEntry?.analysis?.progressEtas || [];
+    entry.analysis.alerts = progressAlerts(entry);
+    entry.previousObserved = scannedNames.has(name) ? compactObserved(previousEntry?.observed) : previousEntry?.previousObserved || null;
     if (backups.has(name)) entry.observed.saveBackup = backups.get(name);
     const decisions = Object.fromEntries(ACTION_STATUSES.map(s => [s, []]));
     for (const e of latest.values()) {
@@ -1158,6 +1195,59 @@ function buildLatest(chars, latest, previous, now) {
 
 function readLatestSnapshot() {
   try { return JSON.parse(fs.readFileSync(path.join(JOURNAL_DIR, 'latest.json'), 'utf8')); } catch { return null; }
+}
+
+function selectedEntries(snap) {
+  return names
+    .map(name => [name, snap.characters?.[name]])
+    .filter(([, c]) => c);
+}
+
+function runJournalStatus() {
+  const snap = readLatestSnapshot();
+  if (!snap) throw Error('journal/latest.json not found; run journal --record first');
+  console.log(`Journal ${new Date(snap.generatedAt).toLocaleString()} | save risks ${snap.account.saveRisks.length} | stale ${snap.account.staleCharacters.length}`);
+  for (const [name, c] of selectedEntries(snap)) {
+    const flags = [
+      snap.account.saveRisks.includes(name) ? 'SAVE RISK' : null,
+      snap.account.staleCharacters.includes(name) ? 'STALE' : null,
+      c.observed.saveBackup ? `backup ${c.observed.saveBackup.hash}` : 'no backup',
+    ].filter(Boolean).join(', ');
+    console.log(`\n${name}: ${c.observed.action || 'idle'} | ${c.observed.mode || ''} | ${flags || 'ok'}`);
+    for (const line of (c.analysis.alerts || []).slice(0, 3)) console.log(`  alert: ${line}`);
+    for (const line of (c.analysis.progressEtas || []).slice(0, 3)) console.log(`  eta: ${line}`);
+    for (const line of (c.analysis.currentActionPlan || c.analysis.recommendations || []).slice(0, 3)) console.log(`  now: ${line}`);
+    for (const line of (c.analysis.abyssalPlan || []).slice(0, 2)) console.log(`  abyssal: ${line}`);
+  }
+}
+
+function runJournalDiff() {
+  const snap = readLatestSnapshot();
+  if (!snap) throw Error('journal/latest.json not found; run journal --record first');
+  for (const [name, c] of selectedEntries(snap)) {
+    const prev = c.previousObserved;
+    console.log(`\n${name}: ${prev?.at || 'no previous observed'} -> ${c.observed.at}`);
+    if (!prev) continue;
+    if ((prev.action || 'idle') !== (c.observed.action || 'idle'))
+      console.log(`  action: ${prev.action || 'idle'} -> ${c.observed.action || 'idle'}`);
+    const prevSkills = Object.fromEntries((prev.skills || []).map(s => [s.name, s]));
+    const watched = new Set(actionSkillNames(c.observed.action));
+    for (const s of (c.observed.skills || []).filter(s => watched.has(s.name))) {
+      const p = prevSkills[s.name];
+      if (!p) continue;
+      const dxp = (s.xp || 0) - (p.xp || 0);
+      const daxp = (s.abyssalXP || 0) - (p.abyssalXP || 0);
+      if (dxp || daxp)
+        console.log(`  ${s.name}: ${dxp ? `+${fmtNum(dxp)} XP ` : ''}${daxp ? `+${fmtNum(daxp)} abyssal XP` : ''}`.trimEnd());
+    }
+    const prevQty = prev.equipmentQuantities || {};
+    const curQty = c.observed.equipmentQuantities || {};
+    for (const slot of Object.keys({ ...prevQty, ...curQty }).sort()) {
+      const delta = (curQty[slot] ?? 0) - (prevQty[slot] ?? 0);
+      if (delta) console.log(`  ${slot}: ${delta > 0 ? '+' : ''}${fmtNum(delta)} quantity`);
+    }
+    for (const line of (c.analysis.alerts || [])) console.log(`  alert: ${line}`);
+  }
 }
 
 // Offline dashboard: data embedded as JSON (script tag, `<` escaped), rendered with
@@ -1500,6 +1590,8 @@ function lock(retry = true) {
 module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger };
 if (require.main === module) (async () => {
   if (cmd === 'journal-action') return runJournalAction(who, arg3);
+  if (cmd === 'journal-status') return runJournalStatus();
+  if (cmd === 'journal-diff') return runJournalDiff();
   const unlock = lock();
   let chrome = null;
   try {
