@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Offline self-check for journal pure logic: ids, dedup, dismissed, stale, latest.json shape.
 const assert = require('assert');
+const fs = require('fs');
+const { spawnSync } = require('child_process');
 const { buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, potionItemName } = require('./melvor-report.js');
 
 const data = {
@@ -123,5 +125,20 @@ assert.ok(!/<script>alert/.test(html), 'embedded JSON escapes <');
 assert.ok(!/https?:\/\/(?!melvoridle)/.test(html), 'no external assets');
 assert.ok(html.includes('SAVE RISK') && html.includes('stale only'), 'risk badge and stale filter present');
 assert.ok(!/Users\/|password|9223|chrome-profile/i.test(html), 'dashboard is sanitized');
+
+const testPort = 20000 + process.pid % 30000;
+const lock = `/tmp/melvor-report-${testPort}.lock`;
+fs.writeFileSync(lock, String(process.pid));
+try {
+  const blocked = spawnSync(process.execPath, ['melvor-report.js', 'smoke'], {
+    cwd: __dirname,
+    env: { ...process.env, MELVOR_ACCOUNT: 'test', MELVOR_TEST_PORT: String(testPort) },
+    encoding: 'utf8',
+  });
+  assert.strictEqual(blocked.status, 1);
+  assert.match(blocked.stderr, new RegExp(`port ${testPort}:\\s+${process.pid}\\s+\\S+\\s+node`));
+} finally {
+  fs.unlinkSync(lock);
+}
 
 console.log('journal self-check ok');

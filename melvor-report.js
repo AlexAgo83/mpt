@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
-const { spawn } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 
 loadEnvLocal();
 
@@ -1611,13 +1611,16 @@ function lock(retry = true) {
     return unlock;
   } catch {
     // ponytail: kill(pid, 0) treats EPERM as alive — fine, this tool only locks its own pids
+    const holder = Number(fs.readFileSync(LOCK, 'utf8').trim());
     let holderAlive = false;
-    try { process.kill(Number(fs.readFileSync(LOCK, 'utf8').trim()), 0); holderAlive = true; } catch {}
+    try { process.kill(holder, 0); holderAlive = true; } catch {}
     if (!holderAlive && retry) {
       try { fs.unlinkSync(LOCK); } catch {}
       return lock(false);
     }
-    throw Error(`another melvor-report is already using port ${PORT}`);
+    let details = `PID ${holder}`;
+    try { details = execFileSync('ps', ['-p', String(holder), '-o', 'pid=,etime=,command='], { encoding: 'utf8' }).trim() || details; } catch {}
+    throw Error(`another melvor-report is already using port ${PORT}: ${details}`);
   }
 }
 
