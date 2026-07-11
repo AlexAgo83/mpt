@@ -17,8 +17,11 @@ const PROFILE = ACCOUNT === 'test'
   ? (process.env.MELVOR_TEST_PROFILE || `${process.env.HOME}/.cache/mpt-melvor-test-profile`)
   : (process.env.MELVOR_PROFILE || `${process.env.HOME}/.cache/chrome-devtools-mcp/chrome-profile`);
 const LOCK = path.join('/tmp', `melvor-report-${PORT}.lock`);
+const JOURNAL_DIR = path.join(__dirname, 'journal');
+const INCIDENTS = process.env.MELVOR_INCIDENT_FILE || path.join(JOURNAL_DIR, 'incidents.jsonl');
 const helper = fs.readFileSync(path.join(__dirname, 'melvor-helpers.js'), 'utf8');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const startedAt = Date.now();
 
 function loadEnvLocal() {
   const file = path.join(__dirname, '.env.local');
@@ -79,6 +82,47 @@ if (require.main === module && who === 'all' && !['slots', 'smoke', 'login-smoke
 
 const names = who === 'all' ? CHARS : [who];
 const recordImprovement = cmd === 'improve' && record;
+
+function sanitizeIncident(value) {
+  let text = String(value || 'unknown error').split('\n')[0];
+  for (const secret of [process.env.HOME, __dirname, PROFILE].filter(Boolean)) text = text.split(secret).join('<path>');
+  return text
+    .replace(/(?:https?|wss?):\/\/\S+/gi, '<url>')
+    .replace(/[A-Za-z0-9+/=_-]{80,}/g, '<redacted>')
+    .slice(0, 500);
+}
+
+function incidentSignature(command, message) {
+  const normalized = sanitizeIncident(message).toLowerCase().replace(/\b\d+(?:\.\d+)?\b/g, '#');
+  return crypto.createHash('sha1').update(`${command}|${normalized}`).digest('hex').slice(0, 12);
+}
+
+function readIncidents(file = INCIDENTS) {
+  let text = '';
+  try { text = fs.readFileSync(file, 'utf8'); } catch { return []; }
+  return text.split('\n').filter(Boolean).flatMap(line => { try { return [JSON.parse(line)]; } catch { return []; } });
+}
+
+function incidentCandidates(events, threshold = 2) {
+  const grouped = new Map();
+  for (const event of events) {
+    const item = grouped.get(event.signature) || { ...event, count: 0, firstSeen: event.ts };
+    item.count++;
+    item.lastSeen = event.ts;
+    grouped.set(event.signature, item);
+  }
+  return [...grouped.values()].filter(item => item.count >= threshold).sort((a, b) => b.count - a.count || b.lastSeen.localeCompare(a.lastSeen));
+}
+
+function recordIncident(error, file = INCIDENTS) {
+  const message = sanitizeIncident(error?.message || error);
+  const command = sanitizeIncident(argv.join(' ') || cmd);
+  const event = { ts: new Date().toISOString(), command, durationMs: Date.now() - startedAt, message, signature: incidentSignature(cmd, message) };
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.appendFileSync(file, JSON.stringify(event) + '\n');
+  return event;
+}
+
 const req = (method, path) => new Promise((resolve, reject) => {
   const r = http.request({ host: '127.0.0.1', port: PORT, method, path }, res => {
     let data = '';
@@ -858,7 +902,6 @@ function printImprovementReport(slots) {
   }
 }
 
-const JOURNAL_DIR = path.join(__dirname, 'journal');
 const SAVE_DIR = path.join(JOURNAL_DIR, 'saves');
 const SAVE_MANIFEST = path.join(SAVE_DIR, 'manifest.jsonl');
 const JOURNAL_WANTED = ['Octopus', 'Potion Stirrer', 'Bear', 'Jeweled Necklace', 'Book of Scholars', 'Ancient Ring of Mastery', 'Golden Star', 'Eagle'];
@@ -1638,7 +1681,7 @@ function lock(retry = true) {
   }
 }
 
-module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary };
+module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates };
 if (require.main === module) (async () => {
   if (cmd === 'journal-action') return runJournalAction(who, arg3);
   if (cmd === 'journal-status') return runJournalStatus();
@@ -1795,6 +1838,7 @@ if (require.main === module) (async () => {
     unlock();
   }
 })().catch(e => {
+  try { recordIncident(e); } catch {}
   console.error(e.message || e);
   process.exit(1);
 });

@@ -3,7 +3,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
-const { buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, potionItemName, journalRefreshSummary } = require('./melvor-report.js');
+const { buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, potionItemName, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates } = require('./melvor-report.js');
 
 const data = {
   report: {
@@ -137,17 +137,32 @@ assert.throws(() => journalRefreshSummary(snap, snap, now), /was not refreshed/)
 
 const testPort = 20000 + process.pid % 30000;
 const lock = `/tmp/melvor-report-${testPort}.lock`;
+const incidents = `/tmp/melvor-incidents-${process.pid}.jsonl`;
 fs.writeFileSync(lock, String(process.pid));
 try {
   const blocked = spawnSync(process.execPath, ['melvor-report.js', 'smoke'], {
     cwd: __dirname,
-    env: { ...process.env, MELVOR_ACCOUNT: 'test', MELVOR_TEST_PORT: String(testPort) },
+    env: { ...process.env, MELVOR_ACCOUNT: 'test', MELVOR_TEST_PORT: String(testPort), MELVOR_INCIDENT_FILE: incidents },
     encoding: 'utf8',
   });
   assert.strictEqual(blocked.status, 1);
   assert.match(blocked.stderr, new RegExp(`port ${testPort}:\\s+${process.pid}\\s+\\S+\\s+node`));
+  const captured = readIncidents(incidents);
+  assert.strictEqual(captured.length, 1);
+  assert.ok(captured[0].durationMs >= 0);
+  assert.ok(!captured[0].message.includes(process.env.HOME));
 } finally {
   fs.unlinkSync(lock);
+  fs.rmSync(incidents, { force: true });
 }
+
+const safe = sanitizeIncident(`failed at ${process.env.HOME}/secret <https://localhost:9223/json> ${'x'.repeat(100)}`);
+assert.strictEqual(safe, 'failed at <path>/secret <<url> <redacted>');
+const signature = incidentSignature('journal', 'port 9223: PID 123 ran for 00:12');
+assert.strictEqual(signature, incidentSignature('journal', 'port 9333: PID 456 ran for 00:45'));
+assert.strictEqual(incidentCandidates([
+  { ts: '2026-07-01', signature, command: 'journal all --record', message: 'failed' },
+  { ts: '2026-07-02', signature, command: 'journal all --record', message: 'failed' },
+]).at(0).count, 2);
 
 console.log('journal self-check ok');
