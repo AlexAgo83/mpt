@@ -89,7 +89,7 @@ const withAbyssal = (abyssalXP, at) => {
   const entry = buildCharacterJournal('AbyssEtaChar', {
     ...data,
     report: { ...data.report, action: 'Thieving', equipment: {} },
-    skills: [{ name: 'Thieving', level: 120, xp: 104000000, levelCap: 120, abyssalLevel: 1, abyssalCap: 60, abyssalXP }],
+    skills: [{ name: 'Thieving', level: 120, xp: 104000000, levelCap: 120, abyssalLevel: 1, abyssalCap: 60, abyssalXP, abyssalXPNextLevel: 13000 }],
   }, save);
   entry.observed.at = at;
   return entry;
@@ -97,6 +97,7 @@ const withAbyssal = (abyssalXP, at) => {
 const abyssPrev = buildLatest([withAbyssal(1000, '2026-07-05T12:00:00.000Z')], new Map(), null, now);
 const abyssSnap = buildLatest([withAbyssal(7000, '2026-07-05T12:10:00.000Z')], new Map(), abyssPrev, now);
 assert.ok(/Thieving: 6,000 abyssal XP gained/.test(abyssSnap.characters.AbyssEtaChar.analysis.progressEtas[0]), 'abyssal XP delta is reported');
+assert.ok(/abyssal next level ETA/.test(abyssSnap.characters.AbyssEtaChar.analysis.progressEtas[0]), 'abyssal ETA uses mapped thresholds');
 
 // latest.json shape
 const snap = buildLatest([c], first.latest, null, now);

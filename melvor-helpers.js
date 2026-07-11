@@ -178,6 +178,18 @@
   };
 
   // Skill state by name ("Fishing", "Herblore"...).
+  const abyssalTargets = s => {
+    const level = s.abyssalLevel ?? null;
+    const cap = s.currentAbyssalLevelCap ?? null;
+    if (level === null || cap === null || typeof abyssalExp === 'undefined') return {};
+    const xpAt = target => target > level && target <= cap ? Math.floor(abyssalExp.levelToXP(target)) : null;
+    const nextTen = Math.min(cap, Math.ceil((level + 1) / 10) * 10);
+    return {
+      abyssalXPNextLevel: xpAt(level + 1),
+      abyssalXPNextTen: xpAt(nextTen),
+      abyssalXPCap: xpAt(cap),
+    };
+  };
   mh.skillInfo = (name) => {
     const s = game.skills.find(s => s.name.toLowerCase() === name.toLowerCase());
     if (!s) return `unknown skill "${name}"`;
@@ -191,6 +203,7 @@
       abyssalLevel: s.abyssalLevel ?? null,
       abyssalXP: Math.floor(s.abyssalXP ?? 0),
       abyssalCap: s.currentAbyssalLevelCap ?? null,
+      ...abyssalTargets(s),
       isActive: game.activeAction === s,
     };
   };
@@ -206,6 +219,7 @@
       abyssalLevel: s.abyssalLevel ?? null,
       abyssalXP: Math.floor(s.abyssalXP ?? 0),
       abyssalCap: s.currentAbyssalLevelCap ?? null,
+      ...abyssalTargets(s),
     }));
 
   const findBank = (name) => { for (const [item] of game.bank.items) if (item.name === name) return item; return null; };

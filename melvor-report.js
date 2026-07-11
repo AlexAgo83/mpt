@@ -1098,9 +1098,14 @@ function progressEtas(current, previous) {
         if (cap > s.level) parts.push(`cap ${cap} ETA ${fmtDuration((xpForLevel(cap) - s.xp) / xpPerMs)}`);
       }
       if (daxp > 0) {
+        const axpPerMs = daxp / elapsed;
         parts.push(`${s.name}: ${fmtNum(daxp)} abyssal XP gained (${fmtNum(daxp * 3600000 / elapsed)}/h)`);
         parts.push(`abyssal level ${s.abyssalLevel ?? '?'}/${s.abyssalCap ?? '?'}`);
-        parts.push('abyssal ETA unavailable until abyssal XP thresholds are mapped');
+        if (s.abyssalXPNextLevel) parts.push(`abyssal next level ETA ${fmtDuration((s.abyssalXPNextLevel - s.abyssalXP) / axpPerMs)}`);
+        if (s.abyssalXPNextTen) parts.push(`abyssal level ${Math.min(s.abyssalCap ?? 60, Math.ceil(((s.abyssalLevel ?? 0) + 1) / 10) * 10)} ETA ${fmtDuration((s.abyssalXPNextTen - s.abyssalXP) / axpPerMs)}`);
+        if (s.abyssalXPCap) parts.push(`abyssal cap ${s.abyssalCap} ETA ${fmtDuration((s.abyssalXPCap - s.abyssalXP) / axpPerMs)}`);
+        if (!s.abyssalXPNextLevel && !s.abyssalXPNextTen && !s.abyssalXPCap)
+          parts.push('abyssal ETA unavailable until abyssal XP thresholds are mapped');
       }
       return parts.filter(Boolean).join('; ');
     })
@@ -1123,6 +1128,9 @@ function compactObserved(o) {
     skills: (o.skills || []).map(s => ({
       name: s.name, level: s.level, xp: s.xp, levelCap: s.levelCap,
       abyssalLevel: s.abyssalLevel, abyssalXP: s.abyssalXP, abyssalCap: s.abyssalCap,
+      abyssalXPNextLevel: s.abyssalXPNextLevel,
+      abyssalXPNextTen: s.abyssalXPNextTen,
+      abyssalXPCap: s.abyssalXPCap,
     })),
   };
 }
