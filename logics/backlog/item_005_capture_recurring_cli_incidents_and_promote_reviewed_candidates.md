@@ -1,10 +1,10 @@
 ## item_005_capture_recurring_cli_incidents_and_promote_reviewed_candidates - Capture recurring CLI incidents and promote reviewed candidates
 > From version: 0.1.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Assistant reliability operations
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -64,3 +64,9 @@
 # Priority
 - Priority: Medium
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_003_implement_incident_driven_assistant_self_improvement`
+
+# Notes
+- Task `task_003_implement_incident_driven_assistant_self_improvement` was finished via `logics-manager flow finish task` on 2026-07-12.

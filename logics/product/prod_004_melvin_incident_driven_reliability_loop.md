@@ -6,6 +6,11 @@
 > Related task: `task_003_implement_incident_driven_assistant_self_improvement`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Confidence: 95
+> Non-semantic edit: closeout tooling refreshed the product back-reference on 2026-07-12.
+> Understanding: 100
+> Theme: Assistant reliability operations
+> Complexity: Medium
 
 # Overview
 Add a small private feedback loop around the existing Melvor CLI: failures become sanitized local evidence, repeated signatures become reviewable candidates, and explicit recording can create one traceable Logics request. Human review remains the boundary before implementation changes.
@@ -34,5 +39,5 @@ Add a small private feedback loop around the existing Melvor CLI: failures becom
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_002_incident_driven_assistant_self_improvement`
+- Product back-reference: `item_005_capture_recurring_cli_incidents_and_promote_reviewed_candidates`
 - Task back-reference: `task_003_implement_incident_driven_assistant_self_improvement`
