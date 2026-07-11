@@ -19,6 +19,7 @@ const PROFILE = ACCOUNT === 'test'
 const LOCK = path.join('/tmp', `melvor-report-${PORT}.lock`);
 const JOURNAL_DIR = path.join(__dirname, 'journal');
 const INCIDENTS = process.env.MELVOR_INCIDENT_FILE || path.join(JOURNAL_DIR, 'incidents.jsonl');
+const INCIDENT_PROMOTIONS = process.env.MELVOR_INCIDENT_PROMOTIONS_FILE || path.join(JOURNAL_DIR, 'incident-promotions.jsonl');
 const helper = fs.readFileSync(path.join(__dirname, 'melvor-helpers.js'), 'utf8');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const startedAt = Date.now();
@@ -121,6 +122,24 @@ function recordIncident(error, file = INCIDENTS) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.appendFileSync(file, JSON.stringify(event) + '\n');
   return event;
+}
+
+function promoteIncidentCandidates(candidates, file = INCIDENT_PROMOTIONS, run = execFileSync) {
+  const promoted = new Set(readIncidents(file).map(item => item.signature));
+  const created = [];
+  for (const item of candidates.filter(item => !promoted.has(item.signature))) {
+    const title = `Recurring Melvor CLI failure: ${item.message}`.slice(0, 120);
+    const result = JSON.parse(run('logics-manager', [
+      'flow', 'new', 'request', '--title', title, '--theme', 'Assistant reliability operations',
+      '--complexity', 'Medium', '--format', 'json',
+    ], { encoding: 'utf8' }));
+    const promotion = { ts: new Date().toISOString(), signature: item.signature, ref: result.ref };
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.appendFileSync(file, JSON.stringify(promotion) + '\n');
+    created.push(promotion);
+  }
+  if (created.length) run('logics-manager', ['index'], { encoding: 'utf8' });
+  return created;
 }
 
 const req = (method, path) => new Promise((resolve, reject) => {
@@ -863,6 +882,7 @@ function improvementReport(slots) {
   const sources = sourceOfTruth(slots);
   const risks = [];
   const ideas = [];
+  const recurring = incidentCandidates(readIncidents());
 
   for (const s of sources) {
     if (s.source === 'unknown') risks.push(`${s.name}: source of truth unknown`);
@@ -887,6 +907,15 @@ function improvementReport(slots) {
     '## Improvement candidates',
     ...ideas.map(idea => `- ${idea}`),
     '',
+    '## Recurring CLI incidents',
+    ...(recurring.length ? recurring.flatMap(item => [
+      `### ${item.signature} - ${item.message}`,
+      `- Occurrences: ${item.count}`,
+      `- Command: \`${item.command}\``,
+      `- First seen: ${item.firstSeen}`,
+      `- Last seen: ${item.lastSeen}`,
+    ]) : ['No recurring CLI incident detected.']),
+    '',
     '## Next command',
     '- Run `./melvor-report.js export-state all > /tmp/melvor-state.json` before deep recommendations.',
   ];
@@ -899,6 +928,8 @@ function printImprovementReport(slots) {
   if (recordImprovement) {
     fs.appendFileSync(path.join(__dirname, 'AI_IMPROVEMENTS.md'), `\n\n${report}\n`);
     console.log('\nRecorded in AI_IMPROVEMENTS.md');
+    for (const promotion of promoteIncidentCandidates(incidentCandidates(readIncidents())))
+      console.log(`Promoted ${promotion.signature} to ${promotion.ref}`);
   }
 }
 
@@ -1681,7 +1712,7 @@ function lock(retry = true) {
   }
 }
 
-module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates };
+module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates };
 if (require.main === module) (async () => {
   if (cmd === 'journal-action') return runJournalAction(who, arg3);
   if (cmd === 'journal-status') return runJournalStatus();

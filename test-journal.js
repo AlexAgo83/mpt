@@ -3,7 +3,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
-const { buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, potionItemName, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates } = require('./melvor-report.js');
+const { buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, potionItemName, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates } = require('./melvor-report.js');
 
 const data = {
   report: {
@@ -164,5 +164,19 @@ assert.strictEqual(incidentCandidates([
   { ts: '2026-07-01', signature, command: 'journal all --record', message: 'failed' },
   { ts: '2026-07-02', signature, command: 'journal all --record', message: 'failed' },
 ]).at(0).count, 2);
+const promotions = `/tmp/melvor-promotions-${process.pid}.jsonl`;
+const candidate = incidentCandidates([
+  { ts: '2026-07-01', signature, command: 'journal all --record', message: 'failed' },
+  { ts: '2026-07-02', signature, command: 'journal all --record', message: 'failed' },
+]);
+let promotionRuns = 0;
+const fakeLogics = (_command, args) => {
+  promotionRuns++;
+  return JSON.stringify({ ref: args[0] === 'flow' ? 'req_test' : null });
+};
+assert.strictEqual(promoteIncidentCandidates(candidate, promotions, fakeLogics).length, 1);
+assert.strictEqual(promoteIncidentCandidates(candidate, promotions, fakeLogics).length, 0);
+assert.strictEqual(promotionRuns, 2, 'one request and one index refresh');
+fs.rmSync(promotions, { force: true });
 
 console.log('journal self-check ok');
