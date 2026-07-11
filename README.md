@@ -188,6 +188,7 @@ npm run test:slots
 - [`MELVOR_RUNBOOK.md`](./MELVOR_RUNBOOK.md): short runbook for common workflows
 - [`AI_IMPROVEMENTS.md`](./AI_IMPROVEMENTS.md): ledger for repeated assistant failures and improvements
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md): contribution and validation workflow
+- [`changelogs/`](./changelogs/): release notes
 - [`SECURITY.md`](./SECURITY.md): local security model and reporting policy
 - [`LICENSE`](./LICENSE): MIT license
 - [`logics/`](./logics/): product and workflow context
