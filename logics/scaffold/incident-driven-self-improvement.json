@@ -1,0 +1,111 @@
+{
+  "title": "Incident-driven assistant self-improvement",
+  "references": [
+    "README.md",
+    "MELVOR_RUNBOOK.md",
+    "AI_IMPROVEMENTS.md",
+    "melvor-report.js",
+    "test-journal.js",
+    "logics/product/prod_002_melvin_character_journal_and_planning_log.md"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Assistant reliability operations",
+    "needs": [
+      "Capture failed Melvor CLI runs as private structured incidents without manual transcription.",
+      "Normalize and deduplicate failures so repeated pain is visible without logging sensitive data.",
+      "Surface recurring incidents through the existing improve command and require explicit recording before workflow promotion.",
+      "Keep code changes and game mutations outside the automated loop."
+    ],
+    "context": [
+      "AI_IMPROVEMENTS.md is useful but currently depends on a person noticing and transcribing failures.",
+      "The existing improve command reports save-source risks but has no durable CLI failure history.",
+      "Generated incident data belongs under the git-ignored journal directory.",
+      "A single transient failure must not create workflow noise or change implementation code."
+    ],
+    "acceptance_criteria": [
+      "Unexpected melvor-report failures append a sanitized event with timestamp, command, duration, message, and stable signature to a private JSON Lines file.",
+      "Repeated signatures are counted from the append-only history without a database or dependency.",
+      "improve displays recurring incident candidates and a ready-to-review improvement entry.",
+      "Only improve --record may promote recurring unpromoted signatures into Logics, and each signature is promoted at most once.",
+      "Incident capture never stores environment values, save strings, home-directory paths, browser URLs, or credentials.",
+      "The automation never edits implementation code or mutates Melvor game state.",
+      "Offline checks cover sanitization, stable signatures, recurrence counting, and promotion deduplication."
+    ]
+  },
+  "product": {
+    "title": "Melvin - incident-driven reliability loop",
+    "overview": "Add a small private feedback loop around the existing Melvor CLI: failures become sanitized local evidence, repeated signatures become reviewable candidates, and explicit recording can create one traceable Logics request. Human review remains the boundary before implementation changes.",
+    "goals": [
+      "Reduce manual incident transcription.",
+      "Prioritize repeated failures over one-off noise.",
+      "Connect proven recurring pain to traceable Logics work.",
+      "Preserve the local-first, dependency-free safety model."
+    ],
+    "non_goals": [
+      "No autonomous code changes, commits, game actions, background daemon, scheduler, telemetry service, or external database.",
+      "No workflow request for a first occurrence.",
+      "No capture of raw stack traces, environment variables, save strings, or browser payloads."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Capture recurring CLI incidents and promote reviewed candidates",
+      "priority": "Medium",
+      "complexity": "Medium",
+      "theme": "Assistant reliability operations",
+      "request_acs": [
+        "Unexpected melvor-report failures append a sanitized event with timestamp, command, duration, message, and stable signature to a private JSON Lines file.",
+        "Repeated signatures are counted from the append-only history without a database or dependency.",
+        "improve displays recurring incident candidates and a ready-to-review improvement entry.",
+        "Only improve --record may promote recurring unpromoted signatures into Logics, and each signature is promoted at most once.",
+        "Incident capture never stores environment values, save strings, home-directory paths, browser URLs, or credentials.",
+        "The automation never edits implementation code or mutates Melvor game state.",
+        "Offline checks cover sanitization, stable signatures, recurrence counting, and promotion deduplication."
+      ],
+      "problem": [
+        "Reliability lessons are currently recorded only when a person notices and writes them down.",
+        "One-off and recurring failures are not distinguished automatically.",
+        "There is no durable link between repeated CLI failures and Logics intake."
+      ],
+      "scope_in": [
+        "Append sanitized failures under journal/.",
+        "Derive stable signatures and recurrence counts with Node standard-library APIs.",
+        "Extend improve output with recurring candidates.",
+        "Use explicit improve --record as the only promotion boundary.",
+        "Track promoted signatures locally to prevent duplicate requests.",
+        "Document the feedback loop and its privacy boundary."
+      ],
+      "scope_out": [
+        "Automatic fixes or commits.",
+        "Game-state mutation.",
+        "Background monitoring or external reporting.",
+        "A general-purpose logging framework."
+      ],
+      "acceptance_criteria": [
+        "Two failures with the same normalized message produce one recurring candidate with count two.",
+        "Variable PIDs, durations, ports, timestamps, and local paths do not split equivalent signatures.",
+        "A first occurrence is retained locally but does not become a promotion candidate.",
+        "improve output includes command, count, sanitized message, first seen, and last seen for recurring candidates.",
+        "Repeated improve --record runs do not promote the same signature twice.",
+        "npm run check passes without adding a dependency."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Implement incident-driven assistant self-improvement",
+    "plan": [
+      "Read the current improve command, CLI error boundary, journal storage rules, and this request chain.",
+      "Add sanitized append-only incident capture at the shared CLI failure boundary.",
+      "Add stable signature grouping and recurring-candidate output to improve.",
+      "Add explicit idempotent Logics promotion for improve --record.",
+      "Document the local privacy and human-review boundaries.",
+      "Run offline checks, CLI help, Logics validation, lint, and audit before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/incident-driven-self-improvement.json",
+    "mode": "full",
+    "profile": "normal"
+  }
+}

@@ -1,0 +1,322 @@
+{
+  "budgets": {
+    "max_docs": 12,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_002_incident_driven_assistant_self_improvement item_005_capture_recurring_cli_incidents_and_promote_reviewed_candidates task_003_implement_incident_driven_assistant_self_improvement --mode full --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_001_add_append_only_character_journal_command"
+        ],
+        "prod": [
+          "prod_002_melvin_character_journal_and_planning_log"
+        ],
+        "req": [
+          "req_000_character_journal_generation_for_melvor_planning"
+        ],
+        "task": [
+          "task_001_implement_and_validate_character_journal_generation"
+        ]
+      },
+      "path": "logics/product/prod_002_melvin_character_journal_and_planning_log.md",
+      "ref": "prod_002_melvin_character_journal_and_planning_log",
+      "sections": {
+        "Goals": [
+          "- Make each character's current state and next optimization steps reviewable without rerunning a full browser session.",
+          "- Provide a visual dashboard where the player can scan and filter all characters quickly.",
+          "- Give future AI sessions a concise historical trail per character.",
+          "- Keep the journal human-readable and git-friendly.",
+          "- Preserve the existing read-only safety model for report commands."
+        ],
+        "Key product decisions": [
+          "- Store the first journal as Markdown files because the repo is local-first and dependency-free.",
+          "- Generate the dashboard as one static HTML file with embedded CSS/JS so the player opens it directly in a browser.",
+          "- Append entries instead of rewriting historical notes; history should be simple to audit in git.",
+          "- Reuse existing `summary`, `audit`, `plan`, `slots`, and `source-of-truth` data instead of adding a second browser scrape path.",
+          "- Defer structured action tracking until simple append-only Markdown is too hard to review manually."
+        ],
+        "Overview": [
+          "Extend the Melvin local assistant with a lightweight, append-only journal and local interactive dashboard that turn current Melvor account readings into per-character planning notes. The journal is a durable handoff surface for future AI sessions: what each character is doing, what the assistant recommends next, what actions are proposed, and what safety checks matter before writes. The dashboard is the player's fast visual entrypoint for scanning all characters.",
+          "```mermaid",
+          "%% logics-kind: product",
+          "%% logics-signature: product|melvin_character_journal_and_planning_log|generated",
+          "flowchart TD",
+          "    Read[Read-only Melvor reports] --> Entry[Journal entry]"
+        ],
+        "References": [
+          "- Product back-reference: `item_001_add_append_only_character_journal_command`",
+          "- Task back-reference: `task_001_implement_and_validate_character_journal_generation`"
+        ]
+      },
+      "status": "Settled",
+      "title": "Melvin - character journal and planning log"
+    },
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_005_capture_recurring_cli_incidents_and_promote_reviewed_candidates"
+        ],
+        "prod": [
+          "prod_004_melvin_incident_driven_reliability_loop"
+        ],
+        "req": [
+          "req_002_incident_driven_assistant_self_improvement"
+        ],
+        "task": [
+          "task_003_implement_incident_driven_assistant_self_improvement"
+        ]
+      },
+      "path": "logics/product/prod_004_melvin_incident_driven_reliability_loop.md",
+      "ref": "prod_004_melvin_incident_driven_reliability_loop",
+      "sections": {
+        "Goals": [
+          "- Reduce manual incident transcription.",
+          "- Prioritize repeated failures over one-off noise.",
+          "- Connect proven recurring pain to traceable Logics work.",
+          "- Preserve the local-first, dependency-free safety model."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Add a small private feedback loop around the existing Melvor CLI: failures become sanitized local evidence, repeated signatures become reviewable candidates, and explicit recording can create one traceable Logics request. Human review remains the boundary before implementation changes."
+        ],
+        "References": [
+          "- Product back-reference: `req_002_incident_driven_assistant_self_improvement`",
+          "- Task back-reference: `task_003_implement_incident_driven_assistant_self_improvement`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Melvin - incident-driven reliability loop"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, incident-driven assistant self-improvement, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Incident-driven assistant self-improvement",
+        "use when": "You need to implement or review the scaffolded workflow for Incident-driven assistant self-improvement."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_005_capture_recurring_cli_incidents_and_promote_reviewed_candidates"
+        ],
+        "prod": [
+          "prod_002_melvin_character_journal_and_planning_log",
+          "prod_004_melvin_incident_driven_reliability_loop"
+        ],
+        "req": [
+          "req_002_incident_driven_assistant_self_improvement"
+        ]
+      },
+      "path": "logics/request/req_002_incident_driven_assistant_self_improvement.md",
+      "ref": "req_002_incident_driven_assistant_self_improvement",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Unexpected melvor-report failures append a sanitized event with timestamp, command, duration, message, and stable signature to a private JSON Lines file.",
+          "- Repeated signatures are counted from the append-only history without a database or dependency.",
+          "- improve displays recurring incident candidates and a ready-to-review improvement entry.",
+          "- Only improve --record may promote recurring unpromoted signatures into Logics, and each signature is promoted at most once.",
+          "- Incident capture never stores environment values, save strings, home-directory paths, browser URLs, or credentials.",
+          "- The automation never edits implementation code or mutates Melvor game state."
+        ],
+        "Needs": [
+          "- Capture failed Melvor CLI runs as private structured incidents without manual transcription.",
+          "- Normalize and deduplicate failures so repeated pain is visible without logging sensitive data.",
+          "- Surface recurring incidents through the existing improve command and require explicit recording before workflow promotion.",
+          "- Keep code changes and game mutations outside the automated loop."
+        ]
+      },
+      "status": "Draft",
+      "title": "Incident-driven assistant self-improvement"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, capture recurring cli incidents and promote reviewed candidates, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Capture recurring CLI incidents and promote reviewed candidates",
+        "use when": "Implementing the scaffolded slice for Capture recurring CLI incidents and promote reviewed candidates."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_005_capture_recurring_cli_incidents_and_promote_reviewed_candidates"
+        ],
+        "prod": [
+          "prod_004_melvin_incident_driven_reliability_loop"
+        ],
+        "req": [
+          "req_002_incident_driven_assistant_self_improvement"
+        ],
+        "task": [
+          "task_003_implement_incident_driven_assistant_self_improvement"
+        ]
+      },
+      "path": "logics/backlog/item_005_capture_recurring_cli_incidents_and_promote_reviewed_candidates.md",
+      "ref": "item_005_capture_recurring_cli_incidents_and_promote_reviewed_candidates",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Two failures with the same normalized message produce one recurring candidate with count two.",
+          "- Variable PIDs, durations, ports, timestamps, and local paths do not split equivalent signatures.",
+          "- A first occurrence is retained locally but does not become a promotion candidate.",
+          "- improve output includes command, count, sanitized message, first seen, and last seen for recurring candidates.",
+          "- Repeated improve --record runs do not promote the same signature twice.",
+          "- npm run check passes without adding a dependency."
+        ],
+        "Problem": [
+          "- Reliability lessons are currently recorded only when a person notices and writes them down.",
+          "- One-off and recurring failures are not distinguished automatically.",
+          "- There is no durable link between repeated CLI failures and Logics intake."
+        ]
+      },
+      "status": "Ready",
+      "title": "Capture recurring CLI incidents and promote reviewed candidates"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Implement incident-driven assistant self-improvement",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_005_capture_recurring_cli_incidents_and_promote_reviewed_candidates"
+        ],
+        "prod": [
+          "prod_004_melvin_incident_driven_reliability_loop"
+        ],
+        "req": [
+          "req_002_incident_driven_assistant_self_improvement"
+        ],
+        "task": [
+          "task_003_implement_incident_driven_assistant_self_improvement"
+        ]
+      },
+      "path": "logics/tasks/task_003_implement_incident_driven_assistant_self_improvement.md",
+      "ref": "task_003_implement_incident_driven_assistant_self_improvement",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- Run `python3 -m logics_manager lint --require-status`.",
+          "- Run scaffold command tests."
+        ]
+      },
+      "status": "Ready",
+      "title": "Implement incident-driven assistant self-improvement"
+    }
+  ],
+  "estimates": {
+    "char_count": 8840,
+    "companion_doc_count": 2,
+    "doc_count": 3
+  },
+  "generated_at": "2026-07-11T23:29:43Z",
+  "handoff": {
+    "companion_doc_count": 2,
+    "enabled": true,
+    "source_refs": [
+      "req_002_incident_driven_assistant_self_improvement",
+      "item_005_capture_recurring_cli_incidents_and_promote_reviewed_candidates",
+      "task_003_implement_incident_driven_assistant_self_improvement"
+    ],
+    "validation_summary_count": 1
+  },
+  "mode": "full",
+  "profile": "normal",
+  "ref": "req_002_incident_driven_assistant_self_improvement,item_005_capture_recurring_cli_incidents_and_promote_reviewed_candidates,task_003_implement_incident_driven_assistant_self_improvement",
+  "refs": [
+    "req_002_incident_driven_assistant_self_improvement",
+    "item_005_capture_recurring_cli_incidents_and_promote_reviewed_candidates",
+    "task_003_implement_incident_driven_assistant_self_improvement"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different commit",
+      "changelog: evidence targets a different commit",
+      "local_validation: evidence targets a different commit",
+      "git_push: evidence targets a different commit",
+      "ci: evidence targets a different commit"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different commit",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.1.0"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- Run `python3 -m logics_manager lint --require-status`.",
+        "- Run scaffold command tests."
+      ],
+      "path": "logics/tasks/task_003_implement_incident_driven_assistant_self_improvement.md",
+      "ref": "task_003_implement_incident_driven_assistant_self_improvement"
+    }
+  ]
+}
