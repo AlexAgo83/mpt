@@ -3,7 +3,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
-const { buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, potionItemName } = require('./melvor-report.js');
+const { buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, potionItemName, journalRefreshSummary } = require('./melvor-report.js');
 
 const data = {
   report: {
@@ -125,6 +125,15 @@ assert.ok(!/<script>alert/.test(html), 'embedded JSON escapes <');
 assert.ok(!/https?:\/\/(?!melvoridle)/.test(html), 'no external assets');
 assert.ok(html.includes('SAVE RISK') && html.includes('stale only'), 'risk badge and stale filter present');
 assert.ok(!/Users\/|password|9223|chrome-profile/i.test(html), 'dashboard is sanitized');
+
+const refreshedAt = '2026-07-05T12:01:00.000Z';
+const previousForRefresh = structuredClone(snap);
+const refreshed = buildLatest([c], first.latest, previousForRefresh, refreshedAt);
+refreshed.characters.TestChar.analysis.alerts = ['new warning'];
+const refreshLines = journalRefreshSummary(refreshed, previousForRefresh, refreshedAt);
+assert.match(refreshLines[0], /characters 1 \| save risks 1 \| new alerts 1$/);
+assert.strictEqual(refreshLines[1], '  alert: TestChar: new warning');
+assert.throws(() => journalRefreshSummary(snap, snap, now), /was not refreshed/);
 
 const testPort = 20000 + process.pid % 30000;
 const lock = `/tmp/melvor-report-${testPort}.lock`;

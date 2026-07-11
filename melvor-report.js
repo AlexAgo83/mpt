@@ -1228,6 +1228,19 @@ function readLatestSnapshot() {
   try { return JSON.parse(fs.readFileSync(path.join(JOURNAL_DIR, 'latest.json'), 'utf8')); } catch { return null; }
 }
 
+function journalRefreshSummary(snap, previous, expectedAt) {
+  if (!snap || snap.generatedAt !== expectedAt || (previous && Date.parse(snap.generatedAt) <= Date.parse(previous.generatedAt)))
+    throw Error('journal/latest.json was not refreshed');
+  const oldAlerts = new Set(Object.entries(previous?.characters || {}).flatMap(([name, c]) =>
+    (c.analysis?.alerts || []).map(alert => `${name}: ${alert}`)));
+  const newAlerts = Object.entries(snap.characters || {}).flatMap(([name, c]) =>
+    (c.analysis?.alerts || []).map(alert => `${name}: ${alert}`).filter(alert => !oldAlerts.has(alert)));
+  const lines = [`Journal refreshed ${new Date(snap.generatedAt).toLocaleString()} | characters ${snap.account.scannedNow.length} | save risks ${snap.account.saveRisks.length} | new alerts ${newAlerts.length}`];
+  lines.push(...newAlerts.slice(0, 5).map(alert => `  alert: ${alert}`));
+  if (newAlerts.length > 5) lines.push(`  alert: +${newAlerts.length - 5} more`);
+  return lines;
+}
+
 function selectedEntries(snap) {
   return names
     .map(name => [name, snap.characters?.[name]])
@@ -1584,6 +1597,7 @@ async function runJournal() {
   console.log('recorded journal/latest.json');
   fs.writeFileSync(path.join(JOURNAL_DIR, 'index.html'), renderDashboard(snapshot));
   console.log('recorded journal/index.html');
+  console.log(journalRefreshSummary(readLatestSnapshot(), previous, now).join('\n'));
 }
 
 async function runSaveBackup() {
@@ -1624,7 +1638,7 @@ function lock(retry = true) {
   }
 }
 
-module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger };
+module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary };
 if (require.main === module) (async () => {
   if (cmd === 'journal-action') return runJournalAction(who, arg3);
   if (cmd === 'journal-status') return runJournalStatus();
