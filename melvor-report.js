@@ -1144,11 +1144,17 @@ function progressAlerts(entry) {
   if (!action) return [];
   const watched = new Set(actionSkillNames(action));
   const skills = (entry.observed.skills || []).filter(s => watched.has(s.name));
+  const prevSkills = Object.fromEntries((entry.previousObserved?.skills || []).map(s => [s.name, s]));
+  const negativeXP = skills.some(s => {
+    const p = prevSkills[s.name];
+    return p && ((s.xp || 0) < (p.xp || 0) || (s.abyssalXP || 0) < (p.abyssalXP || 0));
+  });
   const standardCapped = skills.length && skills.every(s => (s.levelCap ?? 120) <= s.level);
   const abyssalProgress = lines.some(l => /abyssal XP gained/.test(l));
   const noProgress = lines.some(l => /no XP gain detected/.test(l));
   return [
-    noProgress ? 'action active but no standard or abyssal XP was detected since the previous scan' : null,
+    negativeXP ? 'current XP is lower than previous scan; verify source-of-truth before acting' : null,
+    noProgress ? 'action active but no positive standard or abyssal XP was detected since the previous scan' : null,
     standardCapped && abyssalProgress ? 'standard level capped; current progress is abyssal XP' : null,
     standardCapped && !abyssalProgress && !noProgress ? 'standard level capped; standard ETA has no remaining target' : null,
   ].filter(Boolean);
@@ -1172,8 +1178,8 @@ function buildLatest(chars, latest, previous, now) {
     }
     if (scannedNames.has(name)) entry.analysis.progressEtas = progressEtas(entry, previousEntry);
     else entry.analysis.progressEtas ??= previousEntry?.analysis?.progressEtas || [];
-    entry.analysis.alerts = progressAlerts(entry);
     entry.previousObserved = scannedNames.has(name) ? compactObserved(previousEntry?.observed) : previousEntry?.previousObserved || null;
+    entry.analysis.alerts = progressAlerts(entry);
     if (backups.has(name)) entry.observed.saveBackup = backups.get(name);
     const decisions = Object.fromEntries(ACTION_STATUSES.map(s => [s, []]));
     for (const e of latest.values()) {
@@ -1245,8 +1251,10 @@ function runJournalDiff() {
       if (!p) continue;
       const dxp = (s.xp || 0) - (p.xp || 0);
       const daxp = (s.abyssalXP || 0) - (p.abyssalXP || 0);
-      if (dxp || daxp)
-        console.log(`  ${s.name}: ${dxp ? `+${fmtNum(dxp)} XP ` : ''}${daxp ? `+${fmtNum(daxp)} abyssal XP` : ''}`.trimEnd());
+      if (dxp || daxp) {
+        const part = (n, label) => n ? `${n > 0 ? '+' : '-'}${fmtNum(Math.abs(n))} ${label}` : '';
+        console.log(`  ${s.name}: ${[part(dxp, 'XP'), part(daxp, 'abyssal XP')].filter(Boolean).join(' ')}`);
+      }
     }
     const prevQty = prev.equipmentQuantities || {};
     const curQty = c.observed.equipmentQuantities || {};
