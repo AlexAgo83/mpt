@@ -1,0 +1,426 @@
+{
+  "budgets": {
+    "max_docs": 12,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_003_journal_cockpit_v2_and_structured_insights item_006_build_structured_journal_insights_and_responsive_decision_cockpit task_004_implement_journal_cockpit_v2_and_structured_insights --mode full --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_002_create_structured_journal_snapshot_and_action_ledger"
+        ],
+        "prod": [
+          "prod_003_melvin_journal_operating_model_and_dashboard"
+        ],
+        "req": [
+          "req_001_journal_operating_model_and_interactive_dashboard"
+        ],
+        "task": [
+          "task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs"
+        ]
+      },
+      "path": "logics/product/prod_003_melvin_journal_operating_model_and_dashboard.md",
+      "ref": "prod_003_melvin_journal_operating_model_and_dashboard",
+      "sections": {
+        "Goals": [
+          "- Separate observed game state, assistant analysis, and user decisions in generated data.",
+          "- Make per-character planning durable across AI sessions.",
+          "- Give the player a dense dashboard for account triage: save risk, stale data, pending actions, and top recommendations.",
+          "- Preserve the safety model: read-only generation first, explicit user approval before any future mutation workflow.",
+          "- Keep generated player artifacts local, private, git-ignored, and dependency-free."
+        ],
+        "Key product decisions": [
+          "- Treat `latest.json` as the dashboard's machine-readable source of truth; Markdown is for humans and AI handoff, not parsing.",
+          "- Treat `actions.jsonl` as the append-only decision ledger; status changes are new events, not in-place rewrites.",
+          "- Use stable action ids and context hashes so reruns can suppress duplicates and detect stale recommendations.",
+          "- Generate `index.html` as a single offline file with embedded CSS/JS and no external assets.",
+          "- Ignore the generated `journal/` directory in git; version only implementation code, docs, and scaffold/context-pack inputs.",
+          "- Keep future mutation workflows separate; this corpus only prepares and visualizes decisions."
+        ],
+        "Overview": [
+          "Turn the character journal into a small local operating system for Melvor planning: a trusted latest snapshot, an append-only action ledger, human-readable per-character notes, and an offline dashboard. The core product value is not just visual polish; it is preventing future AI sessions from rediscovering state, repeating dismissed recommendations, or confusing observations with decisions.",
+          "```mermaid",
+          "%% logics-kind: product",
+          "%% logics-signature: product|melvin_journal_operating_model_and_dashboard|generated",
+          "flowchart TD",
+          "    Observe[Observed game state] --> Snapshot[latest.json]"
+        ],
+        "References": [
+          "- Product back-reference: `item_002_create_structured_journal_snapshot_and_action_ledger`",
+          "- Task back-reference: `task_002_implement_journal_data_model_ledger_dashboard_and_lifecycle_docs`"
+        ]
+      },
+      "status": "Settled",
+      "title": "Melvin - journal operating model and dashboard"
+    },
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_006_build_structured_journal_insights_and_responsive_decision_cockpit"
+        ],
+        "prod": [
+          "prod_005_melvin_journal_decision_cockpit_v2"
+        ],
+        "req": [
+          "req_003_journal_cockpit_v2_and_structured_insights"
+        ],
+        "task": [
+          "task_004_implement_journal_cockpit_v2_and_structured_insights"
+        ]
+      },
+      "path": "logics/product/prod_005_melvin_journal_decision_cockpit_v2.md",
+      "ref": "prod_005_melvin_journal_decision_cockpit_v2",
+      "sections": {
+        "Goals": [
+          "- Make account triage possible without expanding every character.",
+          "- Represent dashboard insights as structured data rather than presentation-only prose.",
+          "- Reduce duplicated content and visual scanning cost.",
+          "- Provide a usable responsive layout on mobile and desktop.",
+          "- Preserve offline operation, privacy, compatibility, and read-only generation."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Turn the existing journal dashboard into a compact operational cockpit. The first viewport should answer what each character is doing, what will finish soon, what requires attention, and what decision comes next. Structured insights support sorting and consistent presentation while preserving the existing local-first safety model."
+        ],
+        "References": [
+          "- Product back-reference: `req_003_journal_cockpit_v2_and_structured_insights`",
+          "- Task back-reference: `task_004_implement_journal_cockpit_v2_and_structured_insights`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Melvin - journal decision cockpit v2"
+    },
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_001_add_append_only_character_journal_command"
+        ],
+        "prod": [
+          "prod_002_melvin_character_journal_and_planning_log"
+        ],
+        "req": [
+          "req_000_character_journal_generation_for_melvor_planning"
+        ],
+        "task": [
+          "task_001_implement_and_validate_character_journal_generation"
+        ]
+      },
+      "path": "logics/product/prod_002_melvin_character_journal_and_planning_log.md",
+      "ref": "prod_002_melvin_character_journal_and_planning_log",
+      "sections": {
+        "Goals": [
+          "- Make each character's current state and next optimization steps reviewable without rerunning a full browser session.",
+          "- Provide a visual dashboard where the player can scan and filter all characters quickly.",
+          "- Give future AI sessions a concise historical trail per character.",
+          "- Keep the journal human-readable and git-friendly.",
+          "- Preserve the existing read-only safety model for report commands."
+        ],
+        "Key product decisions": [
+          "- Store the first journal as Markdown files because the repo is local-first and dependency-free.",
+          "- Generate the dashboard as one static HTML file with embedded CSS/JS so the player opens it directly in a browser.",
+          "- Append entries instead of rewriting historical notes; history should be simple to audit in git.",
+          "- Reuse existing `summary`, `audit`, `plan`, `slots`, and `source-of-truth` data instead of adding a second browser scrape path.",
+          "- Defer structured action tracking until simple append-only Markdown is too hard to review manually."
+        ],
+        "Overview": [
+          "Extend the Melvin local assistant with a lightweight, append-only journal and local interactive dashboard that turn current Melvor account readings into per-character planning notes. The journal is a durable handoff surface for future AI sessions: what each character is doing, what the assistant recommends next, what actions are proposed, and what safety checks matter before writes. The dashboard is the player's fast visual entrypoint for scanning all characters.",
+          "```mermaid",
+          "%% logics-kind: product",
+          "%% logics-signature: product|melvin_character_journal_and_planning_log|generated",
+          "flowchart TD",
+          "    Read[Read-only Melvor reports] --> Entry[Journal entry]"
+        ],
+        "References": [
+          "- Product back-reference: `item_001_add_append_only_character_journal_command`",
+          "- Task back-reference: `task_001_implement_and_validate_character_journal_generation`"
+        ]
+      },
+      "status": "Settled",
+      "title": "Melvin - character journal and planning log"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, journal cockpit v2 and structured insights, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Journal cockpit v2 and structured insights",
+        "use when": "You need to implement or review the scaffolded workflow for Journal cockpit v2 and structured insights."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_006_build_structured_journal_insights_and_responsive_decision_cockpit"
+        ],
+        "prod": [
+          "prod_003_melvin_journal_operating_model_and_dashboard",
+          "prod_005_melvin_journal_decision_cockpit_v2"
+        ],
+        "req": [
+          "req_001_journal_operating_model_and_interactive_dashboard",
+          "req_003_journal_cockpit_v2_and_structured_insights"
+        ]
+      },
+      "path": "logics/request/req_003_journal_cockpit_v2_and_structured_insights.md",
+      "ref": "req_003_journal_cockpit_v2_and_structured_insights",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Each scanned character has structured insights with type, priority, severity, label, optional metric/unit/ETA, and actionability fields.",
+          "- Duplicate recommendation text is removed from the primary presentation while legacy analysis arrays remain available for compatibility.",
+          "- The account summary shows alerts, idle characters, near-term completions, stale decisions, save risks, and open decisions.",
+          "- The primary character view compares name, mode, current action, progress/ETA, top concern, and next decision without opening details.",
+          "- Character details separate Now, Progress, Equipment, Plans, and History content and hide empty sections.",
+          "- Alert severity is explicit and source-of-truth warnings are visually distinct from save-risk state."
+        ],
+        "Needs": [
+          "- Make the first dashboard viewport useful for account-wide operational triage instead of hiding all meaningful data inside collapsed cards.",
+          "- Replace duplicate free-text recommendations with structured, prioritized insights that can be sorted, filtered, and rendered consistently.",
+          "- Expose alerts, idle characters, near-term completions, stale decisions, progress changes, and the next recommended decision at account and character level.",
+          "- Make the offline dashboard fit mobile and desktop viewports without horizontal overflow.",
+          "- Keep the journal local, dependency-free, read-only, sanitized, and directly openable from disk."
+        ]
+      },
+      "status": "Draft",
+      "title": "Journal cockpit v2 and structured insights"
+    },
+    {
+      "ai_context": {
+        "keywords": "request-chain-scaffold, journal operating model and interactive dashboard, development-ready",
+        "skip when": "The change is unrelated to this scaffolded request chain.",
+        "summary": "Journal operating model and interactive dashboard",
+        "use when": "You need to implement or review the scaffolded workflow for Journal operating model and interactive dashboard."
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_001_add_append_only_character_journal_command",
+          "item_002_create_structured_journal_snapshot_and_action_ledger",
+          "item_003_generate_interactive_offline_journal_dashboard",
+          "item_004_document_journal_lifecycle_and_ai_handoff_rules"
+        ],
+        "prod": [
+          "prod_002_melvin_character_journal_and_planning_log",
+          "prod_003_melvin_journal_operating_model_and_dashboard"
+        ],
+        "req": [
+          "req_000_character_journal_generation_for_melvor_planning",
+          "req_001_journal_operating_model_and_interactive_dashboard"
+        ],
+        "task": [
+          "task_001_implement_and_validate_character_journal_generation"
+        ]
+      },
+      "path": "logics/request/req_001_journal_operating_model_and_interactive_dashboard.md",
+      "ref": "req_001_journal_operating_model_and_interactive_dashboard",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- `journal all --record` writes sanitized per-character Markdown, `journal/latest.json`, and `journal/index.html` from one read-only collection pass.",
+          "- `journal/latest.json` explicitly separates `observed`, `analysis`, and `decisions` fields per character.",
+          "- `journal/actions.jsonl` stores append-only action events with stable ids, character, status, type, reason, risk, timestamps, and enough metadata to avoid duplicate recommendations.",
+          "- Generated recommendations become structured proposed actions where practical, without applying them.",
+          "- The dashboard reads embedded or adjacent sanitized data and supports search, character filter, current-action filter, save-risk filter, action-status filter, stale-data highlighting, and per-character detail expansion.",
+          "- The dashboard surfaces account-level indicators: last scan time, save risks, stale characters, pending approved actions, blocked actions, and top-priority recommendations."
+        ],
+        "Needs": [
+          "- Define a durable journal operating model that separates observed game state, assistant analysis, and user decisions.",
+          "- Generate structured local data files that future AI sessions and the dashboard can trust without reparsing Markdown.",
+          "- Track proposed, approved, completed, blocked, dismissed, and stale actions per character without executing them automatically.",
+          "- Provide an offline interactive dashboard for scanning all characters, save risks, stale observations, recommendations, and pending actions.",
+          "- Keep the system local-first, dependency-free, read-only during journal generation, and safe around Melvor save state."
+        ]
+      },
+      "status": "Done",
+      "title": "Journal operating model and interactive dashboard"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-backlog, build structured journal insights and responsive decision cockpit, implementation-ready",
+        "skip when": "The change belongs to another backlog slice.",
+        "summary": "Build structured journal insights and responsive decision cockpit",
+        "use when": "Implementing the scaffolded slice for Build structured journal insights and responsive decision cockpit."
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_006_build_structured_journal_insights_and_responsive_decision_cockpit"
+        ],
+        "prod": [
+          "prod_005_melvin_journal_decision_cockpit_v2"
+        ],
+        "req": [
+          "req_003_journal_cockpit_v2_and_structured_insights"
+        ],
+        "task": [
+          "task_004_implement_journal_cockpit_v2_and_structured_insights"
+        ]
+      },
+      "path": "logics/backlog/item_006_build_structured_journal_insights_and_responsive_decision_cockpit.md",
+      "ref": "item_006_build_structured_journal_insights_and_responsive_decision_cockpit",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Structured insights are deterministic, deduplicated by semantic label, and sorted by priority.",
+          "- An idle character or critical alert sorts ahead of normal long-run activity.",
+          "- Near-term ETA and shortest resource runway are visible from the primary character row when available.",
+          "- Stale decision totals are visible in the account summary and on affected characters.",
+          "- Top recommendations are not rendered again unchanged under Current action.",
+          "- Detail views omit empty groups and remain keyboard accessible."
+        ],
+        "Problem": [
+          "- The collapsed dashboard hides the information needed for account triage.",
+          "- Expanded cards duplicate text and consume excessive vertical space.",
+          "- Opaque recommendation strings prevent reliable sorting, severity display, and comparison.",
+          "- The current controls and rows overflow narrow screens."
+        ]
+      },
+      "status": "Ready",
+      "title": "Build structured journal insights and responsive decision cockpit"
+    },
+    {
+      "ai_context": {
+        "keywords": "scaffolded-task, request-chain-scaffold, orchestration",
+        "skip when": "Working on one isolated sibling slice.",
+        "summary": "Implement journal cockpit v2 and structured insights",
+        "use when": "Coordinating implementation of a scaffolded request chain."
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_006_build_structured_journal_insights_and_responsive_decision_cockpit"
+        ],
+        "prod": [
+          "prod_005_melvin_journal_decision_cockpit_v2"
+        ],
+        "req": [
+          "req_003_journal_cockpit_v2_and_structured_insights"
+        ],
+        "task": [
+          "task_004_implement_journal_cockpit_v2_and_structured_insights"
+        ]
+      },
+      "path": "logics/tasks/task_004_implement_journal_cockpit_v2_and_structured_insights.md",
+      "ref": "task_004_implement_journal_cockpit_v2_and_structured_insights",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- Run `python3 -m logics_manager lint --require-status`.",
+          "- Run scaffold command tests."
+        ]
+      },
+      "status": "Ready",
+      "title": "Implement journal cockpit v2 and structured insights"
+    }
+  ],
+  "estimates": {
+    "char_count": 14974,
+    "companion_doc_count": 3,
+    "doc_count": 4
+  },
+  "generated_at": "2026-07-12T05:00:29Z",
+  "handoff": {
+    "companion_doc_count": 3,
+    "enabled": true,
+    "source_refs": [
+      "req_003_journal_cockpit_v2_and_structured_insights",
+      "item_006_build_structured_journal_insights_and_responsive_decision_cockpit",
+      "task_004_implement_journal_cockpit_v2_and_structured_insights"
+    ],
+    "validation_summary_count": 1
+  },
+  "mode": "full",
+  "profile": "normal",
+  "ref": "req_003_journal_cockpit_v2_and_structured_insights,item_006_build_structured_journal_insights_and_responsive_decision_cockpit,task_004_implement_journal_cockpit_v2_and_structured_insights",
+  "refs": [
+    "req_003_journal_cockpit_v2_and_structured_insights",
+    "item_006_build_structured_journal_insights_and_responsive_decision_cockpit",
+    "task_004_implement_journal_cockpit_v2_and_structured_insights"
+  ],
+  "release": {
+    "blocking_reasons": [
+      "version_metadata: evidence targets a different commit",
+      "changelog: evidence targets a different commit",
+      "local_validation: evidence targets a different commit",
+      "git_push: evidence targets a different commit",
+      "ci: evidence targets a different commit"
+    ],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "version_metadata: evidence targets a different commit",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "stale"
+      },
+      {
+        "blocking_reason": "evidence targets a different commit",
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "stale"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "blocked",
+    "target_version": "0.1.0"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- Run `python3 -m logics_manager lint --require-status`.",
+        "- Run scaffold command tests."
+      ],
+      "path": "logics/tasks/task_004_implement_journal_cockpit_v2_and_structured_insights.md",
+      "ref": "task_004_implement_journal_cockpit_v2_and_structured_insights"
+    }
+  ]
+}

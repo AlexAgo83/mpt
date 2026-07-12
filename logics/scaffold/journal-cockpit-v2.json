@@ -1,0 +1,128 @@
+{
+  "title": "Journal cockpit v2 and structured insights",
+  "references": [
+    "README.md",
+    "MELVOR_RUNBOOK.md",
+    "melvor-report.js",
+    "test-journal.js",
+    "logics/product/prod_003_melvin_journal_operating_model_and_dashboard.md",
+    "logics/request/req_001_journal_operating_model_and_interactive_dashboard.md",
+    "journal/latest.json",
+    "journal/index.html"
+  ],
+  "request": {
+    "complexity": "High",
+    "theme": "Journal decision cockpit",
+    "needs": [
+      "Make the first dashboard viewport useful for account-wide operational triage instead of hiding all meaningful data inside collapsed cards.",
+      "Replace duplicate free-text recommendations with structured, prioritized insights that can be sorted, filtered, and rendered consistently.",
+      "Expose alerts, idle characters, near-term completions, stale decisions, progress changes, and the next recommended decision at account and character level.",
+      "Make the offline dashboard fit mobile and desktop viewports without horizontal overflow.",
+      "Keep the journal local, dependency-free, read-only, sanitized, and directly openable from disk."
+    ],
+    "context": [
+      "The current desktop dashboard leaves most of the viewport empty while showing only character name, action, status, and timestamp.",
+      "Expanded cards repeat Top recommendations and Current action, creating long undifferentiated pages.",
+      "The current 390px rendering clips summary, filters, and character rows horizontally.",
+      "latest.json contains rich observations but most dashboard-facing recommendations and ETAs are opaque strings.",
+      "The existing static HTML generator and pure journal tests are the correct implementation boundary; no framework or build step is needed."
+    ],
+    "acceptance_criteria": [
+      "Each scanned character has structured insights with type, priority, severity, label, optional metric/unit/ETA, and actionability fields.",
+      "Duplicate recommendation text is removed from the primary presentation while legacy analysis arrays remain available for compatibility.",
+      "The account summary shows alerts, idle characters, near-term completions, stale decisions, save risks, and open decisions.",
+      "The primary character view compares name, mode, current action, progress/ETA, top concern, and next decision without opening details.",
+      "Character details separate Now, Progress, Equipment, Plans, and History content and hide empty sections.",
+      "Alert severity is explicit and source-of-truth warnings are visually distinct from save-risk state.",
+      "The dashboard has no horizontal overflow at 390x844 and remains dense and readable at 1440x1000.",
+      "Search and filters continue to work, including priority and attention filtering.",
+      "Generated HTML stays self-contained, escaped, dependency-free, and free of credentials, save strings, profile paths, and debugging URLs.",
+      "Offline tests and desktop/mobile screenshot checks pass."
+    ]
+  },
+  "product": {
+    "title": "Melvin - journal decision cockpit v2",
+    "overview": "Turn the existing journal dashboard into a compact operational cockpit. The first viewport should answer what each character is doing, what will finish soon, what requires attention, and what decision comes next. Structured insights support sorting and consistent presentation while preserving the existing local-first safety model.",
+    "goals": [
+      "Make account triage possible without expanding every character.",
+      "Represent dashboard insights as structured data rather than presentation-only prose.",
+      "Reduce duplicated content and visual scanning cost.",
+      "Provide a usable responsive layout on mobile and desktop.",
+      "Preserve offline operation, privacy, compatibility, and read-only generation."
+    ],
+    "non_goals": [
+      "No frontend framework, dependency, build tool, server, hosted dashboard, or external asset.",
+      "No automatic Melvor actions or save mutations.",
+      "No complete replacement of historical Markdown or legacy analysis arrays.",
+      "No speculative charting library or arbitrary dashboard customization system."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Build structured journal insights and responsive decision cockpit",
+      "priority": "High",
+      "complexity": "High",
+      "theme": "Journal decision cockpit",
+      "request_acs": [
+        "Each scanned character has structured insights with type, priority, severity, label, optional metric/unit/ETA, and actionability fields.",
+        "Duplicate recommendation text is removed from the primary presentation while legacy analysis arrays remain available for compatibility.",
+        "The account summary shows alerts, idle characters, near-term completions, stale decisions, save risks, and open decisions.",
+        "The primary character view compares name, mode, current action, progress/ETA, top concern, and next decision without opening details.",
+        "Character details separate Now, Progress, Equipment, Plans, and History content and hide empty sections.",
+        "Alert severity is explicit and source-of-truth warnings are visually distinct from save-risk state.",
+        "The dashboard has no horizontal overflow at 390x844 and remains dense and readable at 1440x1000.",
+        "Search and filters continue to work, including priority and attention filtering.",
+        "Generated HTML stays self-contained, escaped, dependency-free, and free of credentials, save strings, profile paths, and debugging URLs.",
+        "Offline tests and desktop/mobile screenshot checks pass."
+      ],
+      "problem": [
+        "The collapsed dashboard hides the information needed for account triage.",
+        "Expanded cards duplicate text and consume excessive vertical space.",
+        "Opaque recommendation strings prevent reliable sorting, severity display, and comparison.",
+        "The current controls and rows overflow narrow screens."
+      ],
+      "scope_in": [
+        "Derive a small structured insight list from existing journal observations and analysis.",
+        "Add account-level operational counts derived from current character state.",
+        "Replace collapsed cards with a responsive comparison table/list.",
+        "Add compact character details with Now, Progress, Equipment, Plans, and History views.",
+        "Add priority and attention filters while preserving search and existing decision filters.",
+        "Add focused pure-data and rendered-HTML checks.",
+        "Verify desktop and mobile screenshots and overflow dimensions."
+      ],
+      "scope_out": [
+        "New game collection APIs when existing observations already contain the needed facts.",
+        "Charts that require a library or long-term time-series storage.",
+        "Dashboard state persistence, editing, or action execution.",
+        "Removing legacy fields consumed by CLI reports or historical journals."
+      ],
+      "acceptance_criteria": [
+        "Structured insights are deterministic, deduplicated by semantic label, and sorted by priority.",
+        "An idle character or critical alert sorts ahead of normal long-run activity.",
+        "Near-term ETA and shortest resource runway are visible from the primary character row when available.",
+        "Stale decision totals are visible in the account summary and on affected characters.",
+        "Top recommendations are not rendered again unchanged under Current action.",
+        "Detail views omit empty groups and remain keyboard accessible.",
+        "At 390px viewport width, document scrollWidth does not exceed clientWidth.",
+        "At 1440px, all seven characters fit into a dense scan-friendly first view or require only modest vertical scrolling.",
+        "npm run check passes without a new dependency."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Implement journal cockpit v2 and structured insights",
+    "plan": [
+      "Read the existing journal model, dashboard renderer, tests, generated latest snapshot, and visual review findings.",
+      "Add structured deduplicated insights and account-level operational indicators without removing legacy fields.",
+      "Replace the dashboard card list with a responsive comparison surface and compact detail views.",
+      "Add priority and attention filtering plus explicit alert severity.",
+      "Regenerate a live journal and inspect desktop and mobile screenshots plus overflow dimensions.",
+      "Run npm checks, CLI help, Logics validation, lint, and audit before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/journal-cockpit-v2.json",
+    "mode": "full",
+    "profile": "normal"
+  }
+}
