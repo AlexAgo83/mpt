@@ -142,7 +142,8 @@ const evil = buildCharacterJournal('TestChar', {
 const html = renderDashboard(buildLatest([evil], first.latest, null, now));
 assert.ok(!/<script>alert/.test(html), 'embedded JSON escapes <');
 assert.ok(!/https?:\/\/(?!melvoridle)/.test(html), 'no external assets');
-assert.ok(html.includes('SAVE RISK') && html.includes('stale only'), 'risk badge and stale filter present');
+assert.ok(html.includes('save risk') && html.includes('needs attention'), 'risk and attention controls present');
+assert.ok(html.includes('Next decision') && html.includes("panel('progress'") && html.includes("panel('plans'"), 'cockpit columns and detail tabs present');
 assert.ok(!/Users\/|password|9223|chrome-profile/i.test(html), 'dashboard is sanitized');
 
 const refreshedAt = '2026-07-05T12:01:00.000Z';
