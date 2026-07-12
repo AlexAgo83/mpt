@@ -29,6 +29,18 @@ assert.match(a.id, /^[0-9a-f]{12}$/);
 assert.strictEqual(c.analysis.saveRisk, null, 'known local source is not a journal risk');
 assert.ok(c.observed.saveSource.source === 'local');
 
+const noStock = buildCharacterJournal('NoStock', { ...data, bank: {} }, save);
+assert.strictEqual(noStock.actions.length, 0, 'missing bank items are not proposed');
+const proven = buildCharacterJournal('Proven', {
+  ...data,
+  report: { ...data.report, action: 'Cooking', equipment: { Amulet: 'Amulet of Fishing' } },
+  bank: { 'Jeweled Necklace': 1 },
+  skills: [{ name: 'Cooking', level: 10, levelCap: 120, abyssalLevel: 1, abyssalCap: 60 }],
+  skillingOptions: { Cooking: [{ recipe: 'Abyssal Soup', abyssalLevel: 1, maxActions: 20000, runwayHours: 12, xpPerHour: 1000, inputs: [{ item: 'Abyssal Fish', owned: 20000, perAction: 1 }] }] },
+}, save);
+assert.strictEqual(proven.actions[0].item, 'Jeweled Necklace', 'owned replacement is proposed');
+assert.match(proven.analysis.abyssalPlan[0], /Abyssal Soup; 20000 actions; 12.0 h runway/);
+
 // same state twice -> stable id, no duplicate event on rerun
 const c2 = buildCharacterJournal('TestChar', data, save);
 assert.strictEqual(c2.actions[0].id, a.id, 'action id is stable');

@@ -177,6 +177,31 @@
     return out;
   };
 
+  // Unlocked artisan recipes with enough information to prove their resource runway.
+  mh.skillingOptions = (skillName) => {
+    const skill = game.skills.find(s => s.name === skillName);
+    const actions = skill?.actions?.allObjects ?? skill?.recipes?.allObjects ?? [];
+    const owned = item => game.bank.items.get(item)?.quantity ?? 0;
+    return actions.flatMap(action => {
+      const costs = action.itemCosts ?? action.costs?.items ?? [];
+      const inputs = costs.map(c => ({ item: c.item?.name, owned: owned(c.item), perAction: c.quantity ?? c.qty ?? 0 }))
+        .filter(c => c.item && c.perAction > 0);
+      const level = action.level ?? 1;
+      const abyssalLevel = action.abyssalLevel ?? 0;
+      const unlocked = skill.level >= level && (skill.abyssalLevel ?? 0) >= abyssalLevel;
+      if (!unlocked || !inputs.length) return [];
+      const maxActions = Math.min(...inputs.map(c => Math.floor(c.owned / c.perAction)));
+      const intervalMs = (() => { try { return skill.getActionInterval?.(action) ?? action.baseInterval ?? skill.baseInterval ?? null; } catch { return action.baseInterval ?? skill.baseInterval ?? null; } })();
+      const xp = (() => { try { return skill.getXPForAction?.(action) ?? action.baseExperience ?? null; } catch { return action.baseExperience ?? null; } })();
+      const runwayHours = intervalMs ? maxActions * intervalMs / 3600000 : null;
+      return [{
+        recipe: action.name ?? action.product?.name ?? action.id?.split(':').pop() ?? 'unknown recipe',
+        level, abyssalLevel, inputs, maxActions, intervalMs, runwayHours,
+        xpPerHour: xp && intervalMs ? xp * 3600000 / intervalMs : null,
+      }];
+    }).sort((a, b) => (b.xpPerHour ?? 0) - (a.xpPerHour ?? 0) || (b.runwayHours ?? 0) - (a.runwayHours ?? 0));
+  };
+
   // Skill state by name ("Fishing", "Herblore"...).
   const abyssalTargets = s => {
     const level = s.abyssalLevel ?? null;

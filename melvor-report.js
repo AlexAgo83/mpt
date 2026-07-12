@@ -371,10 +371,12 @@ function planActions(r) {
   const bank = r.bank || {};
   const actions = [];
   const add = (slot, item, reason) => {
-    if (eq[slot] === item) return;
+    if (eq[slot] === item || !bank[item] || actions.some(a => a.slot === slot && a.item === item)) return;
     actions.push({ type: 'equip', slot, item, current: eq[slot] || 'empty', available: bank[item] || 0, reason,
       risk: r.report.mode === 'Hardcore Mode' ? 'medium' : 'low' });
   };
+  if (r.report.action !== 'Fishing' && eq.Amulet === 'Amulet of Fishing')
+    add('Amulet', 'Jeweled Necklace', 'replace Fishing-only amulet with an owned skilling amulet');
   if (r.report.action === 'Fishing') add('Summon2', 'Octopus', 'Fishing yield');
   if (r.report.action === 'Herblore') {
     add('Weapon', 'Potion Stirrer', 'Herblore interval/potion preserve');
@@ -394,7 +396,7 @@ function planActions(r) {
 }
 
 function planLines(r) {
-  return planActions(r).map(a => `${a.slot}: ${a.current} -> ${a.item} (${a.available > 0 ? `available x${a.available}` : 'not in bank'}; ${a.reason})`);
+  return planActions(r).map(a => `${a.slot}: ${a.current} -> ${a.item} (available x${a.available}; ${a.reason})`);
 }
 
 function currentActionPlan(r) {
@@ -480,6 +482,15 @@ const fmtDuration = ms => {
   return `${Math.round(h / 24)} d`;
 };
 
+function verifiedSkillPlan(data, skill, abyssal) {
+  const option = (data.skillingOptions?.[skill.name] || [])
+    .filter(o => Boolean(o.abyssalLevel) === abyssal && o.runwayHours >= 8)
+    .sort((a, b) => (b.xpPerHour ?? 0) - (a.xpPerHour ?? 0) || b.runwayHours - a.runwayHours)[0];
+  if (!option) return null;
+  const inputs = option.inputs.map(i => `${i.item} ${i.owned} (${i.perAction}/action)`).join(', ');
+  return `${abyssal ? 'abyssal ' : ''}${skill.name}: ${option.recipe}; ${option.maxActions} actions; ${option.runwayHours.toFixed(1)} h runway; ${inputs}`;
+}
+
 function briefFromData(name, data, save, previousEntry, now = new Date().toISOString()) {
   const report = data.report;
   const skills = data.skills || [];
@@ -497,11 +508,11 @@ function briefFromData(name, data, save, previousEntry, now = new Date().toISOSt
   const saveRisk = !save || save.source === 'unknown' ? 'save source of truth unknown' : null;
   const abyssalNext = [
     abyssalDungeons[0] ? `clear abyssal dungeon: ${abyssalDungeons[0].name}` : null,
-    ...abyssalOpen.slice(0, 3).map(s => `raise abyssal ${s.name} (${s.abyssalLevel ?? 0}/${s.abyssalCap})`),
+    ...abyssalOpen.slice(0, 3).map(s => verifiedSkillPlan(data, s, true)),
   ].filter(Boolean);
   const currentNext = currentActionPlan(data);
   const standardNext = [
-    ...standardOpen.slice(0, 3).map(s => `raise standard ${s.name} (${s.level}/${s.levelCap ?? 120})`),
+    ...standardOpen.slice(0, 3).map(s => verifiedSkillPlan(data, s, false)),
     goals.nextSetup ? `combat setup: ${goals.nextSetup.dungeon} with set ${goals.nextSetup.set?.index ?? '?'} ${goals.nextSetup.set?.attackType || 'unknown'} (${goals.nextSetup.set?.weapon || 'no weapon'})` : null,
   ].filter(Boolean);
   return {
@@ -1002,6 +1013,7 @@ function buildCharacterJournal(name, data, save) {
       foodQty: report.foodQty,
       equipment: report.equipment,
       equipmentQuantities: report.equipmentQuantities || {},
+      skillingOptions: data.skillingOptions || {},
       skills: data.skills || [],
       lowSkills: report.lowSkills.slice(0, 6),
       combatGoals: report.combatGoals || null,
@@ -1267,7 +1279,7 @@ function structuredInsights(entry) {
     const isSave = /save|source-of-truth/i.test(label);
     const isRunway = /quiver|consumable|summon|food equipped|runway/i.test(label);
     const isTask = /slayer task|finish |ETA/i.test(label) && !isRunway;
-    const actionable = /\b(check|choose|clear|equip|finish|prefer|raise|remove|replace|restart|swap|use|verify)\b/i.test(label);
+    const actionable = isSave || / -> .*available x[1-9]\d*/i.test(label) || /; \d+ actions; [\d.]+ h runway;/i.test(label) || /\bfinish\b/i.test(label);
     const priority = isIdle || (isAlert && isSave) ? 'critical'
       : (isAlert || actionable || (etaSeconds !== null && etaSeconds <= 3600)) ? 'high'
         : isRunway || isTask ? 'medium' : 'low';
@@ -1670,7 +1682,12 @@ async function collectJournal(name, save, includeSaveBackup = false) {
   return withCharacterSource(name, save?.source, client => evalExpr(client, `(() => {
     const wanted = ${JSON.stringify(JOURNAL_WANTED)};
     const qty = n => { for (const [item, bi] of game.bank.items) if (item.name === n) return bi.quantity; return 0; };
-    const out = { report: mh.readOnlyReport(), skills: mh.skills(), skilling: mh.skillingAudit(), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])) };
+    const skills = mh.skills();
+    const targets = [...new Set([
+      ...skills.filter(s => s.level < (s.levelCap ?? 120)).sort((a, b) => a.level - b.level).slice(0, 6),
+      ...skills.filter(s => (s.abyssalLevel ?? 0) < (s.abyssalCap ?? 0)).sort((a, b) => a.abyssalLevel - b.abyssalLevel).slice(0, 6),
+    ].map(s => s.name))];
+    const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])) };
     if (${JSON.stringify(includeSaveBackup)}) out.saveExport = mh.exportSaveString();
     return out;
   })()`));
