@@ -1251,6 +1251,50 @@ function progressAlerts(entry) {
   ].filter(Boolean);
 }
 
+const PRIORITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
+
+function structuredInsights(entry) {
+  const seen = new Set();
+  const insights = [];
+  const add = (label, source) => {
+    if (!label) return;
+    const key = label.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    const duration = label.match(/\b(?:ETA(?: about)?|about)\s+([\d.]+)\s*(min|h|d)\b/i);
+    const amount = label.match(/\(([\d,]+)\s+(kills?|attacks?|charges?)\s+(?:left|if|at)\b/i);
+    const etaSeconds = duration ? Math.round(Number(duration[1]) * ({ min: 60, h: 3600, d: 86400 }[duration[2].toLowerCase()])) : null;
+    const isAlert = source === 'alert';
+    const isIdle = /\bidle\b|action stopped/i.test(label);
+    const isSave = /save|source-of-truth/i.test(label);
+    const isRunway = /quiver|consumable|summon|food equipped|runway/i.test(label);
+    const isTask = /slayer task|finish |ETA/i.test(label) && !isRunway;
+    const actionable = /\b(check|choose|clear|equip|finish|prefer|raise|remove|replace|restart|swap|use|verify)\b/i.test(label);
+    const priority = isIdle || (isAlert && isSave) ? 'critical'
+      : (isAlert || actionable || (etaSeconds !== null && etaSeconds <= 3600)) ? 'high'
+        : isRunway || isTask ? 'medium' : 'low';
+    insights.push({
+      id: sha(`${source}|${key}`),
+      type: isIdle ? 'idle' : isSave ? 'source_of_truth' : isRunway ? 'resource_runway' : isTask ? 'progress_eta' : actionable ? 'next_decision' : 'progress',
+      priority,
+      severity: isIdle || (isAlert && isSave) ? 'danger' : isAlert ? 'warning' : 'info',
+      label,
+      source,
+      actionable,
+      ...(etaSeconds === null ? {} : { etaSeconds }),
+      ...(amount ? { metric: Number(amount[1].replace(/,/g, '')), unit: amount[2].toLowerCase() } : {}),
+    });
+  };
+  for (const label of entry.analysis.alerts || []) add(label, 'alert');
+  if (!entry.observed.action) add('Current action is idle; choose or restart a task after checking resources', 'current_action');
+  for (const label of entry.analysis.currentActionPlan || []) add(label, 'current_action');
+  for (const label of entry.analysis.recommendations || []) add(label, 'recommendation');
+  for (const label of entry.analysis.progressEtas || []) add(label, 'progress_eta');
+  for (const label of entry.analysis.standardPlan || []) add(label, 'standard_plan');
+  for (const label of entry.analysis.abyssalPlan || []) add(label, 'abyssal_plan');
+  return insights.sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || a.label.localeCompare(b.label));
+}
+
 function buildLatest(chars, latest, previous, now) {
   const characters = { ...(previous?.characters || {}) };
   const scannedNames = new Set(chars.map(c => c.name));
@@ -1271,6 +1315,7 @@ function buildLatest(chars, latest, previous, now) {
     else entry.analysis.progressEtas ??= previousEntry?.analysis?.progressEtas || [];
     entry.previousObserved = scannedNames.has(name) ? compactObserved(previousEntry?.observed) : previousEntry?.previousObserved || null;
     entry.analysis.alerts = progressAlerts(entry);
+    entry.analysis.insights = structuredInsights(entry);
     if (backups.has(name)) entry.observed.saveBackup = backups.get(name);
     const decisions = Object.fromEntries(ACTION_STATUSES.map(s => [s, []]));
     for (const e of latest.values()) {
@@ -1281,6 +1326,7 @@ function buildLatest(chars, latest, previous, now) {
   }
   const actionsSummary = Object.fromEntries(ACTION_STATUSES.map(s => [s, 0]));
   for (const e of latest.values()) if (e.status in actionsSummary) actionsSummary[e.status]++;
+  const allInsights = Object.values(characters).flatMap(c => c.analysis.insights || []);
   const staleMs = 24 * 3600 * 1000;
   return {
     generatedAt: now,
@@ -1292,6 +1338,13 @@ function buildLatest(chars, latest, previous, now) {
         .filter(([, v]) => v.analysis.saveRisk ?? v.analysis.riskNotes.some(n => /save/.test(n)))
         .map(([k]) => k),
       staleCharacters: Object.entries(characters).filter(([, v]) => Date.parse(now) - Date.parse(v.observed.at) > staleMs).map(([k]) => k),
+      operations: {
+        alerts: allInsights.filter(i => i.source === 'alert').length,
+        idleCharacters: Object.entries(characters).filter(([, c]) => !c.observed.action).map(([name]) => name),
+        nearTermCompletions: Object.entries(characters).filter(([, c]) => (c.analysis.insights || []).some(i => i.type === 'progress_eta' && i.etaSeconds <= 3600)).map(([name]) => name),
+        staleDecisions: actionsSummary.stale,
+        openDecisions: actionsSummary.proposed + actionsSummary.approved + actionsSummary.blocked,
+      },
     },
     characters,
     actionsSummary,
@@ -1712,7 +1765,7 @@ function lock(retry = true) {
   }
 }
 
-module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates };
+module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights };
 if (require.main === module) (async () => {
   if (cmd === 'journal-action') return runJournalAction(who, arg3);
   if (cmd === 'journal-status') return runJournalStatus();

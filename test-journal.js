@@ -3,7 +3,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
-const { buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, potionItemName, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates } = require('./melvor-report.js');
+const { buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, potionItemName, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights } = require('./melvor-report.js');
 
 const data = {
   report: {
@@ -109,6 +109,25 @@ assert.ok(cc.observed && cc.analysis && cc.decisions, 'observed/analysis/decisio
 assert.strictEqual(cc.decisions.proposed.length, 1);
 assert.strictEqual(snap.actionsSummary.proposed, 1);
 assert.ok(snap.account.saveRisks.includes('TestChar'));
+assert.ok(snap.account.operations && snap.account.operations.openDecisions === 1);
+const insights = structuredInsights({
+  observed: { action: 'Combat' },
+  analysis: {
+    alerts: ['current XP is lower than previous scan; verify source-of-truth before acting'],
+    recommendations: ['Slayer task ETA about 4 min (14 kills left)'],
+    currentActionPlan: ['Slayer task ETA about 4 min (14 kills left)'],
+  },
+});
+assert.strictEqual(insights.length, 2, 'duplicate recommendation text is collapsed');
+assert.deepStrictEqual(insights[0], {
+  id: insights[0].id,
+  type: 'source_of_truth', priority: 'critical', severity: 'danger',
+  label: 'current XP is lower than previous scan; verify source-of-truth before acting',
+  source: 'alert', actionable: true,
+});
+assert.strictEqual(insights[1].etaSeconds, 240);
+assert.strictEqual(insights[1].metric, 14);
+assert.strictEqual(insights[1].unit, 'kills');
 
 // markdown entry has the required sections and no sensitive content
 const md = journalMd(c);
