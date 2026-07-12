@@ -120,16 +120,17 @@ recommendations, current-action plan, standard plan, abyssal plan, proposed acti
 - `journal/<Character>.md`: append-only Markdown journal per character
 - `journal/latest.json`: structured snapshot; per character it separates `observed` (game
   state), `previousObserved` (minimal prior snapshot for diffs), `analysis` (assistant
-  interpretation), and `decisions` (user/session decisions)
+  interpretation, including deduplicated typed `insights`), and `decisions` (user/session
+  decisions). Account `operations` counts alerts, idle characters, near-term completions,
+  open decisions, and stale decisions.
 - `journal/actions.jsonl`: append-only action ledger with stable action ids, status,
   risk, reason, timestamps, and a context hash
 - `journal/saves/`: private save-string backups. `*.latest.txt` contains the latest raw
   export per character, dated archives keep recent history, and `manifest.jsonl` stores
   only metadata (timestamp, source, byte size, hash, relative path)
-- `journal/index.html`: offline interactive dashboard (search, action/risk/status filters,
-  stale highlighting, account indicators, per-character detail, Melvor-themed styling,
-  current-action recommendations, save-backup metadata/link, a side drawer for recent
-  journal history, and links to the Markdown files)
+- `journal/index.html`: offline decision cockpit with account indicators, priority/attention
+  filtering, a responsive character comparison view, and Now/Progress/Equipment/Plans/History
+  detail tabs. It opens directly from disk and links to the full Markdown journals.
 - `Level ETA`: projected time to next level, next 10-level milestone, and current cap when
   two journal snapshots have enough standard or abyssal XP gain to estimate a rate; abyssal
   thresholds come from the game `abyssalExp.levelToXP` table; otherwise it explains what

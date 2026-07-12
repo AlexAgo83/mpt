@@ -54,7 +54,9 @@ Respect existing decisions:
 - `stale`: the observed state invalidated the recommendation; re-evaluate from scratch.
 
 Open `journal/index.html` in a browser for account triage (works offline from disk).
-The dashboard is Melvor-themed and shows:
+The first view compares every character by current action, progress/ETA, active concern, and
+next decision. Critical and high-priority characters sort first. Use priority, attention,
+action, risk, and decision-status filters before opening details. Detail tabs show:
 
 - `Current action`: task-specific recommendations, idle/stopped-task alerts, intervals,
   Slayer ETA, and consumable/ammo/summon runway where available
@@ -66,10 +68,12 @@ The dashboard is Melvor-themed and shows:
 - `Standard plan`: standard-level gaps and standard combat setup direction
 - `Abyssal plan`: abyssal-level gaps and abyssal dungeon direction; Cartography and
   Archaeology are excluded because they have no trainable Abyssal Levels
-- `Journal history`: a side drawer with recent prior recommendations per character, useful
-  for checking what changed since the last scan without bloating the main view
-- `Save backup`: metadata and a local link when `save-backup` or `journal --save-backup`
-  has written a private export under `journal/saves/`
+- `Equipment`: the current equipped items by slot
+- `History`: recent deduplicated recommendations and progress observations
+
+`analysis.insights` is the dashboard-facing structured source: each item has a stable id,
+type, priority, severity, source, label, actionability, and optional ETA/metric fields. Legacy
+analysis arrays remain available for CLI reports and older consumers.
 
 Level ETA needs history. If it is empty after a fresh change, run another journal scan later
 after the character has gained XP.
