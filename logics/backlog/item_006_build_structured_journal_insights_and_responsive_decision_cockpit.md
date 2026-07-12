@@ -1,10 +1,10 @@
 ## item_006_build_structured_journal_insights_and_responsive_decision_cockpit - Build structured journal insights and responsive decision cockpit
 > From version: 0.1.0
 > Schema version: 1.0
-> Status: Ready
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 0%
+> Progress: 100%
 > Complexity: High
 > Theme: Journal decision cockpit
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
@@ -72,3 +72,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_004_implement_journal_cockpit_v2_and_structured_insights`
+
+# Notes
+- Task `task_004_implement_journal_cockpit_v2_and_structured_insights` was finished via `logics-manager flow finish task` on 2026-07-12.

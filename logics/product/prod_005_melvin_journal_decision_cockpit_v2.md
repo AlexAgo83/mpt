@@ -6,6 +6,8 @@
 > Related task: `task_004_implement_journal_cockpit_v2_and_structured_insights`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Non-semantic edit: closeout tooling refreshed the product back-reference on 2026-07-12.
+> Confidence: 96
 
 # Overview
 Turn the existing journal dashboard into a compact operational cockpit. The first viewport should answer what each character is doing, what will finish soon, what requires attention, and what decision comes next. Structured insights support sorting and consistent presentation while preserving the existing local-first safety model.
@@ -36,5 +38,5 @@ Turn the existing journal dashboard into a compact operational cockpit. The firs
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_003_journal_cockpit_v2_and_structured_insights`
+- Product back-reference: `item_006_build_structured_journal_insights_and_responsive_decision_cockpit`
 - Task back-reference: `task_004_implement_journal_cockpit_v2_and_structured_insights`

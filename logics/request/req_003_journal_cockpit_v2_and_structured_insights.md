@@ -1,7 +1,7 @@
 ## req_003_journal_cockpit_v2_and_structured_insights - Journal cockpit v2 and structured insights
 > From version: 0.1.0
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: High
