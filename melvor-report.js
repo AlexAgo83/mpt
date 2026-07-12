@@ -494,11 +494,7 @@ function briefFromData(name, data, save, previousEntry, now = new Date().toISOSt
   const dungeons = goals.unclearedDungeons || [];
   const abyssalDungeons = dungeons.filter(isAbyssalDungeon);
   const standardDungeons = dungeons.filter(d => !isAbyssalDungeon(d));
-  const saveRisk = !save || save.source === 'unknown'
-    ? 'save source of truth unknown'
-    : save.source === 'local' && save.diffMs > 5 * 60000
-      ? `local save newer than cloud by ${Math.round(save.diffMs / 60000)} min`
-      : null;
+  const saveRisk = !save || save.source === 'unknown' ? 'save source of truth unknown' : null;
   const abyssalNext = [
     abyssalDungeons[0] ? `clear abyssal dungeon: ${abyssalDungeons[0].name}` : null,
     ...abyssalOpen.slice(0, 3).map(s => `raise abyssal ${s.name} (${s.abyssalLevel ?? 0}/${s.abyssalCap})`),
@@ -990,11 +986,7 @@ function buildCharacterJournal(name, data, save) {
   const report = data.report;
   const brief = briefFromData(name, data, save);
   const actions = planActions(data).map(a => ({ ...a, id: actionId(name, a), contextHash: actionContextHash(report, a) }));
-  const saveRisk = !save || save.source === 'unknown'
-    ? 'save source of truth unknown'
-    : save.source === 'local' && save.diffMs > 5 * 60000
-      ? `local save newer than cloud by ${Math.round(save.diffMs / 60000)} min`
-      : null;
+  const saveRisk = !save || save.source === 'unknown' ? 'save source of truth unknown' : null;
   return {
     name,
     observed: {
@@ -1168,6 +1160,7 @@ function progressEtas(current, previous) {
   const curAt = Date.parse(current.observed.at);
   const elapsed = curAt - prevAt;
   if (!Number.isFinite(elapsed) || elapsed < 5 * 60000) return ['ETA pending: needs at least 5 minutes between comparable journal scans'];
+  if (sameCloudSnapshot(current, previous)) return ['ETA pending: cloud save has not advanced since the previous scan'];
   const prevSkills = Object.fromEntries((previous?.observed?.skills || []).map(s => [s.name, s]));
   const action = current.observed.action;
   const etas = (current.observed.skills || [])
@@ -1205,6 +1198,11 @@ function progressEtas(current, previous) {
   return etas.length ? etas : ['ETA pending: no XP gain detected for the current action since the previous scan'];
 }
 
+const sameCloudSnapshot = (current, previous) =>
+  current.observed.saveSource?.source === 'cloud' &&
+  previous?.observed?.saveSource?.source === 'cloud' &&
+  current.observed.saveSource.diffMinutes === previous.observed.saveSource.diffMinutes;
+
 function levelEtaStatus(lines) {
   return { status: lines.some(l => !/^ETA pending:/.test(l)) ? 'ready' : 'pending', lines };
 }
@@ -1236,7 +1234,7 @@ function progressAlerts(entry) {
   const watched = new Set(actionSkillNames(action));
   const skills = (entry.observed.skills || []).filter(s => watched.has(s.name));
   const prevSkills = Object.fromEntries((entry.previousObserved?.skills || []).map(s => [s.name, s]));
-  const negativeXP = skills.some(s => {
+  const negativeXP = !sameCloudSnapshot(entry, { observed: entry.previousObserved }) && skills.some(s => {
     const p = prevSkills[s.name];
     return p && ((s.xp || 0) < (p.xp || 0) || (s.abyssalXP || 0) < (p.abyssalXP || 0));
   });
@@ -1428,10 +1426,10 @@ function runJournalDiff() {
 function renderDashboard(snap) {
   const json = JSON.stringify(snap).replace(/</g, '\\u003c');
   return `<!doctype html>
-<html lang="en">
+<html lang="fr">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Melvor Journal</title>
+<title>Journal Melvor</title>
 <style>
 :root {
   color-scheme: dark;
@@ -1448,19 +1446,26 @@ body {
 h1 { margin: 0; color: var(--accent); font-size: 1.55rem; letter-spacing: 0; }
 .title-row { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: .75rem; }
 .title-row p { margin: 0; color: var(--muted); }
-#summary { display: grid; grid-template-columns: repeat(7, minmax(7rem, 1fr)); border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+#start { margin-bottom: .75rem; padding: .85rem; border: 1px solid var(--accent); border-radius: 8px; background: #211d14; }
+#start h2 { margin: 0 0 .5rem; color: var(--accent); font-size: 1rem; }
+.start-item { display: grid; grid-template-columns: 8rem 1fr; gap: .75rem; padding: .35rem 0; border-top: 1px solid #51462e; }
+.start-item:first-of-type { border-top: 0; }
+.start-item strong { color: var(--ink); }
+#summary { display: grid; grid-template-columns: repeat(4, minmax(7rem, 1fr)); border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
 .stat { min-width: 0; padding: .65rem .75rem; border-right: 1px solid var(--line); }
 .stat:last-child { border-right: 0; }
 .stat b { display: block; color: var(--accent); font-size: 1.08rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat span { color: var(--muted); font-size: .72rem; text-transform: uppercase; }
-#filters { display: grid; grid-template-columns: minmax(13rem, 2fr) repeat(4, minmax(8rem, 1fr)) auto; gap: .5rem; margin: .75rem 0; align-items: center; }
+#filterBox { margin: .75rem 0; color: var(--muted); }
+#filterBox > summary { cursor: pointer; width: fit-content; }
+#filters { display: grid; grid-template-columns: minmax(13rem, 2fr) repeat(4, minmax(8rem, 1fr)) auto; gap: .5rem; margin-top: .55rem; align-items: center; }
 button, input, select { min-width: 0; width: 100%; font: inherit; color: var(--ink); background: #111614; border: 1px solid var(--line); border-radius: 4px; padding: .45rem .55rem; }
 button { cursor: pointer; }
 button:hover { border-color: var(--accent); }
 button:focus, input:focus, select:focus, summary:focus { outline: 2px solid #e2b95f77; outline-offset: 1px; }
 .check { display: flex; align-items: center; gap: .4rem; white-space: nowrap; color: var(--muted); }
 .check input { width: auto; }
-.column-head, .character-head { display: grid; grid-template-columns: 1.05fr .8fr 1.15fr 1.25fr 1.25fr; gap: .75rem; min-width: 0; }
+.column-head, .character-head { display: grid; grid-template-columns: 1fr 1fr 2.5fr; gap: .75rem; min-width: 0; }
 .column-head { padding: .35rem .75rem; color: var(--muted); font-size: .72rem; text-transform: uppercase; }
 .character { margin-bottom: .45rem; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
 .character[open] { border-color: #58675f; }
@@ -1504,6 +1509,7 @@ a { color: var(--accent); }
   body { padding: .7rem; }
   .title-row { align-items: flex-start; flex-direction: column; gap: .15rem; }
   #summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .start-item { grid-template-columns: 1fr; gap: .1rem; }
   .stat { border-bottom: 1px solid var(--line); }
   .stat:nth-child(even) { border-right: 0; }
   #filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1517,17 +1523,18 @@ a { color: var(--accent); }
 }
 </style>
 <body>
-<header class="title-row"><h1>Melvor Journal</h1><p id="scanTime"></p></header>
+<header class="title-row"><h1>Journal Melvor</h1><p id="scanTime"></p></header>
+<section id="start"><h2>Commencer ici</h2></section>
 <div id="summary"></div>
-<div id="filters">
-  <input id="q" type="search" placeholder="search character / action / item">
-  <select id="fAction"><option value="">any action</option></select>
-  <select id="fRisk"><option value="">any risk</option><option value="risk">save risk</option><option value="ok">no save risk</option></select>
-  <select id="fStatus"><option value="">any action status</option></select>
-  <select id="fPriority"><option value="">any priority</option><option value="critical">critical</option><option value="high">high</option><option value="medium">medium</option><option value="low">low</option></select>
-  <label class="check"><input id="fAttention" type="checkbox"> needs attention</label>
-</div>
-<div class="column-head" aria-hidden="true"><span>Character</span><span>Now</span><span>Progress</span><span>Attention</span><span>Next decision</span></div>
+<details id="filterBox"><summary>Filtres avancés</summary><div id="filters">
+  <input id="q" type="search" placeholder="personnage, activité ou objet">
+  <select id="fAction"><option value="">toutes les activités</option></select>
+  <select id="fRisk"><option value="">toutes les sauvegardes</option><option value="risk">sauvegarde à risque</option><option value="ok">sauvegarde sûre</option></select>
+  <select id="fStatus"><option value="">tous les statuts</option></select>
+  <select id="fPriority"><option value="">toutes les priorités</option><option value="critical">critique</option><option value="high">haute</option><option value="medium">moyenne</option><option value="low">basse</option></select>
+  <label class="check"><input id="fAttention" type="checkbox"> à surveiller</label>
+</div></details>
+<div class="column-head" aria-hidden="true"><span>Personnage</span><span>Maintenant</span><span>À faire</span></div>
 <div id="cards"></div>
 <script id="data" type="application/json">${json}</script>
 <script>
@@ -1542,18 +1549,26 @@ const priority = c => insights(c)[0]?.priority || 'low';
 const attention = (name, c) => hasRisk(name) || isStale(name) || insights(c).some(i => i.severity === 'danger' || i.severity === 'warning') || (c.decisions.stale || []).length;
 const fmtEta = seconds => seconds < 3600 ? Math.round(seconds / 60) + ' min' : seconds < 172800 ? Math.round(seconds / 3600) + ' h' : Math.round(seconds / 86400) + ' d';
 const relative = value => { const min = Math.max(0, Math.round((Date.now() - Date.parse(value)) / 60000)); return min < 1 ? 'just now' : min < 60 ? min + 'm ago' : min < 1440 ? Math.round(min / 60) + 'h ago' : Math.round(min / 1440) + 'd ago'; };
-document.getElementById('scanTime').textContent = 'Last scan ' + new Date(snap.generatedAt).toLocaleString();
+document.getElementById('scanTime').textContent = 'Relevé du ' + new Date(snap.generatedAt).toLocaleString('fr-FR');
+
+const urgent = Object.entries(snap.characters)
+  .map(([name, c]) => [name, hasRisk(name)
+    ? { priority: 'critical', label: 'Sauvegarde locale plus récente que le cloud : ne pas charger le cloud.' }
+    : insights(c).find(i => i.severity === 'danger' || i.severity === 'warning') || insights(c).find(i => i.actionable)])
+  .filter(([, item]) => item)
+  .sort((a, b) => RANK[a[1].priority] - RANK[b[1].priority])
+  .slice(0, 3);
+const start = document.getElementById('start');
+if (!urgent.length) start.append(el('p', 'muted', 'Rien d’urgent. Laisse les activités en cours continuer.'));
+for (const [name, item] of urgent) { const row = el('div', 'start-item'); row.append(el('strong', '', name), el('span', '', item.label)); start.append(row); }
 
 const summary = document.getElementById('summary');
 const operations = snap.account.operations || {};
 const stat = (label, value) => { const d = el('div', 'stat'); d.append(el('b', '', String(value)), el('span', '', label)); summary.append(d); };
-stat('characters', Object.keys(snap.characters).length);
-stat('alerts', operations.alerts || 0);
-stat('idle', (operations.idleCharacters || []).length);
-stat('finishing <= 1h', (operations.nearTermCompletions || []).length);
-stat('save risks', snap.account.saveRisks.length);
-stat('open decisions', operations.openDecisions || 0);
-stat('stale decisions', operations.staleDecisions || 0);
+stat('personnages', Object.keys(snap.characters).length);
+stat('alertes', operations.alerts || 0);
+stat('finissent sous 1 h', (operations.nearTermCompletions || []).length);
+stat('sauvegardes à risque', snap.account.saveRisks.length);
 
 const fAction = document.getElementById('fAction');
 for (const a of [...new Set(Object.values(snap.characters).map(c => c.observed.action || 'idle'))].sort()) fAction.append(new Option(a, a));
@@ -1592,7 +1607,7 @@ function render() {
     const p = priority(c);
     const eta = insights(c).find(i => i.type === 'progress_eta' && i.etaSeconds !== undefined) || insights(c).find(i => i.type === 'progress_eta');
     const concern = insights(c).find(i => i.severity === 'danger' || i.severity === 'warning');
-    const decision = insights(c).find(i => i.actionable && i !== concern);
+    const decision = concern || insights(c).find(i => i.actionable);
     const progress = eta?.etaSeconds && eta.metric ? fmtEta(eta.etaSeconds) + ' · ' + eta.metric.toLocaleString() + ' ' + eta.unit + ' left' : eta?.label || 'No ETA yet';
     const details = el('details', 'character priority-' + p);
     const head = el('summary', 'character-head');
@@ -1602,7 +1617,7 @@ function render() {
     if (hasRisk(name)) identity.append(el('span', 'badge risk', 'save risk'));
     if ((c.decisions.stale || []).length) identity.append(el('span', 'badge stale', c.decisions.stale.length + ' stale'));
     const cell = (label, value) => { const n = el('div', 'cell'); n.append(el('span', 'cell-label', label), el('span', 'cell-value', value || '—')); return n; };
-    head.append(identity, cell('Now', action), cell('Progress', progress), cell('Attention', concern?.label || 'No active alert'), cell('Next decision', decision?.label || 'No decision pending'));
+    head.append(identity, cell('Maintenant', action + ' · ' + progress), cell('À faire', decision?.label || 'Rien : laisser tourner'));
     details.append(head);
 
     const body = el('div', 'character-body');
@@ -1635,7 +1650,7 @@ function render() {
     details.append(body);
     cards.append(details);
   }
-  if (!cards.children.length) cards.append(el('p', 'muted', 'no character matches the filters'));
+  if (!cards.children.length) cards.append(el('p', 'muted', 'aucun personnage ne correspond aux filtres'));
 }
 for (const id of ['q', 'fAction', 'fRisk', 'fStatus', 'fPriority', 'fAttention']) document.getElementById(id).addEventListener('input', render);
 cards.addEventListener('click', e => {

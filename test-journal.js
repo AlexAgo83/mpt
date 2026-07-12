@@ -26,8 +26,8 @@ assert.strictEqual(c.actions.length, 1, 'Fishing without Octopus proposes one eq
 const a = c.actions[0];
 assert.strictEqual(a.item, 'Octopus');
 assert.match(a.id, /^[0-9a-f]{12}$/);
-assert.ok(c.analysis.saveRisk && /local save newer/.test(c.analysis.saveRisk), 'local-newer save risk detected');
-assert.ok(c.observed.saveSource.source === 'local' && c.analysis.riskNotes.length >= 1);
+assert.strictEqual(c.analysis.saveRisk, null, 'known local source is not a journal risk');
+assert.ok(c.observed.saveSource.source === 'local');
 
 // same state twice -> stable id, no duplicate event on rerun
 const c2 = buildCharacterJournal('TestChar', data, save);
@@ -87,6 +87,14 @@ const etaRebuild = buildLatest([], new Map(), etaSnap, '2026-07-05T12:11:00.000Z
 assert.deepStrictEqual(etaRebuild.characters.EtaChar.analysis.progressEtas, etaSnap.characters.EtaChar.analysis.progressEtas, 'ETA survives rebuild without scan');
 const etaPending = buildLatest([withSkills(106000, '2026-07-05T12:10:00.000Z')], new Map(), prevSnap, now);
 assert.match(etaPending.characters.EtaChar.analysis.progressEtas[0], /previous journal snapshot has no skill XP/);
+const cloudPrevEntry = withSkills(106000, '2026-07-05T12:00:00.000Z');
+cloudPrevEntry.observed.saveSource = { source: 'cloud', diffMinutes: -60 };
+const cloudPrev = buildLatest([cloudPrevEntry], new Map(), null, now);
+const cloudAgain = withSkills(105000, '2026-07-05T12:10:00.000Z');
+cloudAgain.observed.saveSource = { source: 'cloud', diffMinutes: -60 };
+const cloudSnap = buildLatest([cloudAgain], new Map(), cloudPrev, now);
+assert.match(cloudSnap.characters.EtaChar.analysis.progressEtas[0], /cloud save has not advanced/);
+assert.ok(!cloudSnap.characters.EtaChar.analysis.alerts.some(a => /XP is lower/.test(a)), 'same cloud snapshot cannot regress XP');
 const withAbyssal = (abyssalXP, at) => {
   const entry = buildCharacterJournal('AbyssEtaChar', {
     ...data,
@@ -108,7 +116,7 @@ const cc = snap.characters.TestChar;
 assert.ok(cc.observed && cc.analysis && cc.decisions, 'observed/analysis/decisions present');
 assert.strictEqual(cc.decisions.proposed.length, 1);
 assert.strictEqual(snap.actionsSummary.proposed, 1);
-assert.ok(snap.account.saveRisks.includes('TestChar'));
+assert.ok(!snap.account.saveRisks.includes('TestChar'));
 assert.ok(snap.account.operations && snap.account.operations.openDecisions === 1);
 const insights = structuredInsights({
   observed: { action: 'Combat' },
@@ -142,8 +150,8 @@ const evil = buildCharacterJournal('TestChar', {
 const html = renderDashboard(buildLatest([evil], first.latest, null, now));
 assert.ok(!/<script>alert/.test(html), 'embedded JSON escapes <');
 assert.ok(!/https?:\/\/(?!melvoridle)/.test(html), 'no external assets');
-assert.ok(html.includes('save risk') && html.includes('needs attention'), 'risk and attention controls present');
-assert.ok(html.includes('Next decision') && html.includes("panel('progress'") && html.includes("panel('plans'"), 'cockpit columns and detail tabs present');
+assert.ok(html.includes('sauvegarde à risque') && html.includes('à surveiller'), 'risk and attention controls present');
+assert.ok(html.includes('Commencer ici') && html.includes('À faire') && html.includes("panel('progress'") && html.includes("panel('plans'"), 'cockpit focus and detail tabs present');
 assert.ok(!/Users\/|password|9223|chrome-profile/i.test(html), 'dashboard is sanitized');
 
 const refreshedAt = '2026-07-05T12:01:00.000Z';
@@ -151,7 +159,7 @@ const previousForRefresh = structuredClone(snap);
 const refreshed = buildLatest([c], first.latest, previousForRefresh, refreshedAt);
 refreshed.characters.TestChar.analysis.alerts = ['new warning'];
 const refreshLines = journalRefreshSummary(refreshed, previousForRefresh, refreshedAt);
-assert.match(refreshLines[0], /characters 1 \| save risks 1 \| new alerts 1$/);
+assert.match(refreshLines[0], /characters 1 \| save risks 0 \| new alerts 1$/);
 assert.strictEqual(refreshLines[1], '  alert: TestChar: new warning');
 assert.throws(() => journalRefreshSummary(snap, snap, now), /was not refreshed/);
 

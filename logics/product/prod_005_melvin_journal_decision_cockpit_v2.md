@@ -1,6 +1,6 @@
 ## prod_005_melvin_journal_decision_cockpit_v2 - Melvin - journal decision cockpit v2
 > Date: 2026-07-12
-> Status: Proposed
+> Status: Settled
 > Related request: `req_003_journal_cockpit_v2_and_structured_insights`
 > Related backlog: `item_006_build_structured_journal_insights_and_responsive_decision_cockpit`
 > Related task: `task_004_implement_journal_cockpit_v2_and_structured_insights`

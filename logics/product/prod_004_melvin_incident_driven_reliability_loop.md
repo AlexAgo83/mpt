@@ -1,6 +1,6 @@
 ## prod_004_melvin_incident_driven_reliability_loop - Melvin - incident-driven reliability loop
 > Date: 2026-07-12
-> Status: Proposed
+> Status: Settled
 > Related request: `req_002_incident_driven_assistant_self_improvement`
 > Related backlog: `item_005_capture_recurring_cli_incidents_and_promote_reviewed_candidates`
 > Related task: `task_003_implement_incident_driven_assistant_self_improvement`
