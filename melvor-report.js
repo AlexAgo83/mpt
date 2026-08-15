@@ -37,6 +37,7 @@ function loadEnvLocal() {
 const argv = process.argv.slice(2);
 const record = argv.includes('--record');
 const abyssalOnly = argv.includes('--abyssal');
+const detail = argv.includes('--detail');
 const saveBackup = argv.includes('--save-backup');
 const [cmd = 'summary', who = 'all', arg3] = argv.filter(a => !['--record', '--abyssal', '--save-backup'].includes(a));
 const usage = `usage:
@@ -53,7 +54,7 @@ const usage = `usage:
   ./melvor-report.js combat-plan [all|character] [--abyssal]
   ./melvor-report.js combat-setup <character>
   ./melvor-report.js combat-run <character> <dungeon name|id>
-  ./melvor-report.js gear <character>
+  ./melvor-report.js gear <character> [--detail]
   ./melvor-report.js skilling <character>
   ./melvor-report.js export-state [all|character]
   ./melvor-report.js save-backup [all|character]
@@ -315,12 +316,15 @@ function printSummary(r) {
 function printGear(r) {
   const c = r.combat;
   console.log(`${r.name} | ${r.action}${c ? ` | ${c.area || 'no area'} / ${c.monster || 'no monster'} | hit ${Math.round(c.hitChance || 0)}%` : ''}`);
+  if (detail) console.log(`  style: ${r.context?.attackType || 'unknown'}`);
   for (const [slot, item] of Object.entries(r.equipped)) console.log(`  ${slot}: ${item.name}`);
   const prefixes = scorePrefixes(r.context?.attackType);
   for (const [slot, items] of Object.entries(r.candidates)) {
-    const best = items[0];
-    if (best && best.name !== r.equipped[slot]?.name && scoreItem(best, prefixes) > scoreItem(r.equipped[slot], prefixes))
+    for (const best of (detail ? items : items.slice(0, 1))) {
+      if (!best || best.name === r.equipped[slot]?.name || scoreItem(best, prefixes) <= scoreItem(r.equipped[slot], prefixes)) continue;
       console.log(`  raw candidate ${slot}: ${best.name}`);
+      if (detail) console.log(`    current ${JSON.stringify(r.equipped[slot]?.stats || {})} | passives ${(r.equipped[slot]?.passives || []).join('; ') || 'none'} | candidate ${JSON.stringify(best.stats)} | passives ${(best.passives || []).join('; ') || 'none'}`);
+    }
   }
 }
 
@@ -1949,7 +1953,7 @@ if (require.main === module) (async () => {
           return { report, sets };
         })()`);
         return evalExpr(client, `(() => {
-          const audit = mh.gearAudit(game.combat.player.attackType, 2);
+          const audit = mh.gearAudit(game.combat.player.attackType, ${detail ? 5 : 2});
           return { name: game.characterName, action: game.activeAction?.name ?? null, combat: mh.combatInfo(), context: audit.context, equipped: audit.equipped, candidates: audit.candidates };
         })()`);
       });

@@ -320,8 +320,12 @@
   // Current combat: area, monster, hit chance, slayer task.
   mh.combatInfo = () => {
     const c = game.combat, p = c.player, e = c.enemy;
+    const area = c.selectedArea;
+    const monsters = area?.monsters ?? [];
+    const boss = monsters[monsters.length - 1];
     return {
-      area: c.selectedArea?.name ?? null,
+      area: area?.name ?? null,
+      dungeonBoss: boss ? { name: boss.name, attackType: boss.attackType } : null,
       monster: e?.monster?.name ?? null,
       monsterAttackType: e?.monster?.attackType ?? null,
       enemyHP: e?.hitpoints ?? null,

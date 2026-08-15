@@ -189,7 +189,7 @@ npm run test:slots
 - `journal/` (git-ignored): generated player journal, private incident history, promotion ledger, and dashboard
 - [`.env.example`](./.env.example): local-only account/profile configuration template
 - [`MELVOR.md`](./MELVOR.md): full operating manual for AI assistants
-- [`MELVOR_RUNBOOK.md`](./MELVOR_RUNBOOK.md): short runbook for common workflows
+- [`logics/runbook/`](./logics/runbook/): operational Melvor runbook library
 - [`AI_IMPROVEMENTS.md`](./AI_IMPROVEMENTS.md): ledger for repeated assistant failures and improvements
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md): contribution and validation workflow
 - [`changelogs/`](./changelogs/): release notes
