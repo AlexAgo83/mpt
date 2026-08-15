@@ -364,7 +364,7 @@ function printGear(r) {
   }
   if (detail) for (const [slot, items] of Object.entries(r.blocked || {}))
     for (const item of items)
-      console.log(`  blocked ${slot}: ${item.name} | requires ${(item.requirements || []).join('; ')}`);
+      console.log(`  blocked ${slot}: ${item.name} | missing ${(item.missingRequirements || []).join('; ')}`);
 }
 
 function printSkilling(r) {
@@ -531,7 +531,7 @@ const skillView = s => ({
   abyssalLevel: s.abyssalLevel ?? null,
   abyssalCap: s.abyssalCap ?? null,
 });
-const isAbyssalDungeon = d => /melvorItA/.test(d.id || '') || /Abyss/i.test(d.name || '');
+const isAbyssalDungeon = d => d.kind === 'abyssal' || /^melvorItA:/.test(d.id || '');
 const hasTrainableAbyssalLevels = s =>
   (s.abyssalCap ?? 0) > 1
   && !['melvorAoD:Cartography', 'melvorAoD:Archaeology'].includes(s.id);
@@ -663,6 +663,8 @@ function printCombatPlan(r, options = {}) {
     .filter(d => !options.abyssalOnly || isAbyssalDungeon(d))
     .slice(0, 5);
   if (!dungeons.length) console.log(`  no accessible uncleared ${options.abyssalOnly ? 'abyssal ' : ''}dungeon found`);
+  const completed = (goals.completedDungeons || []).filter(d => !options.abyssalOnly || isAbyssalDungeon(d));
+  if (completed.length) console.log(`  completed ${options.abyssalOnly ? 'abyssal ' : ''}dungeons: ${completed.map(d => `${d.name} x${d.completeCount}`).join(', ')}`);
   for (const d of dungeons) {
     const style = beats[d.bossAttackType] || null;
     const set = r.sets.find(s => style && s.attackType === style) || r.sets.find(s => s.attackType) || {};

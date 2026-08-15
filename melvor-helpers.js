@@ -326,7 +326,7 @@
       if (scoreOf(st) === 0) continue;
       const view = { name: item.name, stats: st, passives: passivesOf(item), damageType: item.damageType?.name };
       if (canEquip(item)) (candidates[slot.localID] ??= []).push(view);
-      else (blocked[slot.localID] ??= []).push({ ...view, requirements: (item.equipRequirements ?? []).map(requirementText) });
+      else (blocked[slot.localID] ??= []).push({ ...view, missingRequirements: (item.equipRequirements ?? []).filter(r => !meetsRequirement(r)).map(requirementText) });
     }
     for (const k in candidates) candidates[k] = candidates[k].sort((a,b)=>scoreOf(b.stats)-scoreOf(a.stats)).slice(0, topN);
     for (const k in blocked) blocked[k] = blocked[k].sort((a,b)=>scoreOf(b.stats)-scoreOf(a.stats)).slice(0, topN);
@@ -402,6 +402,7 @@
       return {
         name: d.name,
         id: d.id,
+        kind: /^melvorItA:/.test(d.id || '') ? 'abyssal' : 'standard',
         completeCount: completeCount(d),
         maxCombatLevel: Math.max(0, ...monsters.map(m => m.combatLevel ?? 0)),
         boss: boss?.name ?? null,
@@ -423,6 +424,7 @@
         .filter(d => d.completeCount === 0)
         .filter(d => d.requirements.every(r => r.met))
         .sort((a, b) => a.maxCombatLevel - b.maxCombatLevel),
+      completedDungeons: dungeons.filter(d => d.completeCount > 0),
     };
     const beats = { melee: 'magic', ranged: 'melee', magic: 'ranged' };
     const next = goals.unclearedDungeons[0] ?? null;
