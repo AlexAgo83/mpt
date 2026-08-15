@@ -41,13 +41,15 @@ const detail = argv.includes('--detail');
 const saveBackup = argv.includes('--save-backup');
 const apply = argv.includes('--apply');
 const restoreRanged = argv.includes('--restore-ranged');
+const quantityIndex = argv.indexOf('--quantity');
+const requestedQuantity = quantityIndex >= 0 ? Number(argv[quantityIndex + 1]) : undefined;
 const styleIndex = argv.indexOf('--style');
 const gearStyle = styleIndex >= 0 ? argv[styleIndex + 1] : null;
 const slotIndex = argv.indexOf('--slot');
 const requestedSlot = slotIndex >= 0 ? Number(argv[slotIndex + 1]) : 6;
 const dashboardPortIndex = argv.indexOf('--port');
 const dashboardPort = dashboardPortIndex >= 0 ? Number(argv[dashboardPortIndex + 1]) : Number(process.env.MELVOR_JOURNAL_PORT || 8787);
-const [cmd = 'summary', who = 'all', arg3] = argv.filter((a, i) => !['--record', '--abyssal', '--save-backup', '--detail', '--apply', '--restore-ranged', '--style', '--slot', '--port'].includes(a) && (styleIndex < 0 || i !== styleIndex + 1) && (slotIndex < 0 || i !== slotIndex + 1) && (dashboardPortIndex < 0 || i !== dashboardPortIndex + 1));
+const [cmd = 'summary', who = 'all', arg3, arg4] = argv.filter((a, i) => !['--record', '--abyssal', '--save-backup', '--detail', '--apply', '--restore-ranged', '--style', '--slot', '--port', '--quantity'].includes(a) && (styleIndex < 0 || i !== styleIndex + 1) && (slotIndex < 0 || i !== slotIndex + 1) && (dashboardPortIndex < 0 || i !== dashboardPortIndex + 1) && (quantityIndex < 0 || i !== quantityIndex + 1));
 const usage = `usage:
   ./melvor-report.js slots
   ./melvor-report.js smoke
@@ -66,8 +68,12 @@ const usage = `usage:
   ./melvor-report.js magic-setup <character> [--slot 6] [--apply] [--restore-ranged]
   ./melvor-report.js slayer-abyssal <character>
   ./melvor-report.js slayer-start <character> [--slot 6]
+  ./melvor-report.js equip <character> <item> <slot> [--quantity n] [--apply]
+  ./melvor-report.js skill-start <character> <skill> <recipe> [--apply]
+  ./melvor-report.js talent-unlock <character> <skill> <node> [--apply]
   ./melvor-report.js skilling <character>
   ./melvor-report.js agility [all|character]
+  ./melvor-report.js talents <character>
   ./melvor-report.js export-state [all|character]
   ./melvor-report.js save-backup [all|character]
   ./melvor-report.js journal [all|character] [--record] [--save-backup]
@@ -84,7 +90,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'export-state', 'save-backup', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'talents', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'export-state', 'save-backup', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -94,6 +100,10 @@ if (require.main === module) {
   }
   if (!Number.isInteger(requestedSlot) || requestedSlot < 1) {
     console.error('slot must be a positive equipment-set number');
+    process.exit(2);
+  }
+  if (quantityIndex >= 0 && (!Number.isInteger(requestedQuantity) || requestedQuantity < 1)) {
+    console.error('quantity must be a positive integer');
     process.exit(2);
   }
   if (cmd === 'journal-serve' && (!Number.isInteger(dashboardPort) || dashboardPort < 1024 || dashboardPort > 65535)) {
@@ -432,6 +442,17 @@ function planLines(r) {
   return planActions(r).map(a => `${a.slot}: ${a.current} -> ${a.item} (available x${a.available}; ${a.reason})`);
 }
 
+function talentAdvice(report, talents = []) {
+  const activeSkill = report.action === 'Combat'
+    ? `${report.combat?.playerAttackType || ''}`.replace(/^./, c => c.toUpperCase())
+    : report.action;
+  const active = talents.find(talent => talent.skill === activeSkill && talent.candidates.length);
+  const next = active || talents.find(talent => talent.candidates.length);
+  if (!next) return [];
+  const node = next.candidates[0];
+  return [`abyssal talent: ${next.skill} has ${next.points} unspent point${next.points === 1 ? '' : 's'}; spend ${node.shortName || node.name} next${next.skill === activeSkill ? ' for the active skill' : ''}`];
+}
+
 function currentActionPlan(r) {
   const report = r.report;
   const eq = report.equipment || {};
@@ -474,6 +495,7 @@ function currentActionPlan(r) {
   } else if (action && action !== 'idle') {
     add(`current ${action}: verify ring choice, summon synergy, consumable, and mastery-vs-level XP goal`);
   }
+  for (const advice of talentAdvice(report, r.talents)) add(advice);
   return lines.slice(0, 8);
 }
 
@@ -873,6 +895,87 @@ const restoreAbyssalRangedScript = (slotNumber, shouldApply) => `(async () => {
   result.applied = true;
   return result;
 })()`;
+
+const equipmentActionScript = (itemName, slotName, quantity, shouldApply) => `(() => {
+  const item = [...game.bank.items.keys()].find(item => item.name === ${JSON.stringify(itemName)});
+  const player = game.combat.player;
+  const slot = player.equipment.equippedArray.find(entry => entry.slot.localID === ${JSON.stringify(slotName)})?.slot;
+  const current = player.equipment.equippedArray.find(entry => entry.slot.localID === ${JSON.stringify(slotName)})?.item?.name ?? null;
+  const available = item ? game.bank.items.get(item)?.quantity ?? 0 : 0;
+  const result = { name: game.characterName, item: ${JSON.stringify(itemName)}, slot: ${JSON.stringify(slotName)}, current, available, applied: false };
+  if (!item) return { ...result, error: 'item is not in bank' };
+  if (!slot || !item.validSlots?.some(value => value.localID === ${JSON.stringify(slotName)})) return { ...result, error: 'item cannot be equipped in this slot' };
+  const stack = /^(Summon[12]|Quiver|Consumable)$/.test(${JSON.stringify(slotName)});
+  const amount = ${quantity === undefined ? 'undefined' : Number(quantity)} ?? (stack ? available : 1);
+  if (amount < 1 || amount > available) return { ...result, error: 'requested quantity is unavailable' };
+  result.quantity = amount;
+  if (!${JSON.stringify(shouldApply)}) return result;
+  result.action = mh.equipSlot(${JSON.stringify(itemName)}, ${JSON.stringify(slotName)}, amount);
+  result.final = player.equipment.equippedArray.find(entry => entry.slot.localID === ${JSON.stringify(slotName)})?.item?.name ?? null;
+  if (result.final !== ${JSON.stringify(itemName)}) return { ...result, error: 'Melvor did not equip the requested item' };
+  result.applied = true;
+  return result;
+})()`;
+
+const skillStartScript = (skillName, recipeName, shouldApply) => `(async () => {
+  const values = value => value instanceof Map || value instanceof Set ? [...value.values()] : value?.allObjects ?? value ?? [];
+  const methodNames = object => { const names = new Set(); for (let value = object; value && value !== Object.prototype; value = Object.getPrototypeOf(value)) for (const name of Object.getOwnPropertyNames(value)) if (typeof object[name] === 'function') names.add(name); return [...names].filter(name => /select|create|start/i.test(name)); };
+  const method = (object, names) => names.find(name => typeof object[name] === 'function');
+  const skill = values(game.skills).find(skill => skill.name.toLowerCase() === ${JSON.stringify(skillName.toLowerCase())});
+  if (!skill) return { error: 'unknown skill: ${skillName.replace(/'/g, "\\'")}' };
+  const actions = values(skill.actions).length ? values(skill.actions) : values(skill.recipes);
+  const action = actions.find(action => (action.name ?? action.product?.name ?? '').toLowerCase() === ${JSON.stringify(recipeName.toLowerCase())});
+  const result = { name: game.characterName, skill: skill.name, recipe: ${JSON.stringify(recipeName)}, applied: false };
+  if (!action) return { ...result, error: 'unknown recipe for this skill' };
+  const costs = action.itemCosts ?? action.costs?.items ?? [];
+  result.inputs = costs.map(cost => ({ item: cost.item?.name, required: cost.quantity ?? cost.qty ?? 0, available: game.bank.items.get(cost.item)?.quantity ?? 0 })).filter(cost => cost.item && cost.required > 0);
+  if ((skill.level ?? 0) < (action.level ?? 1) || (skill.abyssalLevel ?? 0) < (action.abyssalLevel ?? 0)) return { ...result, error: 'recipe is not unlocked' };
+  if (!result.inputs.length || result.inputs.some(cost => cost.available < cost.required)) return { ...result, error: 'insufficient recipe materials' };
+  result.methods = methodNames(skill);
+  if (!${JSON.stringify(shouldApply)}) return result;
+  const select = method(skill, ['selectRecipeOnClick', 'selectRecipe']);
+  const start = method(skill, ['createButtonOnClick', 'start', 'startAction']);
+  if (!select || !start) return { ...result, error: 'unsupported Melvor artisan action API' };
+  skill[select](action);
+  skill[start]();
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const selected = skill.selectedRecipe ?? skill.selectedAction ?? skill.activeRecipe ?? null;
+  result.activeSkill = game.activeAction?.name ?? null;
+  result.activeRecipe = selected?.name ?? selected?.product?.name ?? null;
+  if (result.activeSkill !== skill.name || selected !== action) return { ...result, error: 'Melvor did not start the requested recipe' };
+  result.applied = true;
+  return result;
+})()`;
+
+const talentUnlockScript = (skillName, nodeName, shouldApply) => `(async () => {
+  const values = value => value instanceof Map || value instanceof Set ? [...value.values()] : value?.allObjects ?? value ?? [];
+  const skill = values(game.skills).find(skill => skill.name.toLowerCase() === ${JSON.stringify(skillName.toLowerCase())});
+  if (!skill) return { error: 'unknown skill: ${skillName.replace(/'/g, "\\'")}' };
+  const tree = values(skill.skillTrees).find(tree => values(tree.nodes).some(node => node.name?.toLowerCase() === ${JSON.stringify(nodeName.toLowerCase())} || node.shortName?.toLowerCase() === ${JSON.stringify(nodeName.toLowerCase())}));
+  const node = tree && values(tree.nodes).find(node => node.name?.toLowerCase() === ${JSON.stringify(nodeName.toLowerCase())} || node.shortName?.toLowerCase() === ${JSON.stringify(nodeName.toLowerCase())});
+  const result = { name: game.characterName, skill: skill.name, node: ${JSON.stringify(nodeName)}, pointsBefore: tree?.points ?? null, applied: false };
+  if (!node || !tree) return { ...result, error: 'unknown talent node for this skill' };
+  if (!node.canUnlock || !tree.canAffordNode?.(node)) return { ...result, error: 'talent node is not affordable or unlockable' };
+  result.methods = Object.getOwnPropertyNames(Object.getPrototypeOf(tree)).filter(name => /unlock/i.test(name));
+  if (!${JSON.stringify(shouldApply)}) return result;
+  const unlock = tree.unlockNodeOnClick ?? tree.unlockNode;
+  if (typeof unlock !== 'function') return { ...result, error: 'unsupported Melvor talent API' };
+  unlock.call(tree, node);
+  await new Promise(resolve => setTimeout(resolve, 500));
+  result.pointsAfter = tree.points ?? null;
+  result.unlocked = values(tree.unlockedNodes).includes(node);
+  if (!result.unlocked || result.pointsAfter >= result.pointsBefore) return { ...result, error: 'Melvor did not unlock the requested talent' };
+  result.applied = true;
+  return result;
+})()`;
+
+function printGuardedAction(result) {
+  console.log(`${result.name || 'unknown'} | ${result.applied ? 'applied' : 'preview'}`);
+  for (const key of ['item', 'slot', 'current', 'final', 'quantity', 'available', 'skill', 'recipe', 'activeSkill', 'activeRecipe', 'node', 'pointsBefore', 'pointsAfter', 'unlocked']) if (result[key] !== undefined && result[key] !== null) console.log(`  ${key}: ${result[key]}`);
+  for (const input of result.inputs || []) console.log(`  input: ${input.item} ${input.available}/${input.required}`);
+  if (result.methods?.length) console.log(`  supported methods: ${result.methods.join(', ')}`);
+  if (result.error) console.log(`  error: ${result.error}`);
+}
 
 function printMagicSetup(result) {
   console.log(`${result.name} | magic slot ${result.slot} | ${result.applied ? 'applied' : 'preview'}`);
@@ -1698,10 +1801,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .equipment-slot::after { content: ""; display: block; clear: both; }
 .equipment-grid[hidden] { display: none; }
 .skills-grid, .inventory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: .45rem; }
+.skills-grid { grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: .65rem; }
 .inventory-grid { margin-top: .6rem; }
 .skill-card, .inventory-item { min-width: 0; min-height: 4.2rem; padding: .45rem; border: 1px solid var(--line); border-radius: 5px; background: #111614; overflow-wrap: anywhere; }
+.skill-card { padding: .7rem; }
 .skill-card strong { display: block; color: var(--accent); }
 .skill-card small, .inventory-item small { display: block; color: var(--muted); }
+.skill-stat { margin-top: .5rem; font-size: .76rem; color: var(--muted); }
+.skill-stat b { color: var(--text); font-weight: 600; }
+.skill-meter { display: grid; grid-template-columns: 1fr auto; gap: .18rem .45rem; align-items: center; margin-top: .2rem; font-size: .68rem; color: var(--muted); }
+.skill-meter progress { grid-column: 1 / -1; }
+.skill-meter .skill-meter-value { color: var(--text); font-variant-numeric: tabular-nums; }
+.skill-meter progress { width: 100%; height: .45rem; accent-color: var(--teal); }
+.skill-meter.mastery progress { accent-color: var(--accent); }
 .inventory-item { position: relative; min-height: 5rem; }
 .inventory-item .wiki-icon { width: 38px; height: 38px; }
 .inventory-qty { position: absolute; right: .35rem; bottom: .3rem; color: var(--accent); font-weight: 700; }
@@ -1858,7 +1970,25 @@ function skillsSheet(c) {
   const skills = [...(c.observed.skills || [])].sort((a, b) => b.level - a.level || a.name.localeCompare(b.name));
   if (!skills.length) { panel.append(el('p', 'muted', 'Refresh this character to load skills.')); return panel; }
   const grid = el('div', 'skills-grid');
-  for (const skill of skills) { const card = el('div', 'skill-card'); card.append(el('strong', '', skill.name), el('small', '', 'Level ' + skill.level + '/' + skill.levelCap), el('small', '', 'Abyss ' + (skill.abyssalLevel ?? 0) + '/' + (skill.abyssalCap ?? 0)), el('small', '', skill.masteryLevel === null || skill.masteryLevel === undefined ? 'Mastery unavailable' : 'Mastery ' + skill.masteryLevel)); grid.append(card); }
+  const amount = value => Math.floor(value || 0).toLocaleString('en-GB');
+  const stat = (label, value) => { const row = el('div', 'skill-stat'); row.append(document.createTextNode(label), el('b', '', value)); return row; };
+  const meter = (kind, label, value, start, end) => {
+    if (!Number.isFinite(end) || end <= start) return null;
+    const row = el('div', 'skill-meter ' + kind); const progress = document.createElement('progress'); progress.max = 100; progress.value = Math.max(0, Math.min(100, (value - start) / (end - start) * 100));
+    row.append(el('span', '', label), el('span', 'skill-meter-value', Math.round(progress.value) + '% · ' + amount(value - start) + ' / ' + amount(end - start)), progress); return row;
+  };
+  for (const skill of skills) {
+    const card = el('div', 'skill-card');
+    card.append(el('strong', '', skill.name), stat('Level ', skill.level + '/' + skill.levelCap));
+    const levelMeter = meter('xp', 'XP', skill.xp, skill.xpLevelStart, skill.xpNextLevel); if (levelMeter) card.append(levelMeter);
+    if (skill.abyssalLevel !== null && skill.abyssalLevel !== undefined) {
+      card.append(stat('Abyssal ', skill.abyssalLevel + '/' + skill.abyssalCap));
+      const abyssMeter = meter('abyss', 'AXP', skill.abyssalXP, skill.abyssalXPLevelStart, skill.abyssalXPNextLevel); if (abyssMeter) card.append(abyssMeter);
+    }
+    for (const pool of skill.masteryPools || []) { const masteryMeter = meter('mastery', pool.realm.replace(' Realm', '') + ' M', pool.xp, 0, pool.cap); if (masteryMeter) { masteryMeter.title = amount(pool.xp) + ' / ' + amount(pool.cap) + ' mastery pool XP'; card.append(masteryMeter); } }
+    if (!skill.masteryPools?.length) card.append(stat('Mastery ', 'not applicable'));
+    grid.append(card);
+  }
   panel.append(grid);
   return panel;
 }
@@ -2031,7 +2161,9 @@ async function collectJournal(name, save, includeSaveBackup = false) {
     ].map(s => s.name))];
     const equipmentSets = game.combat.player.equipmentSets.map((set, index) => ({ index, items: Object.fromEntries(set.equipment.equippedArray.filter(slot => !slot.isEmpty).map(slot => [slot.slot.localID, slot.item.name])) }));
     const inventory = [...game.bank.items].map(([item, entry]) => ({ name: item.name, quantity: entry.quantity, media: item.media || null })).sort((a, b) => a.name.localeCompare(b.name));
-    const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])), equipmentSets, inventory };
+    const values = value => value instanceof Map ? [...value.values()] : value instanceof Set ? [...value] : Array.isArray(value) ? value : value?.allObjects ?? [];
+    const talents = game.skills.allObjects.flatMap(skill => values(skill.skillTrees).map(tree => ({ skill: skill.name, points: tree.points || 0, candidates: values(tree.nodes).filter(node => node.canUnlock && tree.canAffordNode(node) && !values(tree.unlockedNodes).includes(node)).map(node => ({ name: node.name, shortName: node.shortName })) }))).filter(tree => tree.points > 0);
+    const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])), equipmentSets, inventory, talents };
     if (${JSON.stringify(includeSaveBackup)}) out.saveExport = mh.exportSaveString();
     return out;
   })()`));
@@ -2152,7 +2284,7 @@ function lock(retry = true) {
   }
 }
 
-module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights };
+module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript };
 if (require.main === module) (async () => {
   if (cmd === 'journal-serve') return runJournalServer();
   if (cmd === 'journal-action') return runJournalAction(who, arg3);
@@ -2260,6 +2392,25 @@ if (require.main === module) (async () => {
       return;
     }
 
+    if (cmd === 'equip' || cmd === 'skill-start' || cmd === 'talent-unlock') {
+      if (who === 'all' || !arg3 || !arg4) {
+        const usage = cmd === 'equip' ? 'equip <character> <item> <slot>' : `${cmd} <character> <skill> <${cmd === 'skill-start' ? 'recipe' : 'node'}>`;
+        throw Error(`usage: ./melvor-report.js ${usage} [--apply]`);
+      }
+      const script = cmd === 'equip'
+        ? equipmentActionScript(arg3, arg4, requestedQuantity, apply)
+        : cmd === 'skill-start'
+          ? skillStartScript(arg3, arg4, apply)
+          : talentUnlockScript(arg3, arg4, apply);
+      const run = client => evalExpr(client, script, 60000);
+      const data = apply
+        ? await withCharacterWrite(who, run)
+        : await readSourcesByName().then(({ sources }) => withCharacterSource(who, sources[who]?.source, run));
+      printGuardedAction(data);
+      if (data.error) throw Error(data.error);
+      return;
+    }
+
     if (cmd === 'export-state') {
       const { slots, sources } = await readSourcesByName();
       const characters = {};
@@ -2331,6 +2482,11 @@ if (require.main === module) (async () => {
           }));
           return { name: game.characterName, action: game.activeAction?.name ?? null, activeObstacles, activePillars };
         })()`);
+        if (cmd === 'talents') return evalExpr(client, `(() => {
+          const values = value => value instanceof Map ? [...value.values()] : value instanceof Set ? [...value] : Array.isArray(value) ? value : value?.allObjects ?? [];
+          const talents = game.skills.allObjects.flatMap(skill => values(skill.skillTrees).map(tree => ({ skill: skill.name, points: tree.points || 0, candidates: values(tree.nodes).filter(node => node.canUnlock && tree.canAffordNode(node) && !values(tree.unlockedNodes).includes(node)).map(node => ({ name: node.name, shortName: node.shortName })) }))).filter(tree => tree.points > 0);
+          return { report: mh.readOnlyReport(), talents };
+        })()`);
         if (cmd === 'plan') return evalExpr(client, `(() => {
           const wanted = ['Octopus','Potion Stirrer','Bear','Jeweled Necklace','Book of Scholars','Ancient Ring of Mastery','Golden Star','Eagle'];
           const qty = name => { for (const [item, bi] of game.bank.items) if (item.name === name) return bi.quantity; return 0; };
@@ -2367,6 +2523,11 @@ if (require.main === module) (async () => {
       if (cmd === 'summary') printSummary(data);
       else if (cmd === 'skilling') printSkilling({ name, ...data });
       else if (cmd === 'agility') console.log(JSON.stringify(data));
+      else if (cmd === 'talents') {
+        console.log(`${data.report.name}: ${data.report.action || 'idle'}`);
+        for (const line of talentAdvice(data.report, data.talents)) console.log(`  ${line}`);
+        for (const talent of data.talents.filter(talent => talent.candidates.length)) console.log(`  available: ${talent.skill} ${talent.points} point(s) -> ${talent.candidates.map(node => node.shortName || node.name).join(', ')}`);
+      }
       else if (cmd === 'audit') printAudit(data);
       else if (cmd === 'plan') printPlan(data);
       else if (cmd === 'combat-plan') printCombatPlan(data, { abyssalOnly });

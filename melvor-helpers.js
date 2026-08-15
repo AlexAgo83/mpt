@@ -208,13 +208,35 @@
     const level = s.abyssalLevel ?? null;
     const cap = s.currentAbyssalLevelCap ?? null;
     if (level === null || cap === null || typeof abyssalExp === 'undefined') return {};
-    const xpAt = target => target > level && target <= cap ? Math.floor(abyssalExp.levelToXP(target)) : null;
+    const xpAt = target => target >= 1 && target <= cap ? Math.floor(abyssalExp.levelToXP(target)) : null;
     const nextTen = Math.min(cap, Math.ceil((level + 1) / 10) * 10);
     return {
-      abyssalXPNextLevel: xpAt(level + 1),
+      abyssalXPLevelStart: xpAt(level),
+      abyssalXPNextLevel: level < cap ? xpAt(level + 1) : null,
       abyssalXPNextTen: xpAt(nextTen),
       abyssalXPCap: xpAt(cap),
     };
+  };
+  const standardTargets = s => {
+    const xpAt = level => {
+      let points = 0;
+      for (let current = 1; current < level; current++) points += Math.floor(current + 300 * Math.pow(2, current / 7));
+      return Math.floor(points / 4);
+    };
+    const level = s.level ?? 1;
+    const cap = s.currentLevelCap ?? level;
+    return { xpLevelStart: xpAt(level), xpNextLevel: level < cap ? xpAt(level + 1) : null };
+  };
+  const masteryPools = s => {
+    const pools = s._masteryPoolXP?.data;
+    const actions = s.totalMasteryActionsInRealm?.data;
+    if (!(pools instanceof Map) || !(actions instanceof Map)) return [];
+    return [...pools].map(([realm, xp]) => ({
+      realm: realm.name,
+      xp: Math.floor(xp),
+      cap: Math.floor((actions.get(realm) ?? 0) * 500000),
+      totalLevel: s._totalCurrentMasteryLevelInRealm?.data?.get(realm) ?? null,
+    }));
   };
   mh.skillInfo = (name) => {
     const s = game.skills.find(s => s.name.toLowerCase() === name.toLowerCase());
@@ -229,8 +251,8 @@
       abyssalLevel: s.abyssalLevel ?? null,
       abyssalXP: Math.floor(s.abyssalXP ?? 0),
       abyssalCap: s.currentAbyssalLevelCap ?? null,
-      masteryLevel: s.totalMasteryLevel ?? s.masteryLevel ?? null,
-      masteryPoolXP: Math.floor(s.masteryPoolXP ?? 0),
+      masteryPools: masteryPools(s),
+      ...standardTargets(s),
       ...abyssalTargets(s),
       isActive: game.activeAction === s,
     };
@@ -247,8 +269,8 @@
       abyssalLevel: s.abyssalLevel ?? null,
       abyssalXP: Math.floor(s.abyssalXP ?? 0),
       abyssalCap: s.currentAbyssalLevelCap ?? null,
-      masteryLevel: s.totalMasteryLevel ?? s.masteryLevel ?? null,
-      masteryPoolXP: Math.floor(s.masteryPoolXP ?? 0),
+      masteryPools: masteryPools(s),
+      ...standardTargets(s),
       ...abyssalTargets(s),
     }));
 
