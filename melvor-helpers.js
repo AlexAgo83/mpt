@@ -326,6 +326,7 @@
     return {
       area: area?.name ?? null,
       dungeonBoss: boss ? { name: boss.name, attackType: boss.attackType } : null,
+      playerAttackType: p.attackType ?? null,
       monster: e?.monster?.name ?? null,
       monsterAttackType: e?.monster?.attackType ?? null,
       enemyHP: e?.hitpoints ?? null,

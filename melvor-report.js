@@ -414,6 +414,12 @@ function currentActionPlan(r) {
     add('current action: choose a new task or restart the previous one after checking resources');
   } else if (action === 'Combat') {
     const c = report.combat || {};
+    if (c.dungeonBoss?.name === 'Felth, the Toxic Martyr') {
+      if (eq.Helmet !== 'Toxic Protection Mask') add('current Felth: equip Toxic Protection Mask before changing damage gear');
+      else add('current Felth: Toxin protection active; confirm boss HP falls across two samples before changing a working build');
+      if (c.hitChance !== null && c.hitChance !== undefined && c.hitChance < 80)
+        add('current Felth: low accuracy; use the Depths of Decay magic route only if boss HP is not falling');
+    }
     if (c.hitChance !== null && c.hitChance !== undefined && c.hitChance < 80)
       add(`current combat: low hit chance ${Math.round(c.hitChance)}%, prefer accuracy/prayer/potion before DPS`);
     if (!report.food || !report.foodQty) add('current combat: no food equipped');

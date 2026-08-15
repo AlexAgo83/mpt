@@ -6,6 +6,7 @@
 > Related backlog: (none yet)
 > Related task: (none yet)
 > Reminder: Update status, category, verification, and linked refs when you edit this doc.
+> Indicators reviewed: 2026-08-15 16:30:21
 
 # Trigger
 
@@ -20,8 +21,8 @@
 # Procedure
 
 1. Confirm the equipped helmet is **Toxic Protection Mask**. Its Toxin and Blight protection is the primary gate: Felth can heal through Toxin. Do not replace it with a higher-stat Slayer helmet during the encounter.
-2. Record current player style and hit chance. A melee hit chance around 35% is not a viable Felth build; do not try to solve it only with raw melee upgrades.
-3. Prefer the Depths of Decay guide's magic route: appropriate magic set, Brume Eruption (Gloom Eruption when available), Despair, Surge II, Ravage plus Instability, then Devastation when eligible.
+2. Record current player style, hit chance, and `enemyHP`. Sample twice before changing gear: once the mask is equipped, a low-accuracy melee build can still win if Felth's HP is falling faster than it heals.
+3. If Felth's HP is flat or rising, prefer the Depths of Decay guide's magic route: appropriate magic set, Brume Eruption (Gloom Eruption when available), Despair, Surge II, Ravage plus Instability, then Devastation when eligible.
 4. Use Critical Strike Potion IV when owned. Do not substitute a generic Dungeon plan's prayer or potion recommendation without checking it against Felth.
 5. Check the guide's global configuration: Academia Arcanum point of interest and the relevant Agility accuracy/boss-damage choices. State the exact missing configuration and benefit before requesting approval to change it.
 6. Preserve survival: Tormented Ring's accuracy costs 50 defence, and many melee candidates remove Abyssal resistance. Make a swap only if it remains safe for Felth's ranged damage.
@@ -29,7 +30,7 @@
 
 # Verification
 
-- Toxic Protection Mask remains equipped, the active style is the intended one, hit chance and survival are acceptable, and Felth no longer out-heals damage.
+- Toxic Protection Mask remains equipped and two `brief` samples show Felth's `enemyHP` falling. If it is flat or rising, Felth still out-heals damage and the guide route is required.
 
 # Rollback
 
