@@ -667,7 +667,7 @@ function printCombatPlan(r, options = {}) {
   if (completed.length) console.log(`  completed ${options.abyssalOnly ? 'abyssal ' : ''}dungeons: ${completed.map(d => `${d.name} x${d.completeCount}`).join(', ')}`);
   if (options.abyssalOnly) {
     const depths = goals.abyssalDepths || [];
-    console.log(`  Abyssal Depths: ${depths.length ? depths.map(depth => `${depth.name} x${depth.completeCount}`).join(', ') : 'unavailable from this game build'}`);
+    console.log(`  Abyssal Depths: ${depths.length ? depths.map(depth => depth.name).join(', ') : 'unavailable from this game build'} (completion state not exposed by this game API)`);
   }
   for (const d of dungeons) {
     const style = beats[d.bossAttackType] || null;
