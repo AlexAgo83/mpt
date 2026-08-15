@@ -319,6 +319,8 @@
     const stackSlot = /^Summon[12]$|^Quiver$|^Consumable$/.test(slotName);
     const qty = quantity ?? (stackSlot ? bankQty : 1);
     p.equipItem(item, p.selectedEquipmentSet, slot, qty);
+    const equipped = p.equipment.equippedArray.find(s => s.slot.localID === slotName)?.item;
+    if (equipped !== item) return name + ': Melvor did not equip it in ' + slotName;
     return name + ': equipped x' + qty + ' in ' + slotName;
   };
 
