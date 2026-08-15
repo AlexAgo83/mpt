@@ -331,6 +331,7 @@ function printGear(r) {
   const c = r.combat;
   console.log(`${r.name} | ${r.action}${c ? ` | ${c.area || 'no area'} / ${c.monster || 'no monster'} | hit ${Math.round(c.hitChance || 0)}%` : ''}`);
   if (detail) console.log(`  style: ${r.context?.attackType || 'unknown'}`);
+  if (detail && r.equipped.Weapon?.damageType) console.log(`  weapon damage type: ${r.equipped.Weapon.damageType}`);
   for (const [slot, item] of Object.entries(r.equipped)) console.log(`  ${slot}: ${item.name}`);
   const prefixes = scorePrefixes(r.context?.attackType);
   for (const [slot, items] of Object.entries(r.candidates)) {
@@ -772,11 +773,12 @@ const magicSetupScript = (slotNumber, shouldApply) => `(async () => {
   const owned = name => { for (const [item, bankItem] of game.bank.items) if (item.name === name) return bankItem.quantity; return 0; };
   const targetSet = p.equipmentSets?.[slotIndex];
   const targetNames = new Set(targetSet?.equipment.equippedArray.filter(slot => !slot.isEmpty).map(slot => slot.item.name) ?? []);
+  const targetWeapon = targetSet?.equipment.equippedArray.find(slot => slot.slot.localID === 'Weapon' && !slot.isEmpty)?.item;
   const missing = Object.entries(gear).filter(([, name]) => !owned(name) && !targetNames.has(name)).map(([slot, name]) => slot + ': ' + name);
   if (!owned(potionName)) missing.push('Potion: ' + potionName);
   const attackSpells = [...(game.attackSpellbooks?.allObjects ?? [])].flatMap(book => [...(book.spells?.allObjects ?? book.spells ?? [])]);
-  const magicSpell = attackSpells.find(spell => spell.name === 'Abyssal Blast' && p.canUseCombatSpell(spell));
-  const result = { name: game.characterName, slot: slotIndex + 1, preset: gear, potion: potionName, missing, targetEquipment: [...targetNames], spell: magicSpell?.name ?? null, applied: false, actions: [] };
+  const magicSpell = attackSpells.find(spell => spell.name === 'Fire Surge' && p.canUseCombatSpell(spell));
+  const result = { name: game.characterName, slot: slotIndex + 1, preset: gear, potion: potionName, missing, targetEquipment: [...targetNames], damageType: targetWeapon?.damageType?.name ?? null, spell: magicSpell?.name ?? null, applied: false, actions: [] };
   if (!${JSON.stringify(shouldApply)}) return result;
   if (!p.equipmentSets?.[slotIndex]) return { ...result, error: 'equipment set ' + (slotIndex + 1) + ' does not exist' };
   if (missing.length) return { ...result, error: 'missing required bank items' };

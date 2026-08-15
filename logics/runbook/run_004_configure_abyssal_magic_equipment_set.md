@@ -6,7 +6,7 @@
 > Related backlog: (none yet)
 > Related task: (none yet)
 > Reminder: Update status, category, verification, and linked refs when you edit this doc.
-> Indicators reviewed: 2026-08-15 17:17:59
+> Indicators reviewed: 2026-08-15 17:24:09
 
 # Trigger
 
@@ -23,14 +23,14 @@
 1. Inspect without a write: `./melvor-report.js magic-setup <character> --slot 6`.
 2. Confirm the preview has no `missing` line. The preset is Infernal Mythical Wizard Hat, Infernal Legendary Wizard Robes, Infernal Mythical Wizard Bottoms/Boots, Blighting Gloves, Fury of the Elemental Zodiacs, Abyss Ring, Superior Max Skillcape, Thorn Defender, Agile Gem, and Despair Wand.
 3. Apply it: `./melvor-report.js magic-setup <character> --slot 6 --apply`.
-4. The script first removes a shield if needed: Despair Wand is incompatible with the shield slot. It then equips the wand, activates Damage Reduction Potion IV, enables Mystic Lore and Augury, and selects Abyssal Blast when it is castable.
+4. The script first removes a shield if needed: Despair Wand is incompatible with the shield slot. It then equips the wand, activates Damage Reduction Potion IV, enables Mystic Lore and Augury, and selects Fire Surge. Despair Wand has Normal Damage, so do not select Abyssal Blast; Melvor rejects that damage-type mismatch.
 5. Re-run the preview. It must list `Despair Wand` in `current slot items`. If the wand is absent, do not describe the setup as complete.
 
 # Verification
 
 - The apply command saves via the newest local/cloud source and reports the source before and after internally.
 - The final preview contains Despair Wand and does not contain the displaced shield.
-- Abyssal Blast, Mystic Lore, Augury, and Damage Reduction Potion IV are global combat settings; verify them again when changing to a different combat task.
+- Fire Surge, Mystic Lore, Augury, and Damage Reduction Potion IV are global combat settings; verify them again when changing to a different combat task.
 
 # Rollback
 
