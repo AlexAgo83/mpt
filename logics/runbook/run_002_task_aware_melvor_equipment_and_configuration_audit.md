@@ -6,7 +6,7 @@
 > Related backlog: (none yet)
 > Related task: (none yet)
 > Reminder: Update status, category, verification, and linked refs when you edit this doc.
-> Indicators reviewed: 2026-08-15 16:49:40
+> Indicators reviewed: 2026-08-15 16:56:54
 
 # Trigger
 
@@ -20,7 +20,7 @@
 # Procedure
 
 1. Run `./melvor-report.js source-of-truth`, then `brief all` and `audit all` to prioritize active, idle, stopped, or at-risk characters.
-2. For each priority character, run `./melvor-report.js gear <character> --detail` and `./melvor-report.js skilling <character>`.
+2. For each priority character, run `./melvor-report.js gear <character> --detail` and `./melvor-report.js skilling <character>`. To assess a switch, use `gear <character> --detail --style melee|ranged|magic`; this is read-only and ranks bank gear for that style.
 3. Compare equipped items with candidates by stats **and passives**. Read `blocked` candidates too: they state the exact skill level and Abyss Depth completion required, so do not describe them as available upgrades. Reject a raw stat upgrade when it loses task-relevant resistance, defence, reflect, Auto Eat efficiency, or a required passive.
 4. For non-combat tasks, check the ring objective (level XP versus mastery XP), summons, consumable, and item runways. Check Agility obstacles/pillars and Cartography map/hex modifiers only against the current task objective.
 5. For combat, record dungeon, boss attack type, player attack style, hit chance, food, and consumable/prayer needs. Treat hit chance below 80% as an accuracy problem before adding damage.

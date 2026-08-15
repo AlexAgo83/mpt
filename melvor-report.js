@@ -39,7 +39,9 @@ const record = argv.includes('--record');
 const abyssalOnly = argv.includes('--abyssal');
 const detail = argv.includes('--detail');
 const saveBackup = argv.includes('--save-backup');
-const [cmd = 'summary', who = 'all', arg3] = argv.filter(a => !['--record', '--abyssal', '--save-backup'].includes(a));
+const styleIndex = argv.indexOf('--style');
+const gearStyle = styleIndex >= 0 ? argv[styleIndex + 1] : null;
+const [cmd = 'summary', who = 'all', arg3] = argv.filter((a, i) => !['--record', '--abyssal', '--save-backup', '--detail', '--style'].includes(a) && i !== styleIndex + 1);
 const usage = `usage:
   ./melvor-report.js slots
   ./melvor-report.js smoke
@@ -54,7 +56,7 @@ const usage = `usage:
   ./melvor-report.js combat-plan [all|character] [--abyssal]
   ./melvor-report.js combat-setup <character>
   ./melvor-report.js combat-run <character> <dungeon name|id>
-  ./melvor-report.js gear <character> [--detail]
+  ./melvor-report.js gear <character> [--detail] [--style melee|ranged|magic]
   ./melvor-report.js skilling <character>
   ./melvor-report.js export-state [all|character]
   ./melvor-report.js save-backup [all|character]
@@ -73,6 +75,10 @@ if (require.main === module) {
   }
   if (!['summary', 'brief', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'export-state', 'save-backup', 'journal', 'journal-status', 'journal-diff', 'journal-action'].includes(cmd)) {
     console.error(usage);
+    process.exit(2);
+  }
+  if (gearStyle && !['melee', 'ranged', 'magic'].includes(gearStyle)) {
+    console.error('gear style must be melee, ranged, or magic');
     process.exit(2);
   }
 }
@@ -1962,7 +1968,7 @@ if (require.main === module) (async () => {
           return { report, sets };
         })()`);
         return evalExpr(client, `(() => {
-          const audit = mh.gearAudit(game.combat.player.attackType, ${detail ? 5 : 2});
+          const audit = mh.gearAudit(${JSON.stringify(gearStyle)} || game.combat.player.attackType, ${detail ? 5 : 2});
           return { name: game.characterName, action: game.activeAction?.name ?? null, combat: mh.combatInfo(), context: audit.context, equipped: audit.equipped, candidates: audit.candidates, blocked: audit.blocked };
         })()`);
       });
