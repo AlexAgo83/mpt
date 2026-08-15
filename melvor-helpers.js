@@ -278,21 +278,32 @@
       if (r.type === 'DungeonCompletion' && r.dungeon && r.count !== undefined)
         return (game.combat.getDungeonCompleteCount?.(r.dungeon) ?? 0) >= r.count;
       if (r.type === 'ShopPurchase') return false;
-      return true;
+      return false;
     };
     const canEquip = item => (item.equipRequirements ?? []).every(meetsRequirement);
-    const candidates = {};
+    const requirementText = r =>
+      r.type === 'SkillLevel' ? `${r.skill?.name || 'skill'} ${r.level}` :
+      r.type === 'AbyssalLevel' ? `${r.skill?.name || 'abyssal skill'} ${r.level}` :
+      r.type === 'DungeonCompletion' ? `${r.dungeon?.name || 'dungeon'} x${r.count ?? 1}` :
+      r.type === 'AbyssDepthCompletion' ? `${r.depth?.name || r.abyssDepth?.name || 'Abyss depth'} completion` :
+      r.type === 'ShopPurchase' ? `purchase ${r.purchase?.name || 'required'}` :
+      r.type || r.constructor?.name || 'unknown requirement';
+    const equippedNames = new Set(Object.values(equipped).map(item => item.name));
+    const candidates = {}, blocked = {};
     for (const [item] of game.bank.items) {
       if (!item.validSlots?.length) continue;
+      if (equippedNames.has(item.name)) continue;
       if (item.attackType && item.attackType !== attackType) continue;
       const slot = item.validSlots[0];
-      if (!canEquip(item)) continue;
       const st = statsOf(item);
       if (scoreOf(st) === 0) continue;
-      (candidates[slot.localID] ??= []).push({ name: item.name, stats: st, passives: passivesOf(item), damageType: item.damageType?.name });
+      const view = { name: item.name, stats: st, passives: passivesOf(item), damageType: item.damageType?.name };
+      if (canEquip(item)) (candidates[slot.localID] ??= []).push(view);
+      else (blocked[slot.localID] ??= []).push({ ...view, requirements: (item.equipRequirements ?? []).map(requirementText) });
     }
     for (const k in candidates) candidates[k] = candidates[k].sort((a,b)=>scoreOf(b.stats)-scoreOf(a.stats)).slice(0, topN);
-    return { context: { attackType, hitChance: p.stats.hitChance, maxHit: p.stats.maxHit, attackInterval: p.stats.attackInterval }, equipped, candidates };
+    for (const k in blocked) blocked[k] = blocked[k].sort((a,b)=>scoreOf(b.stats)-scoreOf(a.stats)).slice(0, topN);
+    return { context: { attackType, hitChance: p.stats.hitChance, maxHit: p.stats.maxHit, attackInterval: p.stats.attackInterval }, equipped, candidates, blocked };
   };
 
   mh.equipSlot = (name, slotName, quantity) => {

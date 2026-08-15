@@ -326,6 +326,9 @@ function printGear(r) {
       if (detail) console.log(`    current ${JSON.stringify(r.equipped[slot]?.stats || {})} | passives ${(r.equipped[slot]?.passives || []).join('; ') || 'none'} | candidate ${JSON.stringify(best.stats)} | passives ${(best.passives || []).join('; ') || 'none'}`);
     }
   }
+  if (detail) for (const [slot, items] of Object.entries(r.blocked || {}))
+    for (const item of items)
+      console.log(`  blocked ${slot}: ${item.name} | requires ${(item.requirements || []).join('; ')}`);
 }
 
 function printSkilling(r) {
@@ -1960,7 +1963,7 @@ if (require.main === module) (async () => {
         })()`);
         return evalExpr(client, `(() => {
           const audit = mh.gearAudit(game.combat.player.attackType, ${detail ? 5 : 2});
-          return { name: game.characterName, action: game.activeAction?.name ?? null, combat: mh.combatInfo(), context: audit.context, equipped: audit.equipped, candidates: audit.candidates };
+          return { name: game.characterName, action: game.activeAction?.name ?? null, combat: mh.combatInfo(), context: audit.context, equipped: audit.equipped, candidates: audit.candidates, blocked: audit.blocked };
         })()`);
       });
       if (cmd === 'summary') printSummary(data);
