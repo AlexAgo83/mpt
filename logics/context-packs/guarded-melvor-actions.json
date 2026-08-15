@@ -1,0 +1,341 @@
+{
+  "budgets": {
+    "max_docs": 12,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_004_guarded_melvor_equipment_skilling_and_talent_actions item_007_implement_preview_first_equipment_skilling_and_talent_actions task_005_implement_guarded_melvor_character_actions --mode full --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_007_implement_preview_first_equipment_skilling_and_talent_actions"
+        ],
+        "prod": [
+          "prod_006_melvin_guarded_character_actions"
+        ],
+        "req": [
+          "req_004_guarded_melvor_equipment_skilling_and_talent_actions"
+        ],
+        "task": [
+          "task_005_implement_guarded_melvor_character_actions"
+        ]
+      },
+      "path": "logics/product/prod_006_melvin_guarded_character_actions.md",
+      "ref": "prod_006_melvin_guarded_character_actions",
+      "sections": {
+        "Goals": [
+          "- Turn verified recommendations into explicit, reversible single-character actions.",
+          "- Require a preview and explicit apply flag before changing game state.",
+          "- Save and verify every supported action using the authoritative source.",
+          "- Document one reusable operation for future sessions."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Add the smallest supported mutation surface for applying one reviewed equipment swap, artisan recipe, or Abyssal talent node. Every action is deliberately scoped to one character and preserves MPT's local-first save safety model."
+        ],
+        "References": [
+          "- Product back-reference: `req_004_guarded_melvor_equipment_skilling_and_talent_actions`",
+          "- Task back-reference: `task_005_implement_guarded_melvor_character_actions`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Melvin - guarded character actions"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "guarded, melvor, equipment, skilling, talent, actions",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_007_implement_preview_first_equipment_skilling_and_talent_actions"
+        ],
+        "prod": [
+          "prod_006_melvin_guarded_character_actions"
+        ],
+        "req": [
+          "req_004_guarded_melvor_equipment_skilling_and_talent_actions"
+        ],
+        "run": [
+          "run_001_safe_melvor_save_and_session_operations",
+          "run_002_task_aware_melvor_equipment_and_configuration_audit"
+        ]
+      },
+      "path": "logics/request/req_004_guarded_melvor_equipment_skilling_and_talent_actions.md",
+      "ref": "req_004_guarded_melvor_equipment_skilling_and_talent_actions",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- A generic equipment command previews the exact slot, item, available quantity, and current item; application requires --apply and verifies the final slot.",
+          "- A skilling command previews an unlocked named recipe, its required materials, and a positive runway; application requires --apply, starts only that recipe, saves, and verifies the active skill and selected action.",
+          "- A talent command previews one affordable, unlockable named node; application requires --apply, saves, and verifies the node is unlocked and points decreased.",
+          "- Every mutation is restricted to one explicit character and uses the newest local or cloud source through the existing write wrapper.",
+          "- Failures leave a clear error and do not continue to a later mutation.",
+          "- No bulk or apply-all command is added."
+        ],
+        "Needs": [
+          "- Apply a reviewed equipment swap, artisan recipe, or Abyssal talent unlock without hand-written browser-console commands.",
+          "- Keep every game mutation single-character, preview-first, source-of-truth-aware, saved, and re-read after application.",
+          "- Retain the existing read-only planning surface and do not introduce bulk execution."
+        ]
+      },
+      "status": "Draft",
+      "title": "Guarded Melvor equipment, skilling, and talent actions"
+    },
+    {
+      "ai_context": {
+        "keywords": "implement, preview, first, equipment, skilling, talent, actions",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_007_implement_preview_first_equipment_skilling_and_talent_actions"
+        ],
+        "prod": [
+          "prod_006_melvin_guarded_character_actions"
+        ],
+        "req": [
+          "req_004_guarded_melvor_equipment_skilling_and_talent_actions"
+        ],
+        "task": [
+          "task_005_implement_guarded_melvor_character_actions"
+        ]
+      },
+      "path": "logics/backlog/item_007_implement_preview_first_equipment_skilling_and_talent_actions.md",
+      "ref": "item_007_implement_preview_first_equipment_skilling_and_talent_actions",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- The commands reject all-character targets and omit application unless --apply is present.",
+          "- Preview and apply use the same validated target and surface missing prerequisites before mutation.",
+          "- Post-action data proves the requested equipment, recipe, or talent state.",
+          "- Unsupported game APIs fail closed with an actionable error.",
+          "- Documentation does not authorize bulk mutation and retains explicit operator approval.",
+          "- npm run check and Logics validation pass."
+        ],
+        "Problem": [
+          "- Planning output names safe actions, but an operator must translate them into fragile console calls.",
+          "- Existing mutation commands cover only specific combat configurations.",
+          "- A broad executor would bypass per-character save and risk review."
+        ]
+      },
+      "status": "Ready",
+      "title": "Implement preview-first equipment, skilling, and talent actions"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_007_implement_preview_first_equipment_skilling_and_talent_actions"
+        ],
+        "prod": [
+          "prod_006_melvin_guarded_character_actions"
+        ],
+        "req": [
+          "req_004_guarded_melvor_equipment_skilling_and_talent_actions"
+        ],
+        "task": [
+          "task_005_implement_guarded_melvor_character_actions"
+        ]
+      },
+      "path": "logics/product/prod_006_melvin_guarded_character_actions.md",
+      "ref": "prod_006_melvin_guarded_character_actions",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Melvin - guarded character actions"
+    },
+    {
+      "ai_context": {},
+      "kind": "runbook",
+      "linked_refs": {
+        "run": [
+          "run_001_safe_melvor_save_and_session_operations"
+        ]
+      },
+      "path": "logics/runbook/run_001_safe_melvor_save_and_session_operations.md",
+      "ref": "run_001_safe_melvor_save_and_session_operations",
+      "schema_version": "1.0",
+      "sections": {
+        "Prerequisites": [
+          "- Run from the repository root with the logged-in shared Chrome profile available.",
+          "- `MELVOR_CHARACTERS` is configured in `.env.local`.",
+          "- Only one driver uses the shared Chrome profile; never load one character in two tabs."
+        ],
+        "Procedure": [
+          "1. Run `./melvor-report.js slots` and `./melvor-report.js source-of-truth`.",
+          "2. Treat the newest local or cloud save as authoritative. If local is newer, do not load the older cloud save.",
+          "3. For inspection, use read-only reports such as `brief`, `summary`, `gear`, `skilling`, and `audit`.",
+          "4. Before an approved write, name the exact character, slot/configuration, and intended source of truth. Load one character only, use `mh.equipSlot(item, slot)`, save, then reload and verify.",
+          "5. If login or session state is invalid, restart the shared profile visibly, let the operator authenticate, then return to headless use."
+        ],
+        "Trigger": [
+          "- Before any Melvor session, especially before an equipment, prayer, potion, configuration, or combat change.",
+          "- When local and cloud saves disagree, the account is logged out, or a character must be switched."
+        ],
+        "Verification": [
+          "- `source-of-truth` identifies the intended source for every character.",
+          "- After an approved write, `slots` shows the expected cloud/local convergence and a reload shows the intended equipment or configuration."
+        ]
+      },
+      "status": "Active",
+      "title": "Safe Melvor save and session operations"
+    },
+    {
+      "ai_context": {
+        "keywords": "implement, guarded, melvor, character, actions",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_007_implement_preview_first_equipment_skilling_and_talent_actions"
+        ],
+        "prod": [
+          "prod_006_melvin_guarded_character_actions"
+        ],
+        "req": [
+          "req_004_guarded_melvor_equipment_skilling_and_talent_actions"
+        ],
+        "task": [
+          "task_005_implement_guarded_melvor_character_actions"
+        ]
+      },
+      "path": "logics/tasks/task_005_implement_guarded_melvor_character_actions.md",
+      "ref": "task_005_implement_guarded_melvor_character_actions",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Implement guarded Melvor character actions"
+    }
+  ],
+  "estimates": {
+    "char_count": 8438,
+    "companion_doc_count": 1,
+    "doc_count": 5
+  },
+  "generated_at": "2026-08-15T22:32:41Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_004_guarded_melvor_equipment_skilling_and_talent_actions",
+      "item_007_implement_preview_first_equipment_skilling_and_talent_actions",
+      "task_005_implement_guarded_melvor_character_actions"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "full",
+  "profile": "normal",
+  "ref": "req_004_guarded_melvor_equipment_skilling_and_talent_actions,item_007_implement_preview_first_equipment_skilling_and_talent_actions,task_005_implement_guarded_melvor_character_actions",
+  "refs": [
+    "req_004_guarded_melvor_equipment_skilling_and_talent_actions",
+    "item_007_implement_preview_first_equipment_skilling_and_talent_actions",
+    "task_005_implement_guarded_melvor_character_actions"
+  ],
+  "release": {
+    "blocking_reasons": [],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "Release evidence is complete.",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": null,
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "ready",
+    "target_version": "0.1.0"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_005_implement_guarded_melvor_character_actions.md",
+      "ref": "task_005_implement_guarded_melvor_character_actions"
+    }
+  ]
+}

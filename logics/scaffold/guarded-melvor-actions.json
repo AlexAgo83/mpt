@@ -1,0 +1,110 @@
+{
+  "title": "Guarded Melvor equipment, skilling, and talent actions",
+  "references": [
+    "README.md",
+    "MELVOR.md",
+    "melvor-report.js",
+    "melvor-helpers.js",
+    "test-journal.js",
+    "logics/runbook/run_001_safe_melvor_save_and_session_operations.md",
+    "logics/runbook/run_002_task_aware_melvor_equipment_and_configuration_audit.md"
+  ],
+  "request": {
+    "complexity": "Medium",
+    "theme": "Guarded character actions",
+    "needs": [
+      "Apply a reviewed equipment swap, artisan recipe, or Abyssal talent unlock without hand-written browser-console commands.",
+      "Keep every game mutation single-character, preview-first, source-of-truth-aware, saved, and re-read after application.",
+      "Retain the existing read-only planning surface and do not introduce bulk execution."
+    ],
+    "context": [
+      "MPT can inspect inventory, recipes, talents, combat sets, and save sources, but only exposes write commands for selected combat workflows.",
+      "The helper already exposes slot-aware equipment changes and reports unlocked artisan recipes with material runways.",
+      "Local saves may be newer than cloud saves; writes must load the authoritative source before saving and verification.",
+      "Hardcore characters require explicit, deliberate changes rather than account-wide automation."
+    ],
+    "acceptance_criteria": [
+      "A generic equipment command previews the exact slot, item, available quantity, and current item; application requires --apply and verifies the final slot.",
+      "A skilling command previews an unlocked named recipe, its required materials, and a positive runway; application requires --apply, starts only that recipe, saves, and verifies the active skill and selected action.",
+      "A talent command previews one affordable, unlockable named node; application requires --apply, saves, and verifies the node is unlocked and points decreased.",
+      "Every mutation is restricted to one explicit character and uses the newest local or cloud source through the existing write wrapper.",
+      "Failures leave a clear error and do not continue to a later mutation.",
+      "No bulk or apply-all command is added.",
+      "CLI help, README, MELVOR instructions, and a reusable runbook document the preview, approval, verification, and rollback path.",
+      "Focused offline checks cover command argument validation and generated action-script guards; npm run check passes."
+    ]
+  },
+  "product": {
+    "title": "Melvin - guarded character actions",
+    "overview": "Add the smallest supported mutation surface for applying one reviewed equipment swap, artisan recipe, or Abyssal talent node. Every action is deliberately scoped to one character and preserves MPT's local-first save safety model.",
+    "goals": [
+      "Turn verified recommendations into explicit, reversible single-character actions.",
+      "Require a preview and explicit apply flag before changing game state.",
+      "Save and verify every supported action using the authoritative source.",
+      "Document one reusable operation for future sessions."
+    ],
+    "non_goals": [
+      "No apply-all, queue, scheduler, background worker, or autonomous decision engine.",
+      "No change to game content, cloud-save conflict resolution policy, or account roster.",
+      "No generic browser-console escape hatch or unverified action API."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Implement preview-first equipment, skilling, and talent actions",
+      "priority": "High",
+      "complexity": "Medium",
+      "theme": "Guarded character actions",
+      "request_acs": [
+        "A generic equipment command previews the exact slot, item, available quantity, and current item; application requires --apply and verifies the final slot.",
+        "A skilling command previews an unlocked named recipe, its required materials, and a positive runway; application requires --apply, starts only that recipe, saves, and verifies the active skill and selected action.",
+        "A talent command previews one affordable, unlockable named node; application requires --apply, saves, and verifies the node is unlocked and points decreased.",
+        "Every mutation is restricted to one explicit character and uses the newest local or cloud source through the existing write wrapper.",
+        "Failures leave a clear error and do not continue to a later mutation.",
+        "No bulk or apply-all command is added.",
+        "CLI help, README, MELVOR instructions, and a reusable runbook document the preview, approval, verification, and rollback path.",
+        "Focused offline checks cover command argument validation and generated action-script guards; npm run check passes."
+      ],
+      "problem": [
+        "Planning output names safe actions, but an operator must translate them into fragile console calls.",
+        "Existing mutation commands cover only specific combat configurations.",
+        "A broad executor would bypass per-character save and risk review."
+      ],
+      "scope_in": [
+        "Preview-first single-character CLI commands for equipment, artisan recipes, and talent nodes.",
+        "Exact ownership, unlock, material, and node-affordability guards.",
+        "Authoritative-source write, save, and post-action verification reuse.",
+        "Minimal tests, documentation, and one new reusable runbook."
+      ],
+      "scope_out": [
+        "Bulk execution or apply-all.",
+        "Automatic dungeon, recipe, or talent selection.",
+        "New dependencies, a database, or a background service.",
+        "Actions outside equipment, artisan skilling, and talent nodes."
+      ],
+      "acceptance_criteria": [
+        "The commands reject all-character targets and omit application unless --apply is present.",
+        "Preview and apply use the same validated target and surface missing prerequisites before mutation.",
+        "Post-action data proves the requested equipment, recipe, or talent state.",
+        "Unsupported game APIs fail closed with an actionable error.",
+        "Documentation does not authorize bulk mutation and retains explicit operator approval.",
+        "npm run check and Logics validation pass."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Implement guarded Melvor character actions",
+    "plan": [
+      "Inspect current helper APIs and read-only recipe and talent data before choosing one validated write path per action.",
+      "Add preview-first, explicit-character command parsing and shared script guards without a bulk executor.",
+      "Add equipment, artisan-recipe, and talent-node application with source-aware save and post-action verification.",
+      "Add focused offline tests and validate the live API only through a non-destructive preview before applying any game state.",
+      "Document the operation in README, MELVOR instructions, and a reusable runbook, then run project and Logics checks."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/guarded-melvor-actions.json",
+    "mode": "full",
+    "profile": "normal"
+  }
+}
