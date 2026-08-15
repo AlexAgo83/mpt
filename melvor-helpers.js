@@ -229,6 +229,8 @@
       abyssalLevel: s.abyssalLevel ?? null,
       abyssalXP: Math.floor(s.abyssalXP ?? 0),
       abyssalCap: s.currentAbyssalLevelCap ?? null,
+      masteryLevel: s.totalMasteryLevel ?? s.masteryLevel ?? null,
+      masteryPoolXP: Math.floor(s.masteryPoolXP ?? 0),
       ...abyssalTargets(s),
       isActive: game.activeAction === s,
     };
@@ -245,6 +247,8 @@
       abyssalLevel: s.abyssalLevel ?? null,
       abyssalXP: Math.floor(s.abyssalXP ?? 0),
       abyssalCap: s.currentAbyssalLevelCap ?? null,
+      masteryLevel: s.totalMasteryLevel ?? s.masteryLevel ?? null,
+      masteryPoolXP: Math.floor(s.masteryPoolXP ?? 0),
       ...abyssalTargets(s),
     }));
 

@@ -1,4 +1,8 @@
-# MPT - Melvor Personal Tooling
+# Melvor CP
+
+<p align="center"><img src="assets/mpt-crest.png" width="160" alt="Melvor CP crest"></p>
+
+Local character dashboard for Melvor Idle: inspect progress, equipment sets, skills, inventory, and save safety from one private page.
 
 [![Last Commit](https://img.shields.io/github/last-commit/AlexAgo83/mpt/main)](https://github.com/AlexAgo83/mpt/commits/main)
 [![CI](https://github.com/AlexAgo83/mpt/actions/workflows/ci.yml/badge.svg)](https://github.com/AlexAgo83/mpt/actions/workflows/ci.yml)
@@ -6,6 +10,16 @@
 [![Melvor Idle](https://img.shields.io/badge/Melvor%20Idle-tooling-1f6feb)](https://melvoridle.com/)
 [![Runtime](https://img.shields.io/badge/runtime-Node.js-339933?logo=node.js&logoColor=white)](./melvor-report.js)
 [![Workflow](https://img.shields.io/badge/workflow-Logics-4C8BF5)](./logics/)
+
+## Start here
+
+```bash
+./melvor-report.js journal-serve
+```
+
+Open [http://127.0.0.1:8787](http://127.0.0.1:8787). The dashboard is the product entry point; the CLI is its local read-only engine. Sign in through the official Melvor page if needed — MPT never collects or stores credentials.
+
+![Dashboard overview](docs/dashboard-overview.png)
 
 MPT is a local AI-assistant toolkit for operating a Melvor Idle account through a logged-in Chrome profile.
 
@@ -89,6 +103,7 @@ npm run source
 ./melvor-report.js save-backup all
 ./melvor-report.js journal <character>
 ./melvor-report.js journal all --record --save-backup
+./melvor-report.js journal-serve
 ./melvor-report.js journal-status all
 ./melvor-report.js journal-diff all
 ./melvor-report.js journal-action <id> dismissed
@@ -131,6 +146,9 @@ recommendations, current-action plan, standard plan, abyssal plan, proposed acti
 - `journal/index.html`: offline decision cockpit with account indicators, priority/attention
   filtering, a responsive character comparison view, and Now/Progress/Equipment/Plans/History
   detail tabs. It opens directly from disk and links to the full Markdown journals.
+  Run `./melvor-report.js journal-serve` and open `http://127.0.0.1:8787` to enable the
+  dashboard's read-only refresh button for one character or the whole account. It never
+  changes game state; it only runs `journal <character> --record` locally.
 - `Level ETA`: projected time to next level, next 10-level milestone, and current cap when
   two journal snapshots have enough standard or abyssal XP gain to estimate a rate; abyssal
   thresholds come from the game `abyssalExp.levelToXP` table; otherwise it explains what

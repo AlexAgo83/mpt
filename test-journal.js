@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 // Offline self-check for journal pure logic: ids, dedup, dismissed, stale, latest.json shape.
 const assert = require('assert');
+const { execFileSync } = require('child_process');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
 const { buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, potionItemName, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights } = require('./melvor-report.js');
+
+assert.match(execFileSync(process.execPath, ['melvor-report.js', 'journal-serve', '--help'], { encoding: 'utf8' }), /journal-serve/, 'journal-serve help must not start a server');
 
 const data = {
   report: {
@@ -42,6 +45,7 @@ const magicCombat = buildCharacterJournal('MagicChar', {
 assert.ok(magicCombat.analysis.currentActionPlan.some(line => /Magic with Abyssal Staff \(Abyssal Damage\)/.test(line)), 'Magic build is stated');
 assert.ok(magicCombat.analysis.currentActionPlan.some(line => /Magic 5.*Abyssal Wand/.test(line)), 'Magic upgrade target is stated');
 assert.ok(!magicCombat.analysis.currentActionPlan.some(line => /Quiver|Ranged Hinder/.test(line)), 'ranged-only runways are omitted for Magic');
+assert.ok(!magicCombat.analysis.currentActionPlan.some(line => /finish Slayer task/.test(line)), 'automatic Slayer tasks are not recommendations');
 assert.ok(!journalMd(magicCombat).includes('Underwater City'), 'active Slayer task suppresses unrelated dungeon goals');
 
 const noStock = buildCharacterJournal('NoStock', { ...data, bank: {} }, save);
@@ -170,16 +174,24 @@ for (const s of ['### State', '### Recommendations', '### Optimization plan', '#
   assert.ok(md.includes(s), `markdown has ${s}`);
 assert.ok(!/Users\/|HOME|password|profile/i.test(md), 'markdown is sanitized');
 
-// dashboard: self-contained, data escaped, no sensitive content
+// dashboard: data escaped, no sensitive content; only the official wiki may provide item icons
 const evil = buildCharacterJournal('TestChar', {
   ...data, skilling: { notes: ['<script>alert(1)</script>'] },
 }, save);
 const html = renderDashboard(buildLatest([evil], first.latest, null, now));
 assert.ok(!/<script>alert/.test(html), 'embedded JSON escapes <');
-assert.ok(!/https?:\/\/(?!melvoridle)/.test(html), 'no external assets');
-assert.ok(html.includes('sauvegarde à risque') && html.includes('à surveiller'), 'risk and attention controls present');
-assert.ok(html.includes('Commencer ici') && html.includes('À faire') && html.includes("panel('progress'") && html.includes("panel('plans'"), 'cockpit focus and detail tabs present');
+assert.ok(!/https?:\/\/(?!melvoridle|wiki\.melvoridle\.com)/.test(html), 'no untrusted external assets');
+assert.ok(html.includes('save risk') && html.includes('needs attention'), 'risk and attention controls present');
+assert.ok(html.includes('Start here') && html.includes("cell('Next'") && html.includes("panel('progress'") && html.includes("panel('plans'"), 'cockpit focus and detail tabs present');
 assert.ok(!/Users\/|password|9223|chrome-profile/i.test(html), 'dashboard is sanitized');
+assert.match(html, /journal-serve/, 'offline dashboard explains how to enable refresh controls');
+assert.match(html, /\/refresh/, 'served dashboard can trigger a journal refresh');
+assert.match(html, /equipment-grid/, 'dashboard renders the character equipment sheet');
+assert.match(html, /playerDamageType/, 'equipment sheet shows the active combat damage type');
+assert.match(html, /wiki\.melvoridle\.com\/api\.php/, 'equipment sheet loads official wiki icons');
+assert.match(html, /score\(b\[1\]\) - score\(a\[1\]\)/, 'characters sort by total-level score');
+assert.match(html, /identity-title/, 'score is grouped with the character name');
+assert.match(html, /nextAction/, 'dashboard keeps the next action compact');
 
 const refreshedAt = '2026-07-05T12:01:00.000Z';
 const previousForRefresh = structuredClone(snap);

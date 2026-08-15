@@ -45,7 +45,9 @@ const styleIndex = argv.indexOf('--style');
 const gearStyle = styleIndex >= 0 ? argv[styleIndex + 1] : null;
 const slotIndex = argv.indexOf('--slot');
 const requestedSlot = slotIndex >= 0 ? Number(argv[slotIndex + 1]) : 6;
-const [cmd = 'summary', who = 'all', arg3] = argv.filter((a, i) => !['--record', '--abyssal', '--save-backup', '--detail', '--apply', '--restore-ranged', '--style', '--slot'].includes(a) && (styleIndex < 0 || i !== styleIndex + 1) && (slotIndex < 0 || i !== slotIndex + 1));
+const dashboardPortIndex = argv.indexOf('--port');
+const dashboardPort = dashboardPortIndex >= 0 ? Number(argv[dashboardPortIndex + 1]) : Number(process.env.MELVOR_JOURNAL_PORT || 8787);
+const [cmd = 'summary', who = 'all', arg3] = argv.filter((a, i) => !['--record', '--abyssal', '--save-backup', '--detail', '--apply', '--restore-ranged', '--style', '--slot', '--port'].includes(a) && (styleIndex < 0 || i !== styleIndex + 1) && (slotIndex < 0 || i !== slotIndex + 1) && (dashboardPortIndex < 0 || i !== dashboardPortIndex + 1));
 const usage = `usage:
   ./melvor-report.js slots
   ./melvor-report.js smoke
@@ -65,9 +67,11 @@ const usage = `usage:
   ./melvor-report.js slayer-abyssal <character>
   ./melvor-report.js slayer-start <character> [--slot 6]
   ./melvor-report.js skilling <character>
+  ./melvor-report.js agility [all|character]
   ./melvor-report.js export-state [all|character]
   ./melvor-report.js save-backup [all|character]
   ./melvor-report.js journal [all|character] [--record] [--save-backup]
+  ./melvor-report.js journal-serve [--port 8787]
   ./melvor-report.js journal-status [all|character]
   ./melvor-report.js journal-diff [all|character]
   ./melvor-report.js journal-action <id> <approved|dismissed|done|blocked>
@@ -76,11 +80,11 @@ Most commands are read-only. combat-setup and combat-run write, save, then verif
 journal prints a Markdown entry; --record appends it under journal/ and
 refreshes journal/latest.json, journal/actions.jsonl and journal/index.html.`;
 if (require.main === module) {
-  if (cmd === '--help' || cmd === '-h' || cmd === 'help') {
+  if (argv.includes('--help') || argv.includes('-h') || cmd === 'help') {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'export-state', 'save-backup', 'journal', 'journal-status', 'journal-diff', 'journal-action'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'export-state', 'save-backup', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -90,6 +94,10 @@ if (require.main === module) {
   }
   if (!Number.isInteger(requestedSlot) || requestedSlot < 1) {
     console.error('slot must be a positive equipment-set number');
+    process.exit(2);
+  }
+  if (cmd === 'journal-serve' && (!Number.isInteger(dashboardPort) || dashboardPort < 1024 || dashboardPort > 65535)) {
+    console.error('journal dashboard port must be an integer from 1024 to 65535');
     process.exit(2);
   }
 }
@@ -450,7 +458,6 @@ function currentActionPlan(r) {
       add(`current combat: low hit chance ${Math.round(c.hitChance)}%, prefer accuracy/prayer/potion before DPS`);
     if (!report.food || !report.foodQty) add('current combat: no food equipped');
     if (report.mode === 'Hardcore Mode') add('current combat: Hardcore, verify max hit and resistance before gear swaps');
-    if (c.slayerTask?.monster) add(`current combat: finish Slayer task ${c.slayerTask.monster} (${c.slayerTask.left} left)`);
   } else if (action === 'Agility') {
     if (eq.Summon2 !== 'Eagle') add('current Agility: use Eagle summon for interval');
     if (eq.Summon1 === 'Bear') add('current Agility: Bear is Herblore-focused, replace if another useful synergy is available');
@@ -1176,6 +1183,8 @@ function buildCharacterJournal(name, data, save) {
       foodQty: report.foodQty,
       equipment: report.equipment,
       equipmentQuantities: report.equipmentQuantities || {},
+      equipmentSets: data.equipmentSets || [],
+      inventory: data.inventory || [],
       skillingOptions: data.skillingOptions || {},
       skills: data.skills || [],
       lowSkills: report.lowSkills.slice(0, 6),
@@ -1416,15 +1425,10 @@ function progressAlerts(entry) {
     const p = prevSkills[s.name];
     return p && ((s.xp || 0) < (p.xp || 0) || (s.abyssalXP || 0) < (p.abyssalXP || 0));
   });
-  const standardCapped = skills.length && skills.every(s => (s.levelCap ?? 120) <= s.level);
-  const abyssalProgress = lines.some(l => /abyssal XP gained/.test(l));
   const noProgress = lines.some(l => /no XP gain detected/.test(l));
-  const etaPending = lines.every(l => /^ETA pending:/.test(l));
   return [
     negativeXP ? 'current XP is lower than previous scan; verify source-of-truth before acting' : null,
     noProgress ? 'action active but no positive standard or abyssal XP was detected since the previous scan' : null,
-    standardCapped && abyssalProgress ? 'standard level capped; current progress is abyssal XP' : null,
-    standardCapped && !etaPending && !abyssalProgress && !noProgress ? 'standard level capped; standard ETA has no remaining target' : null,
   ].filter(Boolean);
 }
 
@@ -1608,7 +1612,8 @@ function renderDashboard(snap) {
 <html lang="fr">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Journal Melvor</title>
+<link rel="icon" type="image/png" href="/assets/favicon.png">
+<title>Melvor CP</title>
 <style>
 :root {
   color-scheme: dark;
@@ -1622,9 +1627,17 @@ body {
   margin: 0 auto; max-width: 92rem; padding: 1rem; font-size: 14px; line-height: 1.4;
   color: var(--ink); background: var(--bg);
 }
+.brand { display: flex; align-items: center; gap: .6rem; }
+.brand img { width: 2.4rem; height: 2.4rem; border-radius: .55rem; }
 h1 { margin: 0; color: var(--accent); font-size: 1.55rem; letter-spacing: 0; }
 .title-row { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: .75rem; }
 .title-row p { margin: 0; color: var(--muted); }
+#refreshControls { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; }
+#refreshControls select, #refreshControls button { width: auto; }
+#refreshStatus { color: var(--muted); }
+#setup { margin-bottom: .75rem; padding: .65rem .8rem; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+#setup summary { cursor: pointer; color: var(--accent); }
+#setup ol { margin: .55rem 0 0; padding-left: 1.2rem; color: var(--muted); }
 #start { margin-bottom: .75rem; padding: .85rem; border: 1px solid var(--accent); border-radius: 8px; background: #211d14; }
 #start h2 { margin: 0 0 .5rem; color: var(--accent); font-size: 1rem; }
 .start-item { display: grid; grid-template-columns: 8rem 1fr; gap: .75rem; padding: .35rem 0; border-top: 1px solid #51462e; }
@@ -1641,7 +1654,7 @@ h1 { margin: 0; color: var(--accent); font-size: 1.55rem; letter-spacing: 0; }
 button, input, select { min-width: 0; width: 100%; font: inherit; color: var(--ink); background: #111614; border: 1px solid var(--line); border-radius: 4px; padding: .45rem .55rem; }
 button { cursor: pointer; }
 button:hover { border-color: var(--accent); }
-button:focus, input:focus, select:focus, summary:focus { outline: 2px solid #e2b95f77; outline-offset: 1px; }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid #e2b95f77; outline-offset: 1px; }
 .check { display: flex; align-items: center; gap: .4rem; white-space: nowrap; color: var(--muted); }
 .check input { width: auto; }
 .column-head, .character-head { display: grid; grid-template-columns: 1fr 1fr 2.5fr; gap: .75rem; min-width: 0; }
@@ -1653,6 +1666,8 @@ button:focus, input:focus, select:focus, summary:focus { outline: 2px solid #e2b
 .character-head > * { min-width: 0; }
 .identity strong { display: block; font-size: 1rem; }
 .identity small { color: var(--muted); }
+.identity-title { display: flex; align-items: center; gap: .35rem; min-width: 0; }
+.identity-title .badge { margin: 0; }
 .cell-value { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cell-label { display: none; }
 .badge { display: inline-block; margin: .18rem .25rem 0 0; border: 1px solid; border-radius: 4px; padding: .05rem .35rem; font-size: .72rem; font-weight: 650; text-transform: uppercase; }
@@ -1660,7 +1675,7 @@ button:focus, input:focus, select:focus, summary:focus { outline: 2px solid #e2b
 .badge.warning, .badge.stale { color: #ffe5b8; border-color: var(--warning); background: #493519; }
 .badge.info, .badge.ok { color: #ccefe7; border-color: var(--teal); background: #163c34; }
 .priority-critical { border-left: 3px solid var(--danger); }
-.priority-high { border-left: 3px solid var(--warning); }
+.priority-high { border-left: 3px solid var(--line); }
 .character-body { border-top: 1px solid var(--line); padding: .7rem .8rem .85rem; }
 .tabs { display: flex; gap: .35rem; overflow-x: auto; margin-bottom: .7rem; }
 .tabs button { width: auto; padding: .35rem .65rem; white-space: nowrap; }
@@ -1672,9 +1687,26 @@ button:focus, input:focus, select:focus, summary:focus { outline: 2px solid #e2b
 .insight, .plain-list li { margin: .25rem 0; overflow-wrap: anywhere; }
 .insight .badge { margin-right: .45rem; }
 .plain-list { margin: 0; padding-left: 1.1rem; }
-.equipment { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem .8rem; }
-.equipment div { min-width: 0; overflow-wrap: anywhere; }
-.equipment small { display: block; color: var(--muted); }
+.equipment-sheet { display: grid; gap: .7rem; }
+.equipment-summary { display: flex; flex-wrap: wrap; gap: .35rem; }
+.equipment-summary span { border: 1px solid var(--line); border-radius: 999px; padding: .2rem .45rem; color: var(--muted); font-size: .78rem; }
+.equipment-summary strong { color: var(--teal); }
+.equipment-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; }
+.equipment-slot { min-width: 0; min-height: 4.25rem; padding: .45rem .5rem; border: 1px solid var(--line); border-radius: 5px; background: #111614; overflow-wrap: anywhere; }
+.equipment-slot small { display: block; margin-bottom: .18rem; color: var(--muted); font-size: .7rem; text-transform: uppercase; }
+.wiki-icon { float: left; width: 42px; height: 42px; margin: 0 .45rem .15rem 0; object-fit: contain; }
+.equipment-slot::after { content: ""; display: block; clear: both; }
+.equipment-grid[hidden] { display: none; }
+.skills-grid, .inventory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: .45rem; }
+.inventory-grid { margin-top: .6rem; }
+.skill-card, .inventory-item { min-width: 0; min-height: 4.2rem; padding: .45rem; border: 1px solid var(--line); border-radius: 5px; background: #111614; overflow-wrap: anywhere; }
+.skill-card strong { display: block; color: var(--accent); }
+.skill-card small, .inventory-item small { display: block; color: var(--muted); }
+.inventory-item { position: relative; min-height: 5rem; }
+.inventory-item .wiki-icon { width: 38px; height: 38px; }
+.inventory-qty { position: absolute; right: .35rem; bottom: .3rem; color: var(--accent); font-weight: 700; }
+.equipment-slot.weapon, .equipment-slot.offhand { border-color: #706039; }
+.equipment-slot.passive, .equipment-slot.consumable { border-color: #2d6255; }
 .history-entry { padding: .45rem 0; border-bottom: 1px solid var(--line); }
 .history-entry:last-child { border-bottom: 0; }
 .history-entry time { color: var(--muted); font-size: .8rem; }
@@ -1687,6 +1719,8 @@ a { color: var(--accent); }
 @media (max-width: 720px) {
   body { padding: .7rem; }
   .title-row { align-items: flex-start; flex-direction: column; gap: .15rem; }
+  #refreshControls { align-items: stretch; flex-wrap: wrap; }
+  #refreshStatus { width: 100%; }
   #summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .start-item { grid-template-columns: 1fr; gap: .1rem; }
   .stat { border-bottom: 1px solid var(--line); }
@@ -1698,22 +1732,24 @@ a { color: var(--accent); }
   .identity { grid-column: 1 / -1; }
   .cell-label { display: block; color: var(--muted); font-size: .68rem; text-transform: uppercase; }
   .cell-value { white-space: normal; overflow-wrap: anywhere; }
-  .panel-grid, .equipment { grid-template-columns: minmax(0, 1fr); }
+  .panel-grid, .equipment-grid { grid-template-columns: minmax(0, 1fr); }
 }
 </style>
 <body>
-<header class="title-row"><h1>Journal Melvor</h1><p id="scanTime"></p></header>
-<section id="start"><h2>Commencer ici</h2></section>
+<header class="title-row"><div class="brand"><img src="/assets/mpt-crest.png" alt=""><h1>Melvor CP</h1></div><p id="scanTime"></p></header>
+<section id="refreshControls" aria-label="Refresh journal"><select id="refreshCharacter"><option value="all">all characters</option></select><button id="refreshButton" type="button">Refresh</button><span id="refreshStatus"></span></section>
+<details id="setup"><summary>Account setup</summary><ol><li>Sign in through the official Melvor page in the shared browser profile.</li><li>Set your character roster in <code>.env.local</code>.</li><li>Use Refresh to build the first local journal.</li></ol><p><a href="https://melvoridle.com/" target="_blank" rel="noopener">Open Melvor sign-in</a> · MPT never stores your credentials.</p></details>
+<section id="start"><h2>Start here</h2></section>
 <div id="summary"></div>
-<details id="filterBox"><summary>Filtres avancés</summary><div id="filters">
-  <input id="q" type="search" placeholder="personnage, activité ou objet">
-  <select id="fAction"><option value="">toutes les activités</option></select>
-  <select id="fRisk"><option value="">toutes les sauvegardes</option><option value="risk">sauvegarde à risque</option><option value="ok">sauvegarde sûre</option></select>
-  <select id="fStatus"><option value="">tous les statuts</option></select>
-  <select id="fPriority"><option value="">toutes les priorités</option><option value="critical">critique</option><option value="high">haute</option><option value="medium">moyenne</option><option value="low">basse</option></select>
-  <label class="check"><input id="fAttention" type="checkbox"> à surveiller</label>
+<details id="filterBox"><summary>Advanced filters</summary><div id="filters">
+  <input id="q" type="search" placeholder="character, activity, or item">
+  <select id="fAction"><option value="">all activities</option></select>
+  <select id="fRisk"><option value="">all saves</option><option value="risk">save risk</option><option value="ok">save safe</option></select>
+  <select id="fStatus"><option value="">all statuses</option></select>
+  <select id="fPriority"><option value="">all priorities</option><option value="critical">critical</option><option value="high">high</option><option value="medium">medium</option><option value="low">low</option></select>
+  <label class="check"><input id="fAttention" type="checkbox"> needs attention</label>
 </div></details>
-<div class="column-head" aria-hidden="true"><span>Personnage</span><span>Maintenant</span><span>À faire</span></div>
+<div class="column-head" aria-hidden="true"><span>Character</span><span>Current</span><span>Next</span></div>
 <div id="cards"></div>
 <script id="data" type="application/json">${json}</script>
 <script>
@@ -1723,31 +1759,66 @@ const RANK = { critical: 0, high: 1, medium: 2, low: 3 };
 const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
 const isStale = name => snap.account.staleCharacters.includes(name);
 const hasRisk = name => snap.account.saveRisks.includes(name);
-const insights = c => c.analysis.insights || [];
+const insights = c => (c.analysis.insights || []).filter(i => !/^standard level capped;/i.test(i.label));
 const priority = c => insights(c)[0]?.priority || 'low';
-const attention = (name, c) => hasRisk(name) || isStale(name) || insights(c).some(i => i.severity === 'danger' || i.severity === 'warning') || (c.decisions.stale || []).length;
+const score = c => c.observed.totalLevel || 0;
+const short = (text, max = 88) => text && text.length > max ? text.slice(0, max - 1) + '…' : text;
+const isAutomaticTask = label => /^current combat: finish Slayer task/i.test(label || '');
+const nextAction = decision => short((decision?.label || 'Nothing: let it run').replace(/^current [^:]+:\s*/i, '').split(';')[0], 64);
+const current = c => {
+  const combat = c.observed.combat;
+  if (c.observed.action === 'Combat' && combat?.slayerTask) return 'Combat · ' + combat.slayerTask.monster + ' (' + combat.slayerTask.left + ' left)';
+  return c.observed.action || 'Idle';
+};
+const attention = (name, c) => hasRisk(name) || isStale(name) || insights(c).some(i => i.severity === 'danger' || i.severity === 'warning');
 const fmtEta = seconds => seconds < 3600 ? Math.round(seconds / 60) + ' min' : seconds < 172800 ? Math.round(seconds / 3600) + ' h' : Math.round(seconds / 86400) + ' d';
 const relative = value => { const min = Math.max(0, Math.round((Date.now() - Date.parse(value)) / 60000)); return min < 1 ? 'just now' : min < 60 ? min + 'm ago' : min < 1440 ? Math.round(min / 60) + 'h ago' : Math.round(min / 1440) + 'd ago'; };
-document.getElementById('scanTime').textContent = 'Relevé du ' + new Date(snap.generatedAt).toLocaleString('fr-FR');
+document.getElementById('scanTime').textContent = 'Scanned ' + new Date(snap.generatedAt).toLocaleString('en-GB');
+const refreshCharacter = document.getElementById('refreshCharacter');
+for (const name of Object.keys(snap.characters).sort()) refreshCharacter.append(new Option(name, name));
+const refreshButton = document.getElementById('refreshButton');
+const refreshStatus = document.getElementById('refreshStatus');
+if (location.protocol !== 'http:' && location.protocol !== 'https:') {
+  refreshButton.textContent = 'Copy command';
+  refreshStatus.textContent = 'Start journal-serve to refresh from this page.';
+}
+refreshButton.addEventListener('click', async () => {
+  if (location.protocol !== 'http:' && location.protocol !== 'https:') {
+    await navigator.clipboard?.writeText('./melvor-report.js journal-serve');
+    refreshStatus.textContent = 'Copied: ./melvor-report.js journal-serve';
+    return;
+  }
+  refreshButton.disabled = true;
+  refreshStatus.textContent = 'Refreshing…';
+  try {
+    const response = await fetch('/refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ character: refreshCharacter.value }) });
+    const result = await response.json();
+    if (!response.ok) throw Error(result.error || 'refresh failed');
+    location.reload();
+  } catch (error) {
+    refreshStatus.textContent = error.message;
+    refreshButton.disabled = false;
+  }
+});
 
 const urgent = Object.entries(snap.characters)
   .map(([name, c]) => [name, hasRisk(name)
-    ? { priority: 'critical', label: 'Sauvegarde locale plus récente que le cloud : ne pas charger le cloud.' }
-    : insights(c).find(i => i.severity === 'danger' || i.severity === 'warning') || insights(c).find(i => i.actionable)])
+    ? { priority: 'critical', label: 'Local save is newer than cloud: do not load cloud.' }
+    : insights(c).find(i => !isAutomaticTask(i.label) && (i.severity === 'danger' || i.severity === 'warning')) || insights(c).find(i => !isAutomaticTask(i.label) && i.actionable)])
   .filter(([, item]) => item)
   .sort((a, b) => RANK[a[1].priority] - RANK[b[1].priority])
   .slice(0, 3);
 const start = document.getElementById('start');
-if (!urgent.length) start.append(el('p', 'muted', 'Rien d’urgent. Laisse les activités en cours continuer.'));
+if (!urgent.length) start.append(el('p', 'muted', 'Nothing urgent. Let current activities continue.'));
 for (const [name, item] of urgent) { const row = el('div', 'start-item'); row.append(el('strong', '', name), el('span', '', item.label)); start.append(row); }
 
 const summary = document.getElementById('summary');
 const operations = snap.account.operations || {};
 const stat = (label, value) => { const d = el('div', 'stat'); d.append(el('b', '', String(value)), el('span', '', label)); summary.append(d); };
-stat('personnages', Object.keys(snap.characters).length);
-stat('alertes', operations.alerts || 0);
-stat('finissent sous 1 h', (operations.nearTermCompletions || []).length);
-stat('sauvegardes à risque', snap.account.saveRisks.length);
+stat('characters', Object.keys(snap.characters).length);
+stat('alerts', Object.values(snap.characters).flatMap(c => insights(c)).filter(i => i.severity === 'danger' || i.severity === 'warning').length);
+stat('complete within 1 h', (operations.nearTermCompletions || []).length);
+stat('save risks', snap.account.saveRisks.length);
 
 const fAction = document.getElementById('fAction');
 for (const a of [...new Set(Object.values(snap.characters).map(c => c.observed.action || 'idle'))].sort()) fAction.append(new Option(a, a));
@@ -1766,12 +1837,48 @@ const insightPanel = items => {
   }
   return body;
 };
+const equipmentSlots = [['Helmet', 'head'], ['Cape', 'cape'], ['Amulet', 'amulet'], ['Weapon', 'weapon'], ['Shield', 'off-hand'], ['Platebody', 'body'], ['Gloves', 'hands'], ['Platelegs', 'legs'], ['Boots', 'feet'], ['Ring', 'ring'], ['Quiver', 'ammo'], ['Passive', 'passive'], ['Consumable', 'consumable'], ['Gem', 'gem'], ['Enhancement1', 'enhancement I'], ['Enhancement2', 'enhancement II'], ['Enhancement3', 'enhancement III']];
+function equipmentSheet(c) {
+  const equipment = el('section', 'panel equipment-sheet'); equipment.dataset.panel = 'equipment';
+  const combat = c.observed.combat || {};
+  const summary = el('div', 'equipment-summary');
+  for (const [label, value] of [['style', combat.playerAttackType], ['damage', combat.playerDamageType], ['accuracy', Number.isFinite(combat.hitChance) ? Math.round(combat.hitChance) + '%' : null]]) {
+    if (value) { const stat = el('span'); stat.append(document.createTextNode(label + ' : '), el('strong', '', value)); summary.append(stat); }
+  }
+  if (summary.children.length) equipment.append(summary);
+  const renderSet = (items, key, hidden) => { const grid = el('div', 'equipment-grid'); grid.dataset.equipmentSet = key; grid.hidden = hidden; for (const [slot, label] of equipmentSlots) { const item = items[slot]; if (!item || item === 'Empty' || (slot === 'Shield' && item === items.Weapon)) continue; const row = el('div', 'equipment-slot ' + (slot === 'Weapon' ? 'weapon' : slot === 'Shield' ? 'offhand' : slot.toLowerCase())); row.dataset.wikiTitle = String(item); row.append(el('small', '', label), document.createTextNode(String(item))); grid.append(row); } return grid; };
+  const sets = [{ key: 'current', label: 'Current', items: c.observed.equipment || {} }, ...(c.observed.equipmentSets || []).map(set => ({ key: 'set-' + set.index, label: 'Set ' + (set.index + 1), items: set.items }))];
+  const selector = el('div', 'tabs equipment-sets');
+  for (const [index, set] of sets.entries()) { const button = el('button', '', set.label); button.type = 'button'; button.dataset.equipmentSet = set.key; button.setAttribute('aria-selected', String(index === 0)); selector.append(button); equipment.append(renderSet(set.items, set.key, index !== 0)); }
+  equipment.prepend(selector);
+  return equipment;
+}
+function skillsSheet(c) {
+  const panel = el('section', 'panel'); panel.dataset.panel = 'skills';
+  const skills = [...(c.observed.skills || [])].sort((a, b) => b.level - a.level || a.name.localeCompare(b.name));
+  if (!skills.length) { panel.append(el('p', 'muted', 'Refresh this character to load skills.')); return panel; }
+  const grid = el('div', 'skills-grid');
+  for (const skill of skills) { const card = el('div', 'skill-card'); card.append(el('strong', '', skill.name), el('small', '', 'Level ' + skill.level + '/' + skill.levelCap), el('small', '', 'Abyss ' + (skill.abyssalLevel ?? 0) + '/' + (skill.abyssalCap ?? 0)), el('small', '', skill.masteryLevel === null || skill.masteryLevel === undefined ? 'Mastery unavailable' : 'Mastery ' + skill.masteryLevel)); grid.append(card); }
+  panel.append(grid);
+  return panel;
+}
+function inventorySheet(c) {
+  const panel = el('section', 'panel'); panel.dataset.panel = 'inventory';
+  const inventory = c.observed.inventory || [];
+  if (!inventory.length) { panel.append(el('p', 'muted', 'Refresh this character to load inventory.')); return panel; }
+  const filter = document.createElement('input'); filter.type = 'search'; filter.placeholder = 'Filter inventory…'; filter.setAttribute('aria-label', 'Filter inventory');
+  const grid = el('div', 'inventory-grid');
+  for (const item of inventory.sort((a, b) => b.quantity - a.quantity)) { const cell = el('div', 'inventory-item'); cell.dataset.wikiTitle = item.name; cell.dataset.inventoryName = item.name.toLowerCase(); cell.append(el('small', '', item.name), el('span', 'inventory-qty', '×' + item.quantity)); grid.append(cell); }
+  filter.addEventListener('input', () => { const query = filter.value.toLowerCase(); for (const cell of grid.children) cell.hidden = query && !cell.dataset.inventoryName.includes(query); });
+  panel.append(filter, grid);
+  return panel;
+}
 function render() {
   const q = document.getElementById('q').value.toLowerCase();
   const wantAction = fAction.value, wantRisk = document.getElementById('fRisk').value, wantStatus = fStatus.value, wantPriority = document.getElementById('fPriority').value;
   const attentionOnly = document.getElementById('fAttention').checked;
   cards.replaceChildren();
-  const entries = Object.entries(snap.characters).sort((a, b) => RANK[priority(a[1])] - RANK[priority(b[1])] || a[0].localeCompare(b[0]));
+  const entries = Object.entries(snap.characters).sort((a, b) => score(b[1]) - score(a[1]) || RANK[priority(a[1])] - RANK[priority(b[1])] || a[0].localeCompare(b[0]));
   for (const [name, c] of entries) {
     const action = c.observed.action || 'idle';
     const haystack = (name + ' ' + action + ' ' + JSON.stringify(insights(c)) + ' ' + JSON.stringify(c.observed.equipment || {}) + ' ' + JSON.stringify(c.decisions)).toLowerCase();
@@ -1786,24 +1893,22 @@ function render() {
     const p = priority(c);
     const eta = insights(c).find(i => i.type === 'progress_eta' && i.etaSeconds !== undefined) || insights(c).find(i => i.type === 'progress_eta');
     const concern = insights(c).find(i => i.severity === 'danger' || i.severity === 'warning');
-    const decision = concern || insights(c).find(i => i.actionable);
+    const decision = (concern && !isAutomaticTask(concern.label) ? concern : null) || insights(c).find(i => !isAutomaticTask(i.label) && i.actionable);
     const progress = eta?.etaSeconds && eta.metric ? fmtEta(eta.etaSeconds) + ' · ' + eta.metric.toLocaleString() + ' ' + eta.unit + ' left' : eta?.label || 'No ETA yet';
     const details = el('details', 'character priority-' + p);
     const head = el('summary', 'character-head');
     const identity = el('div', 'identity');
-    identity.append(el('strong', '', name), el('small', '', (c.observed.mode || '') + ' · ' + relative(c.observed.at)));
-    identity.append(el('span', 'badge ' + (p === 'critical' ? 'danger' : p === 'high' ? 'warning' : 'info'), p));
+    const identityTitle = el('div', 'identity-title');
+    identityTitle.append(el('strong', '', name), el('span', 'badge info', 'score ' + score(c).toLocaleString('fr-FR')));
+    if (p === 'critical') identityTitle.append(el('span', 'badge danger', p));
+    identity.append(identityTitle, el('small', '', (c.observed.mode || '') + ' · ' + relative(c.observed.at)));
     if (hasRisk(name)) identity.append(el('span', 'badge risk', 'save risk'));
-    if ((c.decisions.stale || []).length) identity.append(el('span', 'badge stale', c.decisions.stale.length + ' stale'));
     const cell = (label, value) => { const n = el('div', 'cell'); n.append(el('span', 'cell-label', label), el('span', 'cell-value', value || '—')); return n; };
-    head.append(identity, cell('Maintenant', action + ' · ' + progress), cell('À faire', decision?.label || 'Rien : laisser tourner'));
+    head.append(identity, cell('Current', current(c) + (eta?.etaSeconds ? ' · ' + fmtEta(eta.etaSeconds) : '')), cell('Next', nextAction(decision)));
     details.append(head);
 
     const body = el('div', 'character-body');
-    const equipment = el('div', 'panel equipment'); equipment.dataset.panel = 'equipment';
-    for (const [slot, item] of Object.entries(c.observed.equipment || {}).filter(([, item]) => item && item !== 'Empty')) {
-      const row = el('div'); row.append(el('small', '', slot), String(item)); equipment.append(row);
-    }
+    const equipment = equipmentSheet(c);
     const history = el('div', 'panel'); history.dataset.panel = 'history';
     for (const h of c.history || []) {
       const row = el('div', 'history-entry'); row.append(el('time', '', new Date(h.at).toLocaleString()));
@@ -1814,14 +1919,16 @@ function render() {
     const panels = [
       insightPanel(insights(c)),
       panel('progress', [group('Level ETA', c.analysis.progressEtas || []), group('Standard lows', (c.observed.standard?.lowest || []).slice(0, 6).map(s => s.name + ' ' + s.level + '/' + s.cap)), group('Abyssal lows', (c.observed.abyssal?.lowest || []).slice(0, 6).map(s => s.name + ' ' + s.abyssalLevel + '/' + s.abyssalCap))]),
-      equipment.children.length ? equipment : null,
+      equipment,
+      skillsSheet(c),
+      inventorySheet(c),
       panel('plans', [group('Standard plan', c.analysis.standardPlan || []), group('Abyssal plan', c.analysis.abyssalPlan || []), group('Decisions', actions), group('Risk notes', c.analysis.riskNotes || [])]),
       history.children.length ? history : null,
     ].filter(Boolean);
     const tabs = el('div', 'tabs'); tabs.setAttribute('role', 'tablist');
     for (const [index, content] of panels.entries()) {
       const tabName = content.dataset.panel;
-      const btn = el('button', '', tabName); btn.type = 'button'; btn.dataset.tab = tabName; btn.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
+      const btn = el('button', '', ({ now: 'Now', progress: 'Progress', equipment: 'Equipment', skills: 'Skills', inventory: 'Inventory', plans: 'Plans', history: 'History' })[tabName] || tabName); btn.type = 'button'; btn.dataset.tab = tabName; btn.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
       content.hidden = index !== 0; tabs.append(btn); body.append(content);
     }
     body.prepend(tabs);
@@ -1829,20 +1936,88 @@ function render() {
     details.append(body);
     cards.append(details);
   }
-  if (!cards.children.length) cards.append(el('p', 'muted', 'aucun personnage ne correspond aux filtres'));
+  if (!cards.children.length) cards.append(el('p', 'muted', 'No characters match these filters.'));
 }
-for (const id of ['q', 'fAction', 'fRisk', 'fStatus', 'fPriority', 'fAttention']) document.getElementById(id).addEventListener('input', render);
+async function loadWikiIcons() {
+  const slots = [...document.querySelectorAll('[data-wiki-title]')].filter(slot => !slot.dataset.wikiLoaded);
+  for (const slot of slots) slot.dataset.wikiLoaded = '1';
+  const byTitle = new Map(slots.map(slot => [slot.dataset.wikiTitle, []]));
+  for (const slot of slots) byTitle.get(slot.dataset.wikiTitle).push(slot);
+  const titles = [...byTitle.keys()];
+  for (let i = 0; i < titles.length; i += 50) {
+    const query = new URLSearchParams({ action: 'query', titles: titles.slice(i, i + 50).join('|'), prop: 'pageimages', piprop: 'thumbnail', pithumbsize: '64', format: 'json', origin: '*' });
+    try {
+      const response = await fetch('https://wiki.melvoridle.com/api.php?' + query);
+      const data = await response.json();
+      for (const page of Object.values(data.query?.pages || {})) {
+        const image = page.thumbnail?.source;
+        for (const slot of byTitle.get(page.title) || []) {
+          if (!image) continue;
+          const icon = el('img', 'wiki-icon'); icon.src = image; icon.alt = ''; icon.loading = 'lazy'; slot.prepend(icon);
+        }
+      }
+    } catch { /* Wiki unavailable: the item name remains visible. */ }
+  }
+}
+for (const id of ['q', 'fAction', 'fRisk', 'fStatus', 'fPriority', 'fAttention']) document.getElementById(id).addEventListener('input', () => { render(); loadWikiIcons(); });
 cards.addEventListener('click', e => {
+  const set = e.target.closest('[data-equipment-set]');
+  if (set) { const sheet = set.closest('.equipment-sheet'); for (const button of sheet.querySelectorAll('[data-equipment-set]')) button.setAttribute('aria-selected', String(button === set)); for (const grid of sheet.querySelectorAll('.equipment-grid')) grid.hidden = grid.dataset.equipmentSet !== set.dataset.equipmentSet; loadWikiIcons(); return; }
   const btn = e.target.closest('[data-tab]'); if (!btn) return;
   const body = btn.closest('.character-body');
   for (const tab of body.querySelectorAll('[data-tab]')) tab.setAttribute('aria-selected', String(tab === btn));
   for (const panel of body.querySelectorAll('[data-panel]')) panel.hidden = panel.dataset.panel !== btn.dataset.tab;
 });
 render();
+loadWikiIcons();
 </script>
 </body>
 </html>
 `;
+}
+
+function runJournalServer() {
+  let refreshing = false;
+  const send = (res, status, body, type = 'application/json; charset=utf-8') => {
+    res.writeHead(status, { 'content-type': type, 'cache-control': 'no-store' });
+    res.end(body);
+  };
+  const server = http.createServer((req, res) => {
+    const url = new globalThis.URL(req.url, 'http://localhost');
+    if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
+      const snapshot = readLatestSnapshot();
+      return snapshot
+        ? send(res, 200, renderDashboard(snapshot), 'text/html; charset=utf-8')
+        : send(res, 404, JSON.stringify({ error: 'journal missing; run journal --record first' }));
+    }
+    if (req.method === 'GET' && ['/assets/mpt-crest.png', '/assets/favicon.png'].includes(url.pathname)) {
+      try { return send(res, 200, fs.readFileSync(path.join(__dirname, url.pathname)), 'image/png'); } catch { return send(res, 404, JSON.stringify({ error: 'not found' })); }
+    }
+    if (req.method === 'GET' && /^\/[A-Za-z0-9_-]+\.md$/.test(url.pathname)) {
+      const name = path.basename(url.pathname, '.md');
+      if (!CHARS.includes(name)) return send(res, 404, JSON.stringify({ error: 'not found' }));
+      try { return send(res, 200, fs.readFileSync(path.join(JOURNAL_DIR, `${name}.md`)), 'text/markdown; charset=utf-8'); } catch { return send(res, 404, JSON.stringify({ error: 'not found' })); }
+    }
+    if (req.method !== 'POST' || url.pathname !== '/refresh') return send(res, 404, JSON.stringify({ error: 'not found' }));
+    let body = '';
+    req.on('data', chunk => { body += chunk; if (body.length > 1024) req.destroy(); });
+    req.on('end', () => {
+      let character;
+      try { character = JSON.parse(body).character; } catch { return send(res, 400, JSON.stringify({ error: 'invalid request' })); }
+      if (character !== 'all' && !CHARS.includes(character)) return send(res, 400, JSON.stringify({ error: 'unknown character' }));
+      if (refreshing) return send(res, 409, JSON.stringify({ error: 'a journal refresh is already running' }));
+      refreshing = true;
+      const child = spawn(process.execPath, [__filename, 'journal', character, '--record'], { cwd: __dirname, env: process.env, stdio: 'ignore' });
+      child.on('error', error => { refreshing = false; send(res, 500, JSON.stringify({ error: sanitizeIncident(error.message) })); });
+      child.on('exit', code => { refreshing = false; send(res, code === 0 ? 200 : 500, JSON.stringify(code === 0 ? { ok: true } : { error: `journal refresh failed (exit ${code})` })); });
+    });
+  });
+  server.on('error', error => {
+    if (error.code === 'EADDRINUSE') console.error(`Journal dashboard port ${dashboardPort} is already in use. Try: ./melvor-report.js journal-serve --port ${dashboardPort + 1}`);
+    else console.error(`Journal dashboard failed: ${error.message}`);
+    process.exitCode = 1;
+  });
+  server.listen(dashboardPort, '127.0.0.1', () => console.log(`Journal dashboard: http://127.0.0.1:${dashboardPort}`));
 }
 
 async function collectJournal(name, save, includeSaveBackup = false) {
@@ -1854,7 +2029,9 @@ async function collectJournal(name, save, includeSaveBackup = false) {
       ...skills.filter(s => s.level < (s.levelCap ?? 120)).sort((a, b) => a.level - b.level).slice(0, 6),
       ...skills.filter(s => (s.abyssalLevel ?? 0) < (s.abyssalCap ?? 0)).sort((a, b) => a.abyssalLevel - b.abyssalLevel).slice(0, 6),
     ].map(s => s.name))];
-    const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])) };
+    const equipmentSets = game.combat.player.equipmentSets.map((set, index) => ({ index, items: Object.fromEntries(set.equipment.equippedArray.filter(slot => !slot.isEmpty).map(slot => [slot.slot.localID, slot.item.name])) }));
+    const inventory = [...game.bank.items].map(([item, entry]) => ({ name: item.name, quantity: entry.quantity, media: item.media || null })).sort((a, b) => a.name.localeCompare(b.name));
+    const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])), equipmentSets, inventory };
     if (${JSON.stringify(includeSaveBackup)}) out.saveExport = mh.exportSaveString();
     return out;
   })()`));
@@ -1977,6 +2154,7 @@ function lock(retry = true) {
 
 module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights };
 if (require.main === module) (async () => {
+  if (cmd === 'journal-serve') return runJournalServer();
   if (cmd === 'journal-action') return runJournalAction(who, arg3);
   if (cmd === 'journal-status') return runJournalStatus();
   if (cmd === 'journal-diff') return runJournalDiff();
@@ -2138,6 +2316,21 @@ if (require.main === module) (async () => {
       const data = await withCharacterSource(name, sources[name]?.source, client => {
         if (cmd === 'summary') return evalExpr(client, 'mh.readOnlyReport()');
         if (cmd === 'skilling') return evalExpr(client, 'mh.skillingAudit()');
+        if (cmd === 'agility') return evalExpr(client, `(() => {
+          const agility = game.agility;
+          const name = value => value?.item?.name ?? value?.name ?? value?.id ?? null;
+          const show = value => value instanceof Map ? [...value.entries()].map(([key, item]) => ({ slot: name(key) || String(key), value: name(item) ?? item })) : Array.isArray(value) ? value.map(item => name(item) ?? item) : name(value) ?? value;
+          const activeObstacles = [];
+          try { agility.forEachActiveObstacle(obstacle => {
+            const modifiers = obstacle.modifiers;
+            const modifier = value => ({ key: value.modifier?._localID ?? value.modifier?.localID ?? null, value: value.value });
+            activeObstacles.push({ name: name(obstacle), modifiers: Array.isArray(modifiers) ? modifiers.map(modifier) : [] });
+          }); } catch {}
+          const activePillars = Object.fromEntries(['activePillar', 'builtPillar', 'pillar', 'elitePillar', 'selectedPillar', 'selectedElitePillar'].flatMap(key => {
+            try { const value = agility[key]; return value ? [[key, name(value) ?? show(value)]] : []; } catch { return []; }
+          }));
+          return { name: game.characterName, action: game.activeAction?.name ?? null, activeObstacles, activePillars };
+        })()`);
         if (cmd === 'plan') return evalExpr(client, `(() => {
           const wanted = ['Octopus','Potion Stirrer','Bear','Jeweled Necklace','Book of Scholars','Ancient Ring of Mastery','Golden Star','Eagle'];
           const qty = name => { for (const [item, bi] of game.bank.items) if (item.name === name) return bi.quantity; return 0; };
@@ -2173,6 +2366,7 @@ if (require.main === module) (async () => {
       });
       if (cmd === 'summary') printSummary(data);
       else if (cmd === 'skilling') printSkilling({ name, ...data });
+      else if (cmd === 'agility') console.log(JSON.stringify(data));
       else if (cmd === 'audit') printAudit(data);
       else if (cmd === 'plan') printPlan(data);
       else if (cmd === 'combat-plan') printCombatPlan(data, { abyssalOnly });
