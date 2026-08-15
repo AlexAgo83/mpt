@@ -212,7 +212,7 @@ async function evalExpr(client, expression, timeout = 30000) {
     timeout,
     userGesture: true,
   });
-  if (r.exceptionDetails) throw Error(r.exceptionDetails.text || JSON.stringify(r.exceptionDetails));
+  if (r.exceptionDetails) throw Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text || JSON.stringify(r.exceptionDetails));
   return r.result.value;
 }
 
@@ -427,14 +427,19 @@ function planLines(r) {
 function currentActionPlan(r) {
   const report = r.report;
   const eq = report.equipment || {};
-  const lines = [...(report.actionEstimate?.notes || []), ...(r.skilling?.notes || []), ...planLines(r)];
-  const add = note => { if (!lines.includes(note)) lines.push(note); };
   const action = report.action || 'idle';
+  const notes = (report.actionEstimate?.notes || []).filter(note => !(action === 'Combat' && report.combat?.playerAttackType === 'magic' && /^(Quiver|Consumable Ranged)/.test(note)));
+  const lines = [...notes, ...(r.skilling?.notes || []), ...planLines(r)];
+  const add = note => { if (!lines.includes(note)) lines.push(note); };
   if (action === 'idle') {
     add('current action: idle, no task is running');
     add('current action: choose a new task or restart the previous one after checking resources');
   } else if (action === 'Combat') {
     const c = report.combat || {};
+    if (c.playerAttackType === 'magic') {
+      add(`current combat: Magic with ${eq.Weapon || 'unknown weapon'}${c.playerDamageType ? ` (${c.playerDamageType})` : ''}`);
+      if (eq.Weapon === 'Abyssal Staff') add('current Magic goal: reach abyssal Magic 5, then equip Abyssal Wand');
+    }
     if (c.dungeonBoss?.name === 'Felth, the Toxic Martyr') {
       if (eq.Helmet !== 'Toxic Protection Mask') add('current Felth: equip Toxic Protection Mask before changing damage gear');
       else add('current Felth: Toxin protection active; confirm boss HP falls across two samples before changing a working build');
@@ -466,6 +471,8 @@ function currentActionPlan(r) {
 }
 
 function combatGoalLines(report) {
+  const task = report.combat?.slayerTask;
+  if (task?.monster) return [`active Slayer task: ${task.monster} (${task.left} left)`];
   const goals = report.combatGoals;
   if (!goals) return [];
   const capped = (goals.cappedSkills || [])
@@ -1151,6 +1158,7 @@ function recordSaveBackup(name, source, saveString, now = new Date().toISOString
 function buildCharacterJournal(name, data, save) {
   const report = data.report;
   const brief = briefFromData(name, data, save);
+  const activeSlayerTask = report.action === 'Combat' && Boolean(report.combat?.slayerTask?.monster);
   const actions = planActions(data).map(a => ({ ...a, id: actionId(name, a), contextHash: actionContextHash(report, a) }));
   const saveRisk = !save || save.source === 'unknown' ? 'save source of truth unknown' : null;
   return {
@@ -1172,17 +1180,18 @@ function buildCharacterJournal(name, data, save) {
       skills: data.skills || [],
       lowSkills: report.lowSkills.slice(0, 6),
       combatGoals: report.combatGoals || null,
+      combat: report.combat || null,
       currentAction: brief.currentAction,
       standard: brief.standard,
       abyssal: brief.abyssal,
       saveSource: save ? { source: save.source, diffMinutes: save.diffMs === null ? null : Math.round(save.diffMs / 60000) } : null,
     },
     analysis: {
-      recommendations: brief.next,
+      recommendations: activeSlayerTask ? brief.currentAction.next : brief.next,
       currentActionPlan: brief.currentAction.next,
-      optimizationPlan: brief.standard.next,
-      standardPlan: brief.standard.next,
-      abyssalPlan: brief.abyssal.next,
+      optimizationPlan: activeSlayerTask ? [] : brief.standard.next,
+      standardPlan: activeSlayerTask ? [] : brief.standard.next,
+      abyssalPlan: activeSlayerTask ? [] : brief.abyssal.next,
       riskNotes: [
         saveRisk,
         report.mode === 'Hardcore Mode' ? 'Hardcore character: verify survivability before any combat change' : null,
@@ -1264,7 +1273,7 @@ function journalMd(c) {
     ...list((o.abyssal?.lowest || []).slice(0, 5).map(s => `${s.name} ${s.abyssalLevel}/${s.abyssalCap}`)),
     '',
     '### Combat goals',
-    ...list(combatGoalLines({ combatGoals: o.combatGoals })),
+    ...list(combatGoalLines({ combatGoals: o.combatGoals, combat: o.combat })),
     '',
     '### Proposed actions',
     ...list(c.actions.map(a => `[${a.id}] equip ${a.item} in ${a.slot} (now: ${a.current}; risk ${a.risk}; ${a.reason})`)),
@@ -1328,6 +1337,8 @@ function progressEtas(current, previous) {
   const elapsed = curAt - prevAt;
   if (!Number.isFinite(elapsed) || elapsed < 5 * 60000) return ['ETA pending: needs at least 5 minutes between comparable journal scans'];
   if (sameCloudSnapshot(current, previous)) return ['ETA pending: cloud save has not advanced since the previous scan'];
+  if (current.observed.action === 'Combat' && current.observed.equipment?.Weapon !== previous?.observed?.equipment?.Weapon)
+    return ['ETA pending: combat weapon changed; rescan after 5 minutes of the same build'];
   const prevSkills = Object.fromEntries((previous?.observed?.skills || []).map(s => [s.name, s]));
   const action = current.observed.action;
   const etas = (current.observed.skills || [])
@@ -1408,11 +1419,12 @@ function progressAlerts(entry) {
   const standardCapped = skills.length && skills.every(s => (s.levelCap ?? 120) <= s.level);
   const abyssalProgress = lines.some(l => /abyssal XP gained/.test(l));
   const noProgress = lines.some(l => /no XP gain detected/.test(l));
+  const etaPending = lines.every(l => /^ETA pending:/.test(l));
   return [
     negativeXP ? 'current XP is lower than previous scan; verify source-of-truth before acting' : null,
     noProgress ? 'action active but no positive standard or abyssal XP was detected since the previous scan' : null,
     standardCapped && abyssalProgress ? 'standard level capped; current progress is abyssal XP' : null,
-    standardCapped && !abyssalProgress && !noProgress ? 'standard level capped; standard ETA has no remaining target' : null,
+    standardCapped && !etaPending && !abyssalProgress && !noProgress ? 'standard level capped; standard ETA has no remaining target' : null,
   ].filter(Boolean);
 }
 

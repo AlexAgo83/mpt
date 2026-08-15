@@ -133,8 +133,9 @@
         const attacks = Math.ceil((slayerLeft * enemyHP) / expectedHit);
         notes.push(`Slayer task ETA about ${fmtMs(attacks * attackInterval)} (${slayerLeft} kills left)`);
       }
-      addRunway('Quiver', attackInterval, 'attacks if every attack consumes ammo');
-      addRunway('Consumable', attackInterval, 'combat charges at 1/attack');
+      if (p.attackType === 'ranged') addRunway('Quiver', attackInterval, 'attacks if every attack consumes ammo');
+      const consumable = equipped.Consumable?.item || '';
+      if (p.attackType === 'ranged' || !/^Ranged /i.test(consumable)) addRunway('Consumable', attackInterval, 'combat charges at 1/attack');
       addRunway('Summon1', attackInterval, 'combat charges at 1/attack');
       addRunway('Summon2', attackInterval, 'combat charges at 1/attack');
       if (p.food.currentSlot?.quantity) notes.push(`${p.food.currentSlot.item.name}: ${p.food.currentSlot.quantity} food equipped; runway depends on damage taken`);
@@ -336,10 +337,12 @@
     const area = c.selectedArea;
     const monsters = area?.monsters ?? [];
     const boss = monsters[monsters.length - 1];
+    const weapon = p.equipment.equippedArray.find(slot => slot.slot.localID === 'Weapon' && !slot.isEmpty)?.item;
     return {
       area: area?.name ?? null,
       dungeonBoss: boss ? { name: boss.name, attackType: boss.attackType } : null,
       playerAttackType: p.attackType ?? null,
+      playerDamageType: weapon?.damageType?.name ?? null,
       monster: e?.monster?.name ?? null,
       monsterAttackType: e?.monster?.attackType ?? null,
       enemyHP: e?.hitpoints ?? null,

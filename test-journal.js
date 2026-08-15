@@ -29,6 +29,21 @@ assert.match(a.id, /^[0-9a-f]{12}$/);
 assert.strictEqual(c.analysis.saveRisk, null, 'known local source is not a journal risk');
 assert.ok(c.observed.saveSource.source === 'local');
 
+const magicCombat = buildCharacterJournal('MagicChar', {
+  ...data,
+  report: {
+    ...data.report, action: 'Combat',
+    equipment: { Weapon: 'Abyssal Staff', Quiver: 'Abyssium Arrows', Consumable: 'Ranged Hinder Scroll' },
+    actionEstimate: { notes: ['Quiver Abyssium Arrows: about 5 d', 'Consumable Ranged Hinder Scroll: about 17 d'] },
+    combat: { playerAttackType: 'magic', playerDamageType: 'Abyssal Damage', slayerTask: { monster: 'Tangled Thorns', left: 80 } },
+    combatGoals: { unclearedDungeons: [{ name: 'Underwater City', boss: 'Nagaia', maxCombatLevel: 768 }] },
+  },
+}, save);
+assert.ok(magicCombat.analysis.currentActionPlan.some(line => /Magic with Abyssal Staff \(Abyssal Damage\)/.test(line)), 'Magic build is stated');
+assert.ok(magicCombat.analysis.currentActionPlan.some(line => /Magic 5.*Abyssal Wand/.test(line)), 'Magic upgrade target is stated');
+assert.ok(!magicCombat.analysis.currentActionPlan.some(line => /Quiver|Ranged Hinder/.test(line)), 'ranged-only runways are omitted for Magic');
+assert.ok(!journalMd(magicCombat).includes('Underwater City'), 'active Slayer task suppresses unrelated dungeon goals');
+
 const noStock = buildCharacterJournal('NoStock', { ...data, bank: {} }, save);
 assert.strictEqual(noStock.actions.length, 0, 'missing bank items are not proposed');
 const proven = buildCharacterJournal('Proven', {

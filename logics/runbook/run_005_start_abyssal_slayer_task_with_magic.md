@@ -6,7 +6,7 @@
 > Related backlog: (none yet)
 > Related task: (none yet)
 > Reminder: Update status, category, verification, and linked refs when you edit this doc.
-> Indicators reviewed: 2026-08-15 17:39:52
+> Indicators reviewed: 2026-08-15 17:49:54
 
 # Trigger
 
@@ -23,7 +23,9 @@
 1. Inspect the active task without a write: `./melvor-report.js slayer-abyssal <character>`.
 2. Start it with the Magic set: `./melvor-report.js slayer-start <character> --slot 6`.
 3. Wait for the in-progress enemy to change, then run `./melvor-report.js brief <character>`.
-4. Confirm the selected area, current monster, task target, Magic attack type, positive hit chance, food, and remaining kills. The brief is authoritative after the transition; the immediate start response can still show the prior enemy.
+4. Confirm the selected area, current monster, task target, Magic attack type, Abyssal Damage weapon, positive hit chance, food, and remaining kills. The brief is authoritative after the transition; the immediate start response can still show the prior enemy.
+5. For a recorded recap, use `./melvor-report.js journal <character> --record`. During an active Magic Slayer task, it reports the task and Magic 5 -> Abyssal Wand goal, not ranged-only ammunition/scroll runways or unrelated standard-dungeon goals.
+6. Record again after at least five minutes on the same weapon before trusting Magic XP/hour or its level ETA.
 
 # Verification
 
