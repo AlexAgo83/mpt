@@ -1,4 +1,4 @@
-## run_004_configure_abyssal_magic_equipment_set - Configure an Abyssal Magic equipment set
+## run_004_configure_abyssal_magic_equipment_set - Configure a standard Magic set and restore Abyssal Ranged
 > Status: Active
 > Category: support
 > Verified: 2026-08-15 — GrifhinZ slot 6 configured and re-read with Despair Wand, Abyssal Blast, Damage Reduction Potion IV, Mystic Lore, and Augury.
@@ -6,11 +6,12 @@
 > Related backlog: (none yet)
 > Related task: (none yet)
 > Reminder: Update status, category, verification, and linked refs when you edit this doc.
-> Indicators reviewed: 2026-08-15 17:24:09
+> Indicators reviewed: 2026-08-15 17:28:30
 
 # Trigger
 
-- A character needs the dedicated Abyssal Magic preset in a numbered equipment slot.
+- A character needs the dedicated Normal-Damage Magic preset in a numbered equipment slot.
+- A Normal-Damage magic build is attempted in an Abyssal area and Melvor reports `Damage Type not allowed`.
 
 # Prerequisites
 
@@ -25,12 +26,14 @@
 3. Apply it: `./melvor-report.js magic-setup <character> --slot 6 --apply`.
 4. The script first removes a shield if needed: Despair Wand is incompatible with the shield slot. It then equips the wand, activates Damage Reduction Potion IV, enables Mystic Lore and Augury, and selects Fire Surge. Despair Wand has Normal Damage, so do not select Abyssal Blast; Melvor rejects that damage-type mismatch.
 5. Re-run the preview. It must list `Despair Wand` in `current slot items`. If the wand is absent, do not describe the setup as complete.
+6. Despair Wand has Normal Damage. It cannot run an Abyssal area even with a different spell. Abyssal Magic needs Magic abyssal 5 and Abyssal Wand (or a later compatible weapon). Until then, restore the working Abyssal Ranged set with `./melvor-report.js magic-setup <character> --slot 6 --restore-ranged --apply`.
 
 # Verification
 
 - The apply command saves via the newest local/cloud source and reports the source before and after internally.
 - The final preview contains Despair Wand and does not contain the displaced shield.
 - Fire Surge, Mystic Lore, Augury, and Damage Reduction Potion IV are global combat settings; verify them again when changing to a different combat task.
+- The restored Ranged set contains Blighted Feather Bow, Abyssium Arrows, Toxic Protection Mask, Bundled Protection Body, Thorn Legs, Abyssal Leather Boots, Amulet of Distance, Woeful Gloves, Ranged Hinder Scroll, and the retained Abyss Ring/cape/passive/gem.
 
 # Rollback
 

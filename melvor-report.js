@@ -40,11 +40,12 @@ const abyssalOnly = argv.includes('--abyssal');
 const detail = argv.includes('--detail');
 const saveBackup = argv.includes('--save-backup');
 const apply = argv.includes('--apply');
+const restoreRanged = argv.includes('--restore-ranged');
 const styleIndex = argv.indexOf('--style');
 const gearStyle = styleIndex >= 0 ? argv[styleIndex + 1] : null;
 const slotIndex = argv.indexOf('--slot');
 const requestedSlot = slotIndex >= 0 ? Number(argv[slotIndex + 1]) : 6;
-const [cmd = 'summary', who = 'all', arg3] = argv.filter((a, i) => !['--record', '--abyssal', '--save-backup', '--detail', '--apply', '--style', '--slot'].includes(a) && (styleIndex < 0 || i !== styleIndex + 1) && (slotIndex < 0 || i !== slotIndex + 1));
+const [cmd = 'summary', who = 'all', arg3] = argv.filter((a, i) => !['--record', '--abyssal', '--save-backup', '--detail', '--apply', '--restore-ranged', '--style', '--slot'].includes(a) && (styleIndex < 0 || i !== styleIndex + 1) && (slotIndex < 0 || i !== slotIndex + 1));
 const usage = `usage:
   ./melvor-report.js slots
   ./melvor-report.js smoke
@@ -60,7 +61,7 @@ const usage = `usage:
   ./melvor-report.js combat-setup <character>
   ./melvor-report.js combat-run <character> <dungeon name|id>
   ./melvor-report.js gear <character> [--detail] [--style melee|ranged|magic]
-  ./melvor-report.js magic-setup <character> [--slot 6] [--apply]
+  ./melvor-report.js magic-setup <character> [--slot 6] [--apply] [--restore-ranged]
   ./melvor-report.js skilling <character>
   ./melvor-report.js export-state [all|character]
   ./melvor-report.js save-backup [all|character]
@@ -826,14 +827,45 @@ const magicSetupScript = (slotNumber, shouldApply) => `(async () => {
   return result;
 })()`;
 
+const restoreAbyssalRangedScript = (slotNumber, shouldApply) => `(async () => {
+  const p = game.combat.player;
+  const slotIndex = ${Number(slotNumber) - 1};
+  const gear = {
+    Helmet: 'Toxic Protection Mask', Platebody: 'Bundled Protection Body', Platelegs: 'Thorn Legs',
+    Boots: 'Abyssal Leather Boots', Weapon: 'Blighted Feather Bow', Amulet: 'Amulet of Distance',
+    Ring: 'Abyss Ring', Gloves: 'Woeful Gloves', Quiver: 'Abyssium Arrows',
+    Cape: 'Superior Max Skillcape', Passive: 'Thorn Defender', Consumable: 'Ranged Hinder Scroll', Gem: 'Agile Gem',
+  };
+  const owned = name => { for (const [item, bankItem] of game.bank.items) if (item.name === name) return bankItem.quantity; return 0; };
+  const targetSet = p.equipmentSets?.[slotIndex];
+  const targetNames = new Set(targetSet?.equipment.equippedArray.filter(slot => !slot.isEmpty).map(slot => slot.item.name) ?? []);
+  const missing = Object.entries(gear).filter(([, name]) => !owned(name) && !targetNames.has(name)).map(([slot, name]) => slot + ': ' + name);
+  const result = { name: game.characterName, slot: slotIndex + 1, preset: gear, missing, targetEquipment: [...targetNames], applied: false, actions: [] };
+  if (!${JSON.stringify(shouldApply)}) return result;
+  if (!targetSet) return { ...result, error: 'equipment set ' + (slotIndex + 1) + ' does not exist' };
+  if (missing.length) return { ...result, error: 'missing required bank items' };
+  const previousSet = p.selectedEquipmentSet;
+  p.changeEquipmentSet(slotIndex);
+  for (const [slot, name] of Object.entries(gear)) {
+    if (targetNames.has(name)) { result.actions.push(slot + ': already equipped ' + name); continue; }
+    const action = mh.equipSlot(name, slot);
+    result.actions.push(slot + ': ' + action);
+    if (/not in bank|invalid|unknown|did not equip/.test(action)) return { ...result, error: action };
+  }
+  result.finalTargetEquipment = p.equipmentSets[slotIndex].equipment.equippedArray.filter(slot => !slot.isEmpty).map(slot => slot.item.name);
+  if (previousSet !== slotIndex) p.changeEquipmentSet(previousSet);
+  result.applied = true;
+  return result;
+})()`;
+
 function printMagicSetup(result) {
   console.log(`${result.name} | magic slot ${result.slot} | ${result.applied ? 'applied' : 'preview'}`);
   for (const [slot, item] of Object.entries(result.preset || {})) console.log(`  ${slot}: ${item}`);
-  console.log(`  Potion: ${result.potion}`);
+  if (result.potion) console.log(`  Potion: ${result.potion}`);
   console.log(`  current slot items: ${(result.targetEquipment || []).join(', ') || 'empty'}`);
   if (result.finalTargetEquipment) console.log(`  final slot items: ${result.finalTargetEquipment.join(', ')}`);
   if (result.missing?.length) console.log(`  missing: ${result.missing.join('; ')}`);
-  console.log(`  Spell: ${result.spell || 'unavailable'}`);
+  if (result.spell !== undefined) console.log(`  Spell: ${result.spell || 'unavailable'}`);
   for (const action of result.actions || []) console.log(`  ${action}`);
   if (result.error) console.log(`  error: ${result.error}`);
 }
@@ -1972,8 +2004,9 @@ if (require.main === module) (async () => {
     }
 
     if (cmd === 'magic-setup') {
-      if (who === 'all') throw Error('usage: ./melvor-report.js magic-setup <character> [--slot 6] [--apply]');
-      const run = client => evalExpr(client, magicSetupScript(requestedSlot, apply), 60000);
+      if (who === 'all') throw Error('usage: ./melvor-report.js magic-setup <character> [--slot 6] [--apply] [--restore-ranged]');
+      const script = restoreRanged ? restoreAbyssalRangedScript : magicSetupScript;
+      const run = client => evalExpr(client, script(requestedSlot, apply), 60000);
       const data = apply ? await withCharacterWrite(who, run) : await readSourcesByName().then(({ sources }) => withCharacterSource(who, sources[who]?.source, run));
       printMagicSetup(data);
       if (data.error) throw Error(data.error);
