@@ -99,6 +99,9 @@ npm run source
 ./melvor-report.js combat-plan <character> --abyssal
 ./melvor-report.js gear <character>
 ./melvor-report.js skilling <character>
+./melvor-report.js equip <character> <item> <slot>
+./melvor-report.js skill-start <character> <skill> <recipe>
+./melvor-report.js talent-unlock <character> <skill> <node>
 ./melvor-report.js export-state all > /tmp/melvor-state.json
 ./melvor-report.js save-backup all
 ./melvor-report.js journal <character>
@@ -109,7 +112,10 @@ npm run source
 ./melvor-report.js journal-action <id> dismissed
 ```
 
-All report commands are read-only.
+All report commands are read-only. `equip`, `skill-start`, and `talent-unlock` are
+preview-only until the same command is repeated with `--apply`; they accept one character
+only, load the newest save source, save, and verify the requested result. There is no bulk
+or apply-all command.
 
 `brief` is the preferred command for AI account triage. It returns one compact JSON object
 per character with:

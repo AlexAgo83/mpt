@@ -4,9 +4,15 @@ const assert = require('assert');
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
-const { buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, potionItemName, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights } = require('./melvor-report.js');
+const { buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, potionItemName, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript } = require('./melvor-report.js');
 
 assert.match(execFileSync(process.execPath, ['melvor-report.js', 'journal-serve', '--help'], { encoding: 'utf8' }), /journal-serve/, 'journal-serve help must not start a server');
+const guardedHelp = execFileSync(process.execPath, ['melvor-report.js', '--help'], { encoding: 'utf8' });
+for (const command of ['equip <character>', 'skill-start <character>', 'talent-unlock <character>']) assert.match(guardedHelp, new RegExp(command), 'guarded command is documented');
+assert.match(equipmentActionScript('Test item', 'Weapon', undefined, false), /if \(!false\) return result/, 'equipment stays preview-only without apply');
+assert.match(skillStartScript('Fletching', 'Test recipe', false), /insufficient recipe materials/, 'skill start guards materials');
+assert.match(skillStartScript('Fletching', 'Test recipe', true), /unsupported Melvor artisan action API/, 'skill start fails closed for unknown APIs');
+assert.match(talentUnlockScript('Attack', 'A1', true), /unsupported Melvor talent API/, 'talent unlock fails closed for unknown APIs');
 
 const data = {
   report: {

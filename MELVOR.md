@@ -104,3 +104,11 @@ Rules:
 - `evaluate_script` only returns JSON-serializable values — never return a raw game object
   (circular references), always map to primitives.
 - The `game` object is huge: go through the helpers rather than exploring blindly.
+
+## Guarded CLI actions
+
+`melvor-report.js` supports one reviewed mutation at a time: `equip <character> <item> <slot>`,
+`skill-start <character> <skill> <recipe>`, and `talent-unlock <character> <skill> <node>`.
+Each command is a no-write preview until `--apply` is explicit. Before applying, run the
+preview, confirm the character and target, then let the command load the newest source, save,
+and verify the final game state. Never add or use an all-character/apply-all variation.
