@@ -380,6 +380,8 @@
 
   mh.combatGoals = () => {
     const completeCount = d => game.combat.getDungeonCompleteCount?.(d) ?? 0;
+    const values = value => value instanceof Map || value instanceof Set ? [...value.values()] : value?.allObjects ?? value ?? [];
+    const depthCount = depth => game.combat.getAbyssDepthCompletionCount?.(depth) ?? game.combat.getAbyssalDepthCompletionCount?.(depth) ?? 0;
     const reqMet = r => {
       if (r.dungeon && r.count !== undefined) return completeCount(r.dungeon) >= r.count;
       if (r.type === 'AbyssalLevel' && r.skill && r.level !== undefined) return (r.skill.abyssalLevel ?? 0) >= r.level;
@@ -425,6 +427,7 @@
         .filter(d => d.requirements.every(r => r.met))
         .sort((a, b) => a.maxCombatLevel - b.maxCombatLevel),
       completedDungeons: dungeons.filter(d => d.completeCount > 0),
+      abyssalDepths: values(game.abyssDepths ?? game.abyssalDepths).map(depth => ({ name: depth.name, id: depth.id, completeCount: depthCount(depth) })),
     };
     const beats = { melee: 'magic', ranged: 'melee', magic: 'ranged' };
     const next = goals.unclearedDungeons[0] ?? null;
