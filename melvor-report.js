@@ -768,7 +768,7 @@ const magicSetupScript = (slotNumber, shouldApply) => `(async () => {
     Platebody: 'Infernal Legendary Wizard Robes', Platelegs: 'Infernal Mythical Wizard Bottoms',
     Boots: 'Infernal Mythical Wizard Boots', Gloves: 'Blighting Gloves',
     Amulet: 'Fury of the Elemental Zodiacs', Ring: 'Abyss Ring', Cape: 'Superior Max Skillcape',
-    Passive: 'Thorn Defender', Gem: 'Agile Gem', Weapon: 'Despair Wand',
+    Passive: 'Thorn Defender', Gem: 'Agile Gem', Weapon: 'Abyssal Staff',
   };
   const potionName = 'Damage Reduction Potion IV';
   const owned = name => { for (const [item, bankItem] of game.bank.items) if (item.name === name) return bankItem.quantity; return 0; };
@@ -778,7 +778,7 @@ const magicSetupScript = (slotNumber, shouldApply) => `(async () => {
   const missing = Object.entries(gear).filter(([, name]) => !owned(name) && !targetNames.has(name)).map(([slot, name]) => slot + ': ' + name);
   if (!owned(potionName)) missing.push('Potion: ' + potionName);
   const attackSpells = [...(game.attackSpellbooks?.allObjects ?? [])].flatMap(book => [...(book.spells?.allObjects ?? book.spells ?? [])]);
-  const magicSpell = attackSpells.find(spell => spell.name === 'Fire Surge' && p.canUseCombatSpell(spell));
+  const magicSpell = attackSpells.find(spell => spell.name === 'Abyssal Blast' && p.canUseCombatSpell(spell));
   const result = { name: game.characterName, slot: slotIndex + 1, preset: gear, potion: potionName, missing, targetEquipment: [...targetNames], damageType: targetWeapon?.damageType?.name ?? null, spell: magicSpell?.name ?? null, applied: false, actions: [] };
   if (!${JSON.stringify(shouldApply)}) return result;
   if (!p.equipmentSets?.[slotIndex]) return { ...result, error: 'equipment set ' + (slotIndex + 1) + ' does not exist' };
