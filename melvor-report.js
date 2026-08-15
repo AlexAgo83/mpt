@@ -62,6 +62,8 @@ const usage = `usage:
   ./melvor-report.js combat-run <character> <dungeon name|id>
   ./melvor-report.js gear <character> [--detail] [--style melee|ranged|magic]
   ./melvor-report.js magic-setup <character> [--slot 6] [--apply] [--restore-ranged]
+  ./melvor-report.js slayer-abyssal <character>
+  ./melvor-report.js slayer-start <character> [--slot 6]
   ./melvor-report.js skilling <character>
   ./melvor-report.js export-state [all|character]
   ./melvor-report.js save-backup [all|character]
@@ -78,7 +80,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'export-state', 'save-backup', 'journal', 'journal-status', 'journal-diff', 'journal-action'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'export-state', 'save-backup', 'journal', 'journal-status', 'journal-diff', 'journal-action'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -868,6 +870,20 @@ function printMagicSetup(result) {
   if (result.spell !== undefined) console.log(`  Spell: ${result.spell || 'unavailable'}`);
   for (const action of result.actions || []) console.log(`  ${action}`);
   if (result.error) console.log(`  error: ${result.error}`);
+}
+
+function printAbyssalSlayer(result) {
+  console.log(`${result.name} | Abyssal Slayer task inspection`);
+  console.log(`  active: ${result.active || 'none'} | remaining: ${result.remaining ?? 'n/a'}`);
+  console.log(`  combat APIs: ${(result.combatMethods || []).join(', ') || 'none'}`);
+  console.log(`  task APIs: ${(result.taskMethods || []).join(', ') || 'none'}`);
+  console.log(`  slayer APIs: ${(result.slayerMethods || []).join(', ') || 'none'}`);
+}
+
+function printSlayerStart(result) {
+  console.log(`${result.name} | Slayer started | ${result.task}`);
+  console.log(`  set ${result.slot} | ${result.style} | ${result.area || 'no area'} / ${result.monster || 'no monster'}`);
+  console.log(`  remaining ${result.remaining} | hit ${Math.round(result.hitChance || 0)}% | food ${result.food || 'none'}`);
 }
 
 function printSlots(r) {
@@ -2010,6 +2026,47 @@ if (require.main === module) (async () => {
       const data = apply ? await withCharacterWrite(who, run) : await readSourcesByName().then(({ sources }) => withCharacterSource(who, sources[who]?.source, run));
       printMagicSetup(data);
       if (data.error) throw Error(data.error);
+      return;
+    }
+
+    if (cmd === 'slayer-abyssal') {
+      if (who === 'all') throw Error('usage: ./melvor-report.js slayer-abyssal <character>');
+      const { sources } = await readSourcesByName();
+      const data = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, `(() => {
+        const combat = game.combat;
+        const task = combat.slayerTask;
+        const names = object => Object.getOwnPropertyNames(Object.getPrototypeOf(object ?? {})).filter(name => /slayer|task|select|assign|new/i.test(name));
+        return {
+          name: game.characterName,
+          active: task?.monster?.name ?? null,
+          remaining: task?.killsLeft ?? null,
+          combatMethods: names(combat), taskMethods: names(task), slayerMethods: names(game.slayer),
+        };
+      })()`));
+      printAbyssalSlayer(data);
+      return;
+    }
+
+    if (cmd === 'slayer-start') {
+      if (who === 'all') throw Error('usage: ./melvor-report.js slayer-start <character> [--slot 6]');
+      const data = await withCharacterWrite(who, client => evalExpr(client, `(async () => {
+        const player = game.combat.player;
+        const task = game.combat.slayerTask;
+        if (!task?.active || !task.monster) return { error: 'no active Slayer task' };
+        const slot = ${requestedSlot - 1};
+        if (!player.equipmentSets?.[slot]) return { error: 'equipment set ${requestedSlot} does not exist' };
+        player.changeEquipmentSet(slot);
+        task.jumpToTaskOnClick();
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return {
+          name: game.characterName, task: task.monster.name, remaining: task.killsLeft,
+          slot: slot + 1, style: player.attackType, area: game.combat.selectedArea?.name ?? null,
+          monster: game.combat.enemy?.monster?.name ?? null, hitChance: player.stats.hitChance,
+          food: player.food.currentSlot?.item?.name ?? null,
+        };
+      })()`, 60000));
+      if (data.error) throw Error(data.error);
+      printSlayerStart(data);
       return;
     }
 
