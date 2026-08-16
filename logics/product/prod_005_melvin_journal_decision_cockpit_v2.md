@@ -12,6 +12,13 @@
 # Overview
 Turn the existing journal dashboard into a compact operational cockpit. The first viewport should answer what each character is doing, what will finish soon, what requires attention, and what decision comes next. Structured insights support sorting and consistent presentation while preserving the existing local-first safety model.
 
+```mermaid
+flowchart LR
+  Journal --> Insights
+  Insights --> Cockpit
+  Cockpit --> NextDecision
+```
+
 # Goals
 - Make account triage possible without expanding every character.
 - Represent dashboard insights as structured data rather than presentation-only prose.

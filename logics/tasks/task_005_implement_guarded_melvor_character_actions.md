@@ -1,15 +1,15 @@
 ## task_005_implement_guarded_melvor_character_actions - Implement guarded Melvor character actions
 > From version: 0.1.0
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 70%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Implementation delivery
 > Reminder: Update status/understanding/confidence/progress and linked request/backlog references when you edit this doc.
 > Owner: codex
-> Indicators reviewed: 2026-08-16 00:33:04
+> Indicators reviewed: 2026-08-16 12:22:37
 
 # AI Context
 - Summary: (unfilled: replace before this doc is used)
@@ -21,23 +21,23 @@
 - Orchestrate the scaffolded request chain and keep sibling implementation slices linked.
 
 # Plan
-- [ ] 1. Inspect current helper APIs and read-only recipe and talent data before choosing one validated write path per action.
-- [ ] 2. Add preview-first, explicit-character command parsing and shared script guards without a bulk executor.
-- [ ] 3. Add equipment, artisan-recipe, and talent-node application with source-aware save and post-action verification.
-- [ ] 4. Add focused offline tests and validate the live API only through a non-destructive preview before applying any game state.
-- [ ] 5. Document the operation in README, MELVOR instructions, and a reusable runbook, then run project and Logics checks.
-- [ ] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
-- [ ] Keep commit creation under operator control; do not force one commit per micro-step.
-- [ ] GATE: do not close until lint, audit, and scaffold validation pass.
+- [x] 1. Inspect current helper APIs and read-only recipe and talent data before choosing one validated write path per action.
+- [x] 2. Add preview-first, explicit-character command parsing and shared script guards without a bulk executor.
+- [x] 3. Add equipment, artisan-recipe, and talent-node application with source-aware save and post-action verification.
+- [x] 4. Add focused offline tests and validate the live API only through a non-destructive preview before applying any game state.
+- [x] 5. Document the operation in README, MELVOR instructions, and a reusable runbook, then run project and Logics checks.
+- [x] ADR 009 checkpoint: update affected Logics docs during each meaningful wave and leave the repo commit-ready.
+- [x] Keep commit creation under operator control; do not force one commit per micro-step.
+- [x] GATE: do not close until lint, audit, and scaffold validation pass.
 
 # Backlog
 - `item_007_implement_preview_first_equipment_skilling_and_talent_actions`
 
 # Definition of Done (DoD)
-- [ ] Generated request, product, backlog, and task docs are present.
-- [ ] Context-pack handoff is available when requested.
-- [ ] Validation passes.
-- [ ] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
+- [x] Generated request, product, backlog, and task docs are present.
+- [x] Context-pack handoff is available when requested.
+- [x] Validation passes.
+- [x] Meaningful waves followed ADR 009: affected docs updated and the repo left commit-ready without automatic commits.
 
 # AC Traceability
 - request-A generic equipment command previews the exact slot, item, available quantity, and current item; application requires --apply and verifies the final slot. -> `item_007_implement_preview_first_equipment_skilling_and_talent_actions`. Proof deferred to slice closeout.
@@ -51,9 +51,15 @@
 
 # Validation
 - (no validation recorded yet)
+- command: `npm run check` | result: passed | date: 2026-08-16
+- Finish workflow executed on 2026-08-16.
+- Linked backlog/request close verification passed.
 
 # Report
 - Not started.
+- Finished on 2026-08-16.
+- Linked backlog item(s): `item_007_implement_preview_first_equipment_skilling_and_talent_actions`
+- Related request(s): `req_004_guarded_melvor_equipment_skilling_and_talent_actions`
 
 # Links
 - Request: `req_004_guarded_melvor_equipment_skilling_and_talent_actions`

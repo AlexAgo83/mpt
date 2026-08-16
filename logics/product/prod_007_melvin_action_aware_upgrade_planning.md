@@ -10,6 +10,14 @@
 # Overview
 Turn the journal from a broad recommendation surface into a reliable equipment progression planner. Each plan is grounded in the character's live activity and game registry metadata, then optionally enriched with an official strategy guide for a fixed dungeon. The player can see which loot or craft to pursue next without being sent toward incompatible expansion or damage-type gear.
 
+```mermaid
+flowchart LR
+  LiveState --> Compatibility
+  DungeonGuide --> Strategy
+  Compatibility --> UpgradePlan
+  Strategy --> UpgradePlan
+```
+
 # Goals
 - Recommend acquisition paths per equipped slot, not only stat comparisons.
 - Keep compatibility and prerequisite evaluation in the live game-data layer.

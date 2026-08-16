@@ -1,14 +1,14 @@
 ## item_007_implement_preview_first_equipment_skilling_and_talent_actions - Implement preview-first equipment, skilling, and talent actions
 > From version: 0.1.0
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 70%
+> Progress: 100%
 > Complexity: Medium
 > Theme: Guarded character actions
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-16 00:33:04
+> Indicators reviewed: 2026-08-16 12:22:37
 
 # AI Context
 - Summary: (unfilled: replace before this doc is used)
@@ -64,3 +64,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_005_implement_guarded_melvor_character_actions`
+
+# Notes
+- Task `task_005_implement_guarded_melvor_character_actions` was finished via `logics-manager flow finish task` on 2026-08-16.

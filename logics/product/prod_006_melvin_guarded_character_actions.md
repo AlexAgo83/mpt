@@ -1,14 +1,22 @@
 ## prod_006_melvin_guarded_character_actions - Melvin - guarded character actions
 > Date: 2026-08-16
-> Status: Proposed
+> Status: Settled
 > Related request: `req_004_guarded_melvor_equipment_skilling_and_talent_actions`
 > Related backlog: `item_007_implement_preview_first_equipment_skilling_and_talent_actions`
 > Related task: `task_005_implement_guarded_melvor_character_actions`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Indicators reviewed: 2026-08-16 12:22:37
 
 # Overview
 Add the smallest supported mutation surface for applying one reviewed equipment swap, artisan recipe, or Abyssal talent node. Every action is deliberately scoped to one character and preserves MPT's local-first save safety model.
+
+```mermaid
+flowchart LR
+  Preview --> ExplicitApply
+  ExplicitApply --> Save
+  Save --> Verify
+```
 
 # Goals
 - Turn verified recommendations into explicit, reversible single-character actions.
@@ -34,5 +42,5 @@ Add the smallest supported mutation surface for applying one reviewed equipment 
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_004_guarded_melvor_equipment_skilling_and_talent_actions`
+- Product back-reference: `item_007_implement_preview_first_equipment_skilling_and_talent_actions`
 - Task back-reference: `task_005_implement_guarded_melvor_character_actions`

@@ -1,12 +1,13 @@
 ## req_004_guarded_melvor_equipment_skilling_and_talent_actions - Guarded Melvor equipment, skilling, and talent actions
 > From version: 0.1.0
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: Medium
 > Theme: Guarded character actions
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
+> Indicators reviewed: 2026-08-16 12:22:36
 
 # AI Context
 - Summary: (unfilled: replace before this doc is used)

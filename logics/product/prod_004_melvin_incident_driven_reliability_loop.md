@@ -15,6 +15,14 @@
 # Overview
 Add a small private feedback loop around the existing Melvor CLI: failures become sanitized local evidence, repeated signatures become reviewable candidates, and explicit recording can create one traceable Logics request. Human review remains the boundary before implementation changes.
 
+```mermaid
+flowchart LR
+  Failure --> SanitizedEvidence
+  SanitizedEvidence --> RepeatedSignature
+  RepeatedSignature --> HumanReview
+  HumanReview --> Request
+```
+
 # Goals
 - Reduce manual incident transcription.
 - Prioritize repeated failures over one-off noise.
