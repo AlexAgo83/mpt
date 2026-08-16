@@ -1811,8 +1811,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .skills-grid { grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: .65rem; }
 .inventory-grid { margin-top: .6rem; }
 .skill-card, .inventory-item { min-width: 0; min-height: 4.2rem; padding: .45rem; border: 1px solid var(--line); border-radius: 5px; background: #111614; overflow-wrap: anywhere; }
-.skill-card { padding: .7rem; }
-.skill-card strong { display: block; color: var(--accent); }
+.skill-card { padding: .7rem; border-left: 3px solid var(--skill-color, var(--accent)); }
+.skill-card strong { display: flex; align-items: center; gap: .35rem; color: var(--skill-color, var(--accent)); }
 .skill-card small, .inventory-item small { display: block; color: var(--muted); }
 .skill-stat { margin-top: .5rem; font-size: .76rem; color: var(--muted); }
 .skill-stat b { color: var(--text); font-weight: 600; }
@@ -1945,19 +1945,36 @@ const fStatus = document.getElementById('fStatus');
 for (const s of STATUSES) fStatus.append(new Option(s, s));
 
 const cards = document.getElementById('cards');
-const list = items => { const ul = el('ul', 'plain-list'); for (const item of [...new Set(items)].filter(Boolean)) ul.append(el('li', '', item)); return ul; };
+const wikiTerms = new Set();
+const collectWikiTerms = value => {
+  if (Array.isArray(value)) return value.forEach(collectWikiTerms);
+  if (!value || typeof value !== 'object') return;
+  for (const [key, entry] of Object.entries(value)) {
+    if (['name', 'monster', 'boss', 'area', 'dungeon', 'skill', 'recipe', 'loot', 'target'].includes(key) && typeof entry === 'string' && entry.length > 2) wikiTerms.add(entry);
+    else collectWikiTerms(entry);
+  }
+};
+Object.values(snap.characters).forEach(collectWikiTerms);
+const wikiPattern = new RegExp([...wikiTerms].sort((a, b) => b.length - a.length).map(RegExp.escape).join('|'), 'g');
+const wikiText = text => {
+  const fragment = document.createDocumentFragment(); const value = String(text || ''); let last = 0;
+  for (const match of value.matchAll(wikiPattern)) { fragment.append(document.createTextNode(value.slice(last, match.index)), wiki(match[0])); last = match.index + match[0].length; }
+  fragment.append(document.createTextNode(value.slice(last))); return fragment;
+};
+const list = items => { const ul = el('ul', 'plain-list'); for (const item of [...new Set(items)].filter(Boolean)) { const row = el('li'); row.append(wikiText(item)); ul.append(row); } return ul; };
 const group = (title, items) => { if (!items.length) return null; const box = el('section', 'group'); box.append(el('h3', '', title), list(items)); return box; };
 const panel = (name, groups) => { const body = el('div', 'panel panel-grid'); body.dataset.panel = name; for (const item of groups.filter(Boolean)) body.append(item); return body.children.length ? body : null; };
 const insightPanel = items => {
   if (!items.length) return null;
   const body = el('div', 'panel'); body.dataset.panel = 'now';
   for (const item of items.slice(0, 10)) {
-    const row = el('div', 'insight'); row.append(el('span', 'badge ' + item.severity, item.priority), item.label); body.append(row);
+    const row = el('div', 'insight'); row.append(el('span', 'badge ' + item.severity, item.priority), wikiText(item.label)); body.append(row);
   }
   return body;
 };
 const equipmentSlots = [['Helmet', 'head'], ['Cape', 'cape'], ['Amulet', 'amulet'], ['Weapon', 'weapon'], ['Shield', 'off-hand'], ['Platebody', 'body'], ['Gloves', 'hands'], ['Platelegs', 'legs'], ['Boots', 'feet'], ['Ring', 'ring'], ['Quiver', 'ammo'], ['Passive', 'passive'], ['Consumable', 'consumable'], ['Gem', 'gem'], ['Enhancement1', 'enhancement I'], ['Enhancement2', 'enhancement II'], ['Enhancement3', 'enhancement III']];
 const wiki = name => { const wrap = el('span'); wrap.dataset.wikiTitle = name; const link = el('a', '', name); link.href = 'https://wiki.melvoridle.com/w/' + encodeURIComponent(name.replace(/ /g, '_')); link.target = '_blank'; link.rel = 'noopener'; wrap.append(link); return wrap; };
+const SKILL_COLORS = { Attack:'#dc3d3d', Strength:'#ef7f32', Defence:'#459eea', Hitpoints:'#e45858', Ranged:'#74bc52', Magic:'#a579e6', Prayer:'#ead760', Slayer:'#9a6c59', Woodcutting:'#6da74a', Fishing:'#4bb0d3', Firemaking:'#e66a32', Cooking:'#e8a74e', Mining:'#a9adb2', Smithing:'#88929c', Thieving:'#8a6b4e', Farming:'#75ad43', Fletching:'#6c9d56', Crafting:'#d795c5', Runecrafting:'#7a91e5', Herblore:'#75ad63', Agility:'#e7b24e', Summoning:'#b478e5', Astrology:'#475fa7', Township:'#b38a5d', Cartography:'#3a9bb6', Archaeology:'#b98452', Harvesting:'#80b55d', Corruption:'#8b507c' };
 function equipmentSheet(c) {
   const equipment = el('section', 'panel equipment-sheet'); equipment.dataset.panel = 'equipment';
   const combat = c.observed.combat || {};
@@ -1966,7 +1983,7 @@ function equipmentSheet(c) {
     if (value) { const stat = el('span'); stat.append(document.createTextNode(label + ' : '), el('strong', '', value)); summary.append(stat); }
   }
   if (summary.children.length) equipment.append(summary);
-  const renderSet = (items, key, hidden) => { const grid = el('div', 'equipment-grid'); grid.dataset.equipmentSet = key; grid.hidden = hidden; for (const [slot, label] of equipmentSlots) { const item = items[slot]; if (!item || item === 'Empty' || (slot === 'Shield' && item === items.Weapon)) continue; const row = el('div', 'equipment-slot ' + (slot === 'Weapon' ? 'weapon' : slot === 'Shield' ? 'offhand' : slot.toLowerCase())); row.dataset.wikiTitle = String(item); row.append(el('small', '', label), document.createTextNode(String(item))); grid.append(row); } return grid; };
+  const renderSet = (items, key, hidden) => { const grid = el('div', 'equipment-grid'); grid.dataset.equipmentSet = key; grid.hidden = hidden; for (const [slot, label] of equipmentSlots) { const item = items[slot]; if (!item || item === 'Empty' || (slot === 'Shield' && item === items.Weapon)) continue; const row = el('div', 'equipment-slot ' + (slot === 'Weapon' ? 'weapon' : slot === 'Shield' ? 'offhand' : slot.toLowerCase())); row.append(el('small', '', label), wiki(String(item))); grid.append(row); } return grid; };
   const sets = [{ key: 'current', label: 'Current', items: c.observed.equipment || {} }, ...(c.observed.equipmentSets || []).map(set => ({ key: 'set-' + set.index, label: 'Set ' + (set.index + 1), items: set.items }))];
   const selector = el('div', 'tabs equipment-sets');
   for (const [index, set] of sets.entries()) { const button = el('button', '', set.label); button.type = 'button'; button.dataset.equipmentSet = set.key; button.setAttribute('aria-selected', String(index === 0)); selector.append(button); equipment.append(renderSet(set.items, set.key, index !== 0)); }
@@ -2000,7 +2017,9 @@ function skillsSheet(c) {
   };
   for (const skill of skills) {
     const card = el('div', 'skill-card');
-    card.append(el('strong', '', skill.name), stat('Level ', skill.level + '/' + skill.levelCap));
+    card.style.setProperty('--skill-color', skill.color || SKILL_COLORS[skill.name] || 'var(--accent)');
+    const title = el('strong'); title.append(wiki(skill.name));
+    card.append(title, stat('Level ', skill.level + '/' + skill.levelCap));
     const levelMeter = meter('xp', 'XP', skill.xp, skill.xpLevelStart, skill.xpNextLevel); if (levelMeter) card.append(levelMeter);
     if (skill.abyssalLevel !== null && skill.abyssalLevel !== undefined) {
       card.append(stat('Abyssal ', skill.abyssalLevel + '/' + skill.abyssalCap));
@@ -2018,10 +2037,13 @@ function inventorySheet(c) {
   const inventory = c.observed.inventory || [];
   if (!inventory.length) { panel.append(el('p', 'muted', 'Refresh this character to load inventory.')); return panel; }
   const filter = document.createElement('input'); filter.type = 'search'; filter.placeholder = 'Filter inventory…'; filter.setAttribute('aria-label', 'Filter inventory');
+  const sort = document.createElement('select'); sort.setAttribute('aria-label', 'Sort inventory'); sort.append(new Option('Quantity', 'quantity'), new Option('Name', 'name'));
   const grid = el('div', 'inventory-grid');
-  for (const item of inventory.sort((a, b) => b.quantity - a.quantity)) { const cell = el('div', 'inventory-item'); cell.dataset.wikiTitle = item.name; cell.dataset.inventoryName = item.name.toLowerCase(); cell.append(el('small', '', item.name), el('span', 'inventory-qty', '×' + item.quantity)); grid.append(cell); }
+  const show = () => { grid.replaceChildren(); for (const item of [...inventory].sort(sort.value === 'name' ? (a, b) => a.name.localeCompare(b.name) : (a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name))) { const cell = el('div', 'inventory-item'); cell.dataset.inventoryName = item.name.toLowerCase(); const name = el('small'); name.append(wiki(item.name)); cell.append(name, el('span', 'inventory-qty', '×' + item.quantity)); grid.append(cell); } loadWikiIcons(); };
+  show();
   filter.addEventListener('input', () => { const query = filter.value.toLowerCase(); for (const cell of grid.children) cell.hidden = query && !cell.dataset.inventoryName.includes(query); });
-  panel.append(filter, grid);
+  sort.addEventListener('change', show);
+  panel.append(filter, sort, grid);
   return panel;
 }
 function render() {
@@ -2054,8 +2076,8 @@ function render() {
     if (p === 'critical') identityTitle.append(el('span', 'badge danger', p));
     identity.append(identityTitle, el('small', '', (c.observed.mode || '') + ' · ' + relative(c.observed.at)));
     if (hasRisk(name)) identity.append(el('span', 'badge risk', 'save risk'));
-    const cell = (label, value) => { const n = el('div', 'cell'); n.append(el('span', 'cell-label', label), el('span', 'cell-value', value || '—')); return n; };
-    head.append(identity, cell('Current', current(c) + (eta?.etaSeconds ? ' · ' + fmtEta(eta.etaSeconds) : '')), cell('Next', nextAction(decision)));
+    const cell = (label, value) => { const n = el('div', 'cell'); const text = el('span', 'cell-value'); text.append(value || '—'); n.append(el('span', 'cell-label', label), text); return n; };
+    head.append(identity, cell('Current', wikiText(current(c) + (eta?.etaSeconds ? ' · ' + fmtEta(eta.etaSeconds) : ''))), cell('Next', wikiText(nextAction(decision))));
     details.append(head);
 
     const body = el('div', 'character-body');

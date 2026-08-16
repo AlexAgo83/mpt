@@ -205,6 +205,9 @@ assert.match(html, /score\(b\[1\]\) - score\(a\[1\]\)/, 'characters sort by tota
 assert.match(html, /identity-title/, 'score is grouped with the character name');
 assert.match(html, /nextAction/, 'dashboard keeps the next action compact');
 assert.match(renderDashboard(buildLatest([upgrades], new Map(), null, now)), /Upgrade plans/, 'dashboard renders the dedicated upgrade plans tab');
+assert.match(html, /SKILL_COLORS/, 'dashboard renders skill colors');
+assert.match(html, /Sort inventory/, 'inventory supports quantity and name sorting');
+assert.match(html, /wikiText/, 'dashboard links known game entities in text panels');
 
 const refreshedAt = '2026-07-05T12:01:00.000Z';
 const previousForRefresh = structuredClone(snap);
