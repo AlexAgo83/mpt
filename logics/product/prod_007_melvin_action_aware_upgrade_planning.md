@@ -6,6 +6,7 @@
 > Related task: `task_006_implement_action_aware_equipment_upgrade_plans`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
+> Indicators reviewed: 2026-08-16 12:23:17
 
 # Overview
 Turn the journal from a broad recommendation surface into a reliable equipment progression planner. Each plan is grounded in the character's live activity and game registry metadata, then optionally enriched with an official strategy guide for a fixed dungeon. The player can see which loot or craft to pursue next without being sent toward incompatible expansion or damage-type gear.
