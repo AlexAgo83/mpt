@@ -1,12 +1,13 @@
 ## req_005_action_aware_equipment_upgrade_plans - Action-aware equipment upgrade plans
 > From version: 0.1.0
 > Schema version: 1.0
-> Status: Draft
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
 > Complexity: High
 > Theme: Melvor progression planning
 > Reminder: Update status/understanding/confidence and linked backlog/task references when you edit this doc.
+> Indicators reviewed: 2026-08-16 12:27:51
 
 # AI Context
 - Summary: (unfilled: replace before this doc is used)

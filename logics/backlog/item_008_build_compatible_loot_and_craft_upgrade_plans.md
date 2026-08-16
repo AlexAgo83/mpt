@@ -1,14 +1,14 @@
 ## item_008_build_compatible_loot_and_craft_upgrade_plans - Build compatible loot and craft upgrade plans
 > From version: 0.1.0
 > Schema version: 1.0
-> Status: In progress
+> Status: Done
 > Understanding: 90%
 > Confidence: 85%
-> Progress: 70%
+> Progress: 100%
 > Complexity: High
 > Theme: Melvor progression planning
 > Reminder: Update status/understanding/confidence/progress and linked request/task references when you edit this doc.
-> Indicators reviewed: 2026-08-16 12:23:22
+> Indicators reviewed: 2026-08-16 12:27:52
 
 # AI Context
 - Summary: (unfilled: replace before this doc is used)
@@ -66,3 +66,9 @@
 # Priority
 - Priority: High
 - Rationale: Set by scaffold input or defaulted for grooming.
+
+# Tasks
+- `task_006_implement_action_aware_equipment_upgrade_plans`
+
+# Notes
+- Task `task_006_implement_action_aware_equipment_upgrade_plans` was finished via `logics-manager flow finish task` on 2026-08-16.

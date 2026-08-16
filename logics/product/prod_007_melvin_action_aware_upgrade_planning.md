@@ -1,12 +1,12 @@
 ## prod_007_melvin_action_aware_upgrade_planning - Melvin - action-aware upgrade planning
 > Date: 2026-08-16
-> Status: Proposed
+> Status: Settled
 > Related request: `req_005_action_aware_equipment_upgrade_plans`
 > Related backlog: `item_008_build_compatible_loot_and_craft_upgrade_plans`
 > Related task: `task_006_implement_action_aware_equipment_upgrade_plans`
 > Related architecture: (none yet)
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
-> Indicators reviewed: 2026-08-16 12:23:17
+> Indicators reviewed: 2026-08-16 12:27:52
 
 # Overview
 Turn the journal from a broad recommendation surface into a reliable equipment progression planner. Each plan is grounded in the character's live activity and game registry metadata, then optionally enriched with an official strategy guide for a fixed dungeon. The player can see which loot or craft to pursue next without being sent toward incompatible expansion or damage-type gear.
@@ -44,5 +44,5 @@ flowchart LR
 - Context-pack output can be handed to an implementation agent directly.
 
 # References
-- Product back-reference: `req_005_action_aware_equipment_upgrade_plans`
+- Product back-reference: `item_008_build_compatible_loot_and_craft_upgrade_plans`
 - Task back-reference: `task_006_implement_action_aware_equipment_upgrade_plans`
