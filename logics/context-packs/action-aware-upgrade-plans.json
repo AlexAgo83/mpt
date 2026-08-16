@@ -1,0 +1,303 @@
+{
+  "budgets": {
+    "max_docs": 12,
+    "max_docs_per_ref": 4
+  },
+  "changed_paths": [],
+  "command": "logics-manager sync context-pack req_005_action_aware_equipment_upgrade_plans item_008_build_compatible_loot_and_craft_upgrade_plans task_006_implement_action_aware_equipment_upgrade_plans --mode full --profile normal --handoff",
+  "companion_docs": [
+    {
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_008_build_compatible_loot_and_craft_upgrade_plans"
+        ],
+        "prod": [
+          "prod_007_melvin_action_aware_upgrade_planning"
+        ],
+        "req": [
+          "req_005_action_aware_equipment_upgrade_plans"
+        ],
+        "task": [
+          "task_006_implement_action_aware_equipment_upgrade_plans"
+        ]
+      },
+      "path": "logics/product/prod_007_melvin_action_aware_upgrade_planning.md",
+      "ref": "prod_007_melvin_action_aware_upgrade_planning",
+      "sections": {
+        "Goals": [
+          "- Recommend acquisition paths per equipped slot, not only stat comparisons.",
+          "- Keep compatibility and prerequisite evaluation in the live game-data layer.",
+          "- Make dungeon plans strategy-aware without treating a changing Slayer task as a fixed dungeon.",
+          "- Expose clear, non-mutating plans in the local dashboard."
+        ],
+        "Key product decisions": [
+          "- Use structured input as the source of truth for generated docs.",
+          "- Keep generated write paths local and repo-bounded."
+        ],
+        "Overview": [
+          "Turn the journal from a broad recommendation surface into a reliable equipment progression planner. Each plan is grounded in the character's live activity and game registry metadata, then optionally enriched with an official strategy guide for a fixed dungeon. The player can see which loot or craft to pursue next without being sent toward incompatible expansion or damage-type gear."
+        ],
+        "References": [
+          "- Product back-reference: `req_005_action_aware_equipment_upgrade_plans`",
+          "- Task back-reference: `task_006_implement_action_aware_equipment_upgrade_plans`"
+        ]
+      },
+      "status": "Proposed",
+      "title": "Melvin - action-aware upgrade planning"
+    }
+  ],
+  "docs": [
+    {
+      "ai_context": {
+        "keywords": "action, aware, equipment, upgrade, plans",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "request",
+      "linked_refs": {
+        "item": [
+          "item_008_build_compatible_loot_and_craft_upgrade_plans"
+        ],
+        "prod": [
+          "prod_007_melvin_action_aware_upgrade_planning"
+        ],
+        "req": [
+          "req_005_action_aware_equipment_upgrade_plans"
+        ]
+      },
+      "path": "logics/request/req_005_action_aware_equipment_upgrade_plans.md",
+      "ref": "req_005_action_aware_equipment_upgrade_plans",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- Every scanned character has a structured equipment upgrade plan grouped by equipped slot.",
+          "- Each slot supplies at most one primary loot target, one primary craft target, and three ranked alternatives per source when compatible candidates exist.",
+          "- Each recommendation records why it is compatible, its acquisition source, unmet requirements, and whether it is currently actionable or blocked.",
+          "- Abyssal recommendations require matching damage type and usable spellbook/weapon rules; candidates from another realm or DLC are excluded unless the live game state proves them usable.",
+          "- A fixed dungeon run may attach a versioned official-wiki strategy reference, while Slayer-task plans identify the current task target and do not claim a stable dungeon strategy.",
+          "- The dashboard exposes a dedicated Upgrade plans view with action context, per-slot loot/craft recommendations, alternatives, and blockers."
+        ],
+        "Needs": [
+          "- Give each character an actionable per-slot equipment progression plan derived from its current activity.",
+          "- Show the first loot target and first craft target plus up to three compatible alternatives for each equipped slot.",
+          "- Prevent recommendations that cross damage types, spell requirements, owned DLC realms, equipment requirements, or dungeon-completion gates.",
+          "- Use dungeon strategy guidance only for a fixed dungeon run; distinguish it from a Slayer task whose target can change.",
+          "- Make the plan visible in a dedicated dashboard surface without enabling automatic game actions."
+        ]
+      },
+      "status": "Draft",
+      "title": "Action-aware equipment upgrade plans"
+    },
+    {
+      "ai_context": {
+        "keywords": "build, compatible, loot, craft, upgrade, plans",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "backlog",
+      "linked_refs": {
+        "item": [
+          "item_008_build_compatible_loot_and_craft_upgrade_plans"
+        ],
+        "prod": [
+          "prod_007_melvin_action_aware_upgrade_planning"
+        ],
+        "req": [
+          "req_005_action_aware_equipment_upgrade_plans"
+        ],
+        "task": [
+          "task_006_implement_action_aware_equipment_upgrade_plans"
+        ]
+      },
+      "path": "logics/backlog/item_008_build_compatible_loot_and_craft_upgrade_plans.md",
+      "ref": "item_008_build_compatible_loot_and_craft_upgrade_plans",
+      "schema_version": "1.0",
+      "sections": {
+        "Acceptance criteria": [
+          "- A candidate whose required damage type or usable-spell condition does not match the active combat build is not emitted as an upgrade option.",
+          "- A candidate blocked by an unmet skill, Abyssal level, DLC realm, or completion remains visible only as blocked with its exact gate.",
+          "- Loot and craft recommendations have independent rank limits and stable ordering.",
+          "- A Slayer task names its current monster and a refresh condition; it does not display a fixed-dungeon guide.",
+          "- A selected dungeon can display an official guide URL as advisory context while game metadata remains the compatibility authority.",
+          "- The rendered dashboard contains the dedicated upgrade-plan view and no untrusted external URLs."
+        ],
+        "Problem": [
+          "- Raw gear scores can recommend an item without proving it works for the current damage type, spellbook, DLC realm, or required completion.",
+          "- Players cannot see a concise acquisition path per equipment slot.",
+          "- Dungeon strategy and changing Slayer-task context currently share the same generic combat advice."
+        ]
+      },
+      "status": "Ready",
+      "title": "Build compatible loot and craft upgrade plans"
+    },
+    {
+      "ai_context": {},
+      "kind": "product",
+      "linked_refs": {
+        "item": [
+          "item_008_build_compatible_loot_and_craft_upgrade_plans"
+        ],
+        "prod": [
+          "prod_007_melvin_action_aware_upgrade_planning"
+        ],
+        "req": [
+          "req_005_action_aware_equipment_upgrade_plans"
+        ],
+        "task": [
+          "task_006_implement_action_aware_equipment_upgrade_plans"
+        ]
+      },
+      "path": "logics/product/prod_007_melvin_action_aware_upgrade_planning.md",
+      "ref": "prod_007_melvin_action_aware_upgrade_planning",
+      "schema_version": "1.0",
+      "sections": {},
+      "status": "Proposed",
+      "title": "Melvin - action-aware upgrade planning"
+    },
+    {
+      "ai_context": {
+        "keywords": "implement, action, aware, equipment, upgrade, plans",
+        "skip when": "(unfilled: replace before this doc is used)",
+        "summary": "(unfilled: replace before this doc is used)",
+        "use when": "(unfilled: replace before this doc is used)"
+      },
+      "kind": "task",
+      "linked_refs": {
+        "item": [
+          "item_008_build_compatible_loot_and_craft_upgrade_plans"
+        ],
+        "prod": [
+          "prod_007_melvin_action_aware_upgrade_planning"
+        ],
+        "req": [
+          "req_005_action_aware_equipment_upgrade_plans"
+        ],
+        "task": [
+          "task_006_implement_action_aware_equipment_upgrade_plans"
+        ]
+      },
+      "path": "logics/tasks/task_006_implement_action_aware_equipment_upgrade_plans.md",
+      "ref": "task_006_implement_action_aware_equipment_upgrade_plans",
+      "schema_version": "1.0",
+      "sections": {
+        "Context": [
+          "- Orchestrate the scaffolded request chain and keep sibling implementation slices linked."
+        ],
+        "Validation": [
+          "- (no validation recorded yet)"
+        ]
+      },
+      "status": "Ready",
+      "title": "Implement action-aware equipment upgrade plans"
+    }
+  ],
+  "estimates": {
+    "char_count": 7232,
+    "companion_doc_count": 1,
+    "doc_count": 4
+  },
+  "generated_at": "2026-08-16T10:12:22Z",
+  "handoff": {
+    "companion_doc_count": 1,
+    "enabled": true,
+    "source_refs": [
+      "req_005_action_aware_equipment_upgrade_plans",
+      "item_008_build_compatible_loot_and_craft_upgrade_plans",
+      "task_006_implement_action_aware_equipment_upgrade_plans"
+    ],
+    "validation_summary_count": 1
+  },
+  "i18n": {
+    "actions": [
+      "Choose the source locale for app-owned user-facing copy.",
+      "Run logics-manager i18n init --source-locale <locale>.",
+      "Route new UI copy through stable semantic keys."
+    ],
+    "applicable": null,
+    "configured": false,
+    "contract_path": "logics/i18n/contract.json",
+    "findings": [],
+    "next_action": "Run logics-manager i18n init --source-locale <locale> for a project that owns user-facing copy.",
+    "ok": true,
+    "state": "absent"
+  },
+  "mode": "full",
+  "profile": "normal",
+  "ref": "req_005_action_aware_equipment_upgrade_plans,item_008_build_compatible_loot_and_craft_upgrade_plans,task_006_implement_action_aware_equipment_upgrade_plans",
+  "refs": [
+    "req_005_action_aware_equipment_upgrade_plans",
+    "item_008_build_compatible_loot_and_craft_upgrade_plans",
+    "task_006_implement_action_aware_equipment_upgrade_plans"
+  ],
+  "release": {
+    "blocking_reasons": [],
+    "configured": true,
+    "contract_path": "logics/release/contract.json",
+    "guidance": [
+      "Release readiness must come from project-owned evidence, not conversational memory.",
+      "Use release status or validate before preparing or claiming release readiness.",
+      "Publication-oriented actions are explicit operator actions and are separate from safe read/validate actions."
+    ],
+    "next_action": "Release evidence is complete.",
+    "publication_actions": [
+      "GitHub release publication",
+      "external publication"
+    ],
+    "required_gates": [
+      {
+        "blocking_reason": null,
+        "id": "version_metadata",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "changelog",
+        "required": true,
+        "state": "preparing",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "local_validation",
+        "required": true,
+        "state": "local_validation",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "git_push",
+        "required": true,
+        "state": "pushed",
+        "status": "passed"
+      },
+      {
+        "blocking_reason": null,
+        "id": "ci",
+        "required": true,
+        "state": "ci_verification",
+        "status": "passed"
+      }
+    ],
+    "safe_actions": [
+      "logics-manager release status",
+      "logics-manager release plan <version>",
+      "logics-manager release validate <version>"
+    ],
+    "state": "ready",
+    "target_version": "0.1.0"
+  },
+  "validation_summary": [
+    {
+      "items": [
+        "- (no validation recorded yet)"
+      ],
+      "path": "logics/tasks/task_006_implement_action_aware_equipment_upgrade_plans.md",
+      "ref": "task_006_implement_action_aware_equipment_upgrade_plans"
+    }
+  ]
+}

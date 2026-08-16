@@ -1,0 +1,116 @@
+{
+  "title": "Action-aware equipment upgrade plans",
+  "references": [
+    "README.md",
+    "MELVOR.md",
+    "MELVOR_RUNBOOK.md",
+    "melvor-report.js",
+    "melvor-helpers.js",
+    "test-journal.js",
+    "journal/latest.json"
+  ],
+  "request": {
+    "complexity": "High",
+    "theme": "Melvor progression planning",
+    "needs": [
+      "Give each character an actionable per-slot equipment progression plan derived from its current activity.",
+      "Show the first loot target and first craft target plus up to three compatible alternatives for each equipped slot.",
+      "Prevent recommendations that cross damage types, spell requirements, owned DLC realms, equipment requirements, or dungeon-completion gates.",
+      "Use dungeon strategy guidance only for a fixed dungeon run; distinguish it from a Slayer task whose target can change.",
+      "Make the plan visible in a dedicated dashboard surface without enabling automatic game actions."
+    ],
+    "context": [
+      "The journal already captures current combat state, equipment, skills, bank inventory, and source-of-truth context through the live game API.",
+      "The current gear audit ranks raw stats and can therefore surface incompatible candidates if its richer compatibility facts are not used.",
+      "A character in a dungeon has a stable boss and can benefit from a linked strategy guide, while an active Slayer task must be planned against the task target and refreshed after it completes.",
+      "The dashboard is generated as sanitized, dependency-free local HTML and already has a character Plans tab."
+    ],
+    "acceptance_criteria": [
+      "Every scanned character has a structured equipment upgrade plan grouped by equipped slot.",
+      "Each slot supplies at most one primary loot target, one primary craft target, and three ranked alternatives per source when compatible candidates exist.",
+      "Each recommendation records why it is compatible, its acquisition source, unmet requirements, and whether it is currently actionable or blocked.",
+      "Abyssal recommendations require matching damage type and usable spellbook/weapon rules; candidates from another realm or DLC are excluded unless the live game state proves them usable.",
+      "A fixed dungeon run may attach a versioned official-wiki strategy reference, while Slayer-task plans identify the current task target and do not claim a stable dungeon strategy.",
+      "The dashboard exposes a dedicated Upgrade plans view with action context, per-slot loot/craft recommendations, alternatives, and blockers.",
+      "Generated journal data and HTML remain local-first, escaped, dependency-free, and do not execute or save game actions.",
+      "Focused offline tests cover compatibility filtering, rank limits, dungeon-versus-task context, and rendered plan visibility; project checks pass."
+    ]
+  },
+  "product": {
+    "title": "Melvin - action-aware upgrade planning",
+    "overview": "Turn the journal from a broad recommendation surface into a reliable equipment progression planner. Each plan is grounded in the character's live activity and game registry metadata, then optionally enriched with an official strategy guide for a fixed dungeon. The player can see which loot or craft to pursue next without being sent toward incompatible expansion or damage-type gear.",
+    "goals": [
+      "Recommend acquisition paths per equipped slot, not only stat comparisons.",
+      "Keep compatibility and prerequisite evaluation in the live game-data layer.",
+      "Make dungeon plans strategy-aware without treating a changing Slayer task as a fixed dungeon.",
+      "Expose clear, non-mutating plans in the local dashboard."
+    ],
+    "non_goals": [
+      "No automatic item crafting, looting, equipping, combat changes, or save writes.",
+      "No scraping arbitrary third-party sites or treating wiki prose as authoritative compatibility data.",
+      "No new frontend framework, database, hosted service, or dependency.",
+      "No full optimizer for every future game state beyond the current action and candidates."
+    ]
+  },
+  "backlog_items": [
+    {
+      "title": "Build compatible loot and craft upgrade plans",
+      "priority": "High",
+      "complexity": "High",
+      "theme": "Melvor progression planning",
+      "request_acs": [
+        "Every scanned character has a structured equipment upgrade plan grouped by equipped slot.",
+        "Each slot supplies at most one primary loot target, one primary craft target, and three ranked alternatives per source when compatible candidates exist.",
+        "Each recommendation records why it is compatible, its acquisition source, unmet requirements, and whether it is currently actionable or blocked.",
+        "Abyssal recommendations require matching damage type and usable spellbook/weapon rules; candidates from another realm or DLC are excluded unless the live game state proves them usable.",
+        "A fixed dungeon run may attach a versioned official-wiki strategy reference, while Slayer-task plans identify the current task target and do not claim a stable dungeon strategy.",
+        "The dashboard exposes a dedicated Upgrade plans view with action context, per-slot loot/craft recommendations, alternatives, and blockers.",
+        "Generated journal data and HTML remain local-first, escaped, dependency-free, and do not execute or save game actions.",
+        "Focused offline tests cover compatibility filtering, rank limits, dungeon-versus-task context, and rendered plan visibility; project checks pass."
+      ],
+      "problem": [
+        "Raw gear scores can recommend an item without proving it works for the current damage type, spellbook, DLC realm, or required completion.",
+        "Players cannot see a concise acquisition path per equipment slot.",
+        "Dungeon strategy and changing Slayer-task context currently share the same generic combat advice."
+      ],
+      "scope_in": [
+        "Collect serializable item source, realm, damage type, attack style, spell, and requirement metadata alongside current equipment and candidates.",
+        "Derive deterministic per-slot loot and craft recommendations plus up to three alternatives from compatible live-game candidates.",
+        "Represent fixed dungeon and Slayer-task contexts separately and allow only fixed dungeons to carry an official guide reference.",
+        "Render a dedicated Upgrade plans dashboard view and include the plan in recorded journal data.",
+        "Document refresh, review, compatibility, and guide-fallback behavior in a reusable runbook.",
+        "Add focused pure-data and rendered-HTML checks."
+      ],
+      "scope_out": [
+        "Applying equipment, starting combat, crafting items, or mutating a save.",
+        "Guessing inaccessible item sources or parsing unverified wiki prose into game requirements.",
+        "Replacing existing journal history, dashboard filters, or guarded actions."
+      ],
+      "acceptance_criteria": [
+        "A candidate whose required damage type or usable-spell condition does not match the active combat build is not emitted as an upgrade option.",
+        "A candidate blocked by an unmet skill, Abyssal level, DLC realm, or completion remains visible only as blocked with its exact gate.",
+        "Loot and craft recommendations have independent rank limits and stable ordering.",
+        "A Slayer task names its current monster and a refresh condition; it does not display a fixed-dungeon guide.",
+        "A selected dungeon can display an official guide URL as advisory context while game metadata remains the compatibility authority.",
+        "The rendered dashboard contains the dedicated upgrade-plan view and no untrusted external URLs.",
+        "npm run check passes without a new dependency."
+      ]
+    }
+  ],
+  "orchestration_task": {
+    "title": "Implement action-aware equipment upgrade plans",
+    "plan": [
+      "Inspect the existing live gear audit, journal collection, dashboard renderer, tests, and game item metadata before changing recommendation logic.",
+      "Collect source and compatibility metadata from the live game registry and classify dungeon and Slayer-task contexts.",
+      "Derive deterministic loot and craft recommendations with rank limits, alternatives, and explicit blockers.",
+      "Render the dedicated upgrade-plan view while retaining the existing Plans content.",
+      "Add focused offline coverage and a runbook for refresh, review, wiki guidance, and fallback behavior.",
+      "Run project checks, a live read-only journal refresh, and Logics validation before closeout."
+    ]
+  },
+  "context_pack": {
+    "out": "logics/context-packs/action-aware-upgrade-plans.json",
+    "mode": "full",
+    "profile": "normal"
+  }
+}
