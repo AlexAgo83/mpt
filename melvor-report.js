@@ -1804,7 +1804,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .equipment-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; }
 .equipment-slot { min-width: 0; min-height: 4.25rem; padding: .45rem .5rem; border: 1px solid var(--line); border-radius: 5px; background: #111614; overflow-wrap: anywhere; }
 .equipment-slot small { display: block; margin-bottom: .18rem; color: var(--muted); font-size: .7rem; text-transform: uppercase; }
-.wiki-icon { float: left; width: 42px; height: 42px; margin: 0 .45rem .15rem 0; object-fit: contain; }
+.wiki-icon { display: inline-block; width: 1.1em; height: 1.1em; margin: 0 .3em 0 0; vertical-align: -0.2em; object-fit: contain; }
 .equipment-slot::after { content: ""; display: block; clear: both; }
 .equipment-grid[hidden] { display: none; }
 .skills-grid, .inventory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: .45rem; }
@@ -1822,7 +1822,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .skill-meter progress { width: 100%; height: .45rem; accent-color: var(--teal); }
 .skill-meter.mastery progress { accent-color: var(--accent); }
 .inventory-item { position: relative; min-height: 5rem; }
-.inventory-item .wiki-icon { width: 38px; height: 38px; }
+.inventory-item .wiki-icon { width: 1.1em; height: 1.1em; }
 .inventory-qty { position: absolute; right: .35rem; bottom: .3rem; color: var(--accent); font-weight: 700; }
 .equipment-slot.weapon, .equipment-slot.offhand { border-color: #706039; }
 .equipment-slot.passive, .equipment-slot.consumable { border-color: #2d6255; }
