@@ -1859,7 +1859,6 @@ a { color: var(--accent); }
 <section id="refreshControls" aria-label="Refresh journal"><select id="refreshCharacter"><option value="all">all characters</option></select><button id="refreshButton" type="button">Refresh</button><span id="refreshStatus"></span></section>
 <details id="setup"><summary>Account setup</summary><ol><li>Sign in through the official Melvor page in the shared browser profile.</li><li>Set your character roster in <code>.env.local</code>.</li><li>Use Refresh to build the first local journal.</li></ol><p><a href="https://melvoridle.com/" target="_blank" rel="noopener">Open Melvor sign-in</a> · MPT never stores your credentials.</p></details>
 <section id="start"><h2>Start here</h2></section>
-<section id="upgradeOverview"><h2>Upgrade plans</h2></section>
 <div id="summary"></div>
 <details id="filterBox"><summary>Advanced filters</summary><div id="filters">
   <input id="q" type="search" placeholder="character, activity, or item">
@@ -1932,19 +1931,6 @@ const start = document.getElementById('start');
 if (!urgent.length) start.append(el('p', 'muted', 'Nothing urgent. Let current activities continue.'));
 for (const [name, item] of urgent) { const row = el('div', 'start-item'); row.append(el('strong', '', name), el('span', '', item.label)); start.append(row); }
 
-const upgradeOverview = document.getElementById('upgradeOverview');
-let upgradeCount = 0;
-for (const [name, c] of Object.entries(snap.characters).sort(([a], [b]) => a.localeCompare(b))) {
-  const slots = c.observed.upgradePlan?.slots || {};
-  const rows = Object.entries(slots).flatMap(([slot, plan]) => [
-    plan.loot?.primary ? slot + ' loot: ' + plan.loot.primary.name + (plan.loot.primary.blocked?.length ? ' — ' + plan.loot.primary.blocked.join(', ') : '') : null,
-    plan.craft?.primary ? slot + ' craft: ' + plan.craft.primary.name + (plan.craft.primary.blocked?.length ? ' — ' + plan.craft.primary.blocked.join(', ') : '') : null,
-  ]).filter(Boolean).slice(0, 4);
-  if (!rows.length) continue;
-  const box = el('div', 'start-item'); box.append(el('strong', '', name), el('span', '', rows.join(' · '))); upgradeOverview.append(box); upgradeCount++;
-}
-if (!upgradeCount) upgradeOverview.append(el('p', 'muted', 'Refresh a character to calculate upgrade plans.'));
-
 const summary = document.getElementById('summary');
 const operations = snap.account.operations || {};
 const stat = (label, value) => { const d = el('div', 'stat'); d.append(el('b', '', String(value)), el('span', '', label)); summary.append(d); };
@@ -1971,6 +1957,7 @@ const insightPanel = items => {
   return body;
 };
 const equipmentSlots = [['Helmet', 'head'], ['Cape', 'cape'], ['Amulet', 'amulet'], ['Weapon', 'weapon'], ['Shield', 'off-hand'], ['Platebody', 'body'], ['Gloves', 'hands'], ['Platelegs', 'legs'], ['Boots', 'feet'], ['Ring', 'ring'], ['Quiver', 'ammo'], ['Passive', 'passive'], ['Consumable', 'consumable'], ['Gem', 'gem'], ['Enhancement1', 'enhancement I'], ['Enhancement2', 'enhancement II'], ['Enhancement3', 'enhancement III']];
+const wiki = name => { const wrap = el('span'); wrap.dataset.wikiTitle = name; const link = el('a', '', name); link.href = 'https://wiki.melvoridle.com/w/' + encodeURIComponent(name.replace(/ /g, '_')); link.target = '_blank'; link.rel = 'noopener'; wrap.append(link); return wrap; };
 function equipmentSheet(c) {
   const equipment = el('section', 'panel equipment-sheet'); equipment.dataset.panel = 'equipment';
   const combat = c.observed.combat || {};
@@ -1991,11 +1978,11 @@ function upgradeSheet(c) {
   if (!plan || !Object.keys(plan.slots || {}).length) return null;
   const body = el('section', 'panel panel-grid'); body.dataset.panel = 'upgrades';
   const context = plan.context || {};
-  body.append(group('Context', [context.kind === 'slayer_task' ? 'Slayer task: ' + (context.target || 'unknown') + '; ' + (context.remaining ?? '?') + ' left; ' + context.refresh : context.kind === 'dungeon' ? 'Dungeon: ' + (context.target || 'unknown') + '; strategy guide: ' + (context.guide || 'unavailable') : 'Activity: ' + (context.target || 'unknown'), 'Build: ' + (plan.attackType || 'unknown') + (plan.damageType ? ' / ' + plan.damageType : '')]));
-  const show = (slot, kind, choice) => choice ? slot + ' · ' + kind + ': ' + choice.primary.name + ' (' + choice.primary.source + ')' + (choice.primary.blocked?.length ? ' — blocked: ' + choice.primary.blocked.join(', ') : '') + (choice.alternatives?.length ? ' | alternatives: ' + choice.alternatives.map(item => item.name).join(', ') : '') : null;
-  const loot = [], craft = [];
-  for (const [slot, entry] of Object.entries(plan.slots || {})) { loot.push(show(slot, 'loot', entry.loot)); craft.push(show(slot, 'craft', entry.craft)); }
-  body.append(group('Next loot', loot.filter(Boolean)), group('Next craft', craft.filter(Boolean)));
+  const contextRow = el('section', 'group'); contextRow.append(el('h3', '', 'Context'));
+  const contextText = context.kind === 'slayer_task' ? ['Slayer task: ', wiki(context.target || 'unknown'), document.createTextNode('; ' + (context.remaining ?? '?') + ' left; ' + context.refresh)] : context.kind === 'dungeon' ? ['Dungeon: ', wiki(context.target || 'unknown'), document.createTextNode('; strategy guide: '), wiki(context.target || 'unknown')] : ['Activity: ' + (context.target || 'unknown')];
+  const contextLine = el('p'); contextLine.append(...contextText); contextRow.append(contextLine, el('p', '', 'Build: ' + (plan.attackType || 'unknown') + (plan.damageType ? ' / ' + plan.damageType : ''))); body.append(contextRow);
+  const section = (title, kind) => { const box = el('section', 'group'); box.append(el('h3', '', title)); for (const [slot, entry] of Object.entries(plan.slots || {})) { const choice = entry[kind]; if (!choice) continue; const line = el('p'); line.append(document.createTextNode(slot + ': '), wiki(choice.primary.name), document.createTextNode(' (' + choice.primary.source + ')' + (choice.primary.blocked?.length ? ' — blocked: ' + choice.primary.blocked.join(', ') : ''))); if (choice.alternatives?.length) { line.append(document.createTextNode(' | alternatives: ')); choice.alternatives.forEach((item, index) => { if (index) line.append(document.createTextNode(', ')); line.append(wiki(item.name)); }); } box.append(line); } return box.children.length > 1 ? box : null; };
+  body.append(section('Next loot', 'loot'), section('Next craft', 'craft'));
   return body;
 }
 function skillsSheet(c) {
