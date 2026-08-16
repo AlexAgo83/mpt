@@ -1859,6 +1859,7 @@ a { color: var(--accent); }
 <section id="refreshControls" aria-label="Refresh journal"><select id="refreshCharacter"><option value="all">all characters</option></select><button id="refreshButton" type="button">Refresh</button><span id="refreshStatus"></span></section>
 <details id="setup"><summary>Account setup</summary><ol><li>Sign in through the official Melvor page in the shared browser profile.</li><li>Set your character roster in <code>.env.local</code>.</li><li>Use Refresh to build the first local journal.</li></ol><p><a href="https://melvoridle.com/" target="_blank" rel="noopener">Open Melvor sign-in</a> · MPT never stores your credentials.</p></details>
 <section id="start"><h2>Start here</h2></section>
+<section id="upgradeOverview"><h2>Upgrade plans</h2></section>
 <div id="summary"></div>
 <details id="filterBox"><summary>Advanced filters</summary><div id="filters">
   <input id="q" type="search" placeholder="character, activity, or item">
@@ -1930,6 +1931,19 @@ const urgent = Object.entries(snap.characters)
 const start = document.getElementById('start');
 if (!urgent.length) start.append(el('p', 'muted', 'Nothing urgent. Let current activities continue.'));
 for (const [name, item] of urgent) { const row = el('div', 'start-item'); row.append(el('strong', '', name), el('span', '', item.label)); start.append(row); }
+
+const upgradeOverview = document.getElementById('upgradeOverview');
+let upgradeCount = 0;
+for (const [name, c] of Object.entries(snap.characters).sort(([a], [b]) => a.localeCompare(b))) {
+  const slots = c.observed.upgradePlan?.slots || {};
+  const rows = Object.entries(slots).flatMap(([slot, plan]) => [
+    plan.loot?.primary ? slot + ' loot: ' + plan.loot.primary.name + (plan.loot.primary.blocked?.length ? ' — ' + plan.loot.primary.blocked.join(', ') : '') : null,
+    plan.craft?.primary ? slot + ' craft: ' + plan.craft.primary.name + (plan.craft.primary.blocked?.length ? ' — ' + plan.craft.primary.blocked.join(', ') : '') : null,
+  ]).filter(Boolean).slice(0, 4);
+  if (!rows.length) continue;
+  const box = el('div', 'start-item'); box.append(el('strong', '', name), el('span', '', rows.join(' · '))); upgradeOverview.append(box); upgradeCount++;
+}
+if (!upgradeCount) upgradeOverview.append(el('p', 'muted', 'Refresh a character to calculate upgrade plans.'));
 
 const summary = document.getElementById('summary');
 const operations = snap.account.operations || {};
