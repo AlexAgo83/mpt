@@ -1294,6 +1294,7 @@ function buildCharacterJournal(name, data, save) {
       equipmentQuantities: report.equipmentQuantities || {},
       equipmentSets: data.equipmentSets || [],
       inventory: data.inventory || [],
+      upgradePlan: data.upgradePlan || null,
       skillingOptions: data.skillingOptions || {},
       skills: data.skills || [],
       lowSkills: report.lowSkills.slice(0, 6),
@@ -1971,6 +1972,18 @@ function equipmentSheet(c) {
   equipment.prepend(selector);
   return equipment;
 }
+function upgradeSheet(c) {
+  const plan = c.observed.upgradePlan;
+  if (!plan || !Object.keys(plan.slots || {}).length) return null;
+  const body = el('section', 'panel panel-grid'); body.dataset.panel = 'upgrades';
+  const context = plan.context || {};
+  body.append(group('Context', [context.kind === 'slayer_task' ? 'Slayer task: ' + (context.target || 'unknown') + '; ' + (context.remaining ?? '?') + ' left; ' + context.refresh : context.kind === 'dungeon' ? 'Dungeon: ' + (context.target || 'unknown') + '; strategy guide: ' + (context.guide || 'unavailable') : 'Activity: ' + (context.target || 'unknown'), 'Build: ' + (plan.attackType || 'unknown') + (plan.damageType ? ' / ' + plan.damageType : '')]));
+  const show = (slot, kind, choice) => choice ? slot + ' · ' + kind + ': ' + choice.primary.name + ' (' + choice.primary.source + ')' + (choice.primary.blocked?.length ? ' — blocked: ' + choice.primary.blocked.join(', ') : '') + (choice.alternatives?.length ? ' | alternatives: ' + choice.alternatives.map(item => item.name).join(', ') : '') : null;
+  const loot = [], craft = [];
+  for (const [slot, entry] of Object.entries(plan.slots || {})) { loot.push(show(slot, 'loot', entry.loot)); craft.push(show(slot, 'craft', entry.craft)); }
+  body.append(group('Next loot', loot.filter(Boolean)), group('Next craft', craft.filter(Boolean)));
+  return body;
+}
 function skillsSheet(c) {
   const panel = el('section', 'panel'); panel.dataset.panel = 'skills';
   const skills = [...(c.observed.skills || [])].sort((a, b) => b.level - a.level || a.name.localeCompare(b.name));
@@ -2056,6 +2069,7 @@ function render() {
       insightPanel(insights(c)),
       panel('progress', [group('Level ETA', c.analysis.progressEtas || []), group('Standard lows', (c.observed.standard?.lowest || []).slice(0, 6).map(s => s.name + ' ' + s.level + '/' + s.cap)), group('Abyssal lows', (c.observed.abyssal?.lowest || []).slice(0, 6).map(s => s.name + ' ' + s.abyssalLevel + '/' + s.abyssalCap))]),
       equipment,
+      upgradeSheet(c),
       skillsSheet(c),
       inventorySheet(c),
       panel('plans', [group('Standard plan', c.analysis.standardPlan || []), group('Abyssal plan', c.analysis.abyssalPlan || []), group('Decisions', actions), group('Risk notes', c.analysis.riskNotes || [])]),
@@ -2064,7 +2078,7 @@ function render() {
     const tabs = el('div', 'tabs'); tabs.setAttribute('role', 'tablist');
     for (const [index, content] of panels.entries()) {
       const tabName = content.dataset.panel;
-      const btn = el('button', '', ({ now: 'Now', progress: 'Progress', equipment: 'Equipment', skills: 'Skills', inventory: 'Inventory', plans: 'Plans', history: 'History' })[tabName] || tabName); btn.type = 'button'; btn.dataset.tab = tabName; btn.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
+      const btn = el('button', '', ({ now: 'Now', progress: 'Progress', equipment: 'Equipment', upgrades: 'Upgrade plans', skills: 'Skills', inventory: 'Inventory', plans: 'Plans', history: 'History' })[tabName] || tabName); btn.type = 'button'; btn.dataset.tab = tabName; btn.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
       content.hidden = index !== 0; tabs.append(btn); body.append(content);
     }
     body.prepend(tabs);
@@ -2169,7 +2183,7 @@ async function collectJournal(name, save, includeSaveBackup = false) {
     const inventory = [...game.bank.items].map(([item, entry]) => ({ name: item.name, quantity: entry.quantity, media: item.media || null })).sort((a, b) => a.name.localeCompare(b.name));
     const values = value => value instanceof Map ? [...value.values()] : value instanceof Set ? [...value] : Array.isArray(value) ? value : value?.allObjects ?? [];
     const talents = game.skills.allObjects.flatMap(skill => values(skill.skillTrees).map(tree => ({ skill: skill.name, points: tree.points || 0, candidates: values(tree.nodes).filter(node => node.canUnlock && tree.canAffordNode(node) && !values(tree.unlockedNodes).includes(node)).map(node => ({ name: node.name, shortName: node.shortName })) }))).filter(tree => tree.points > 0);
-    const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])), equipmentSets, inventory, talents };
+    const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])), equipmentSets, inventory, talents, upgradePlan: mh.upgradePlan() };
     if (${JSON.stringify(includeSaveBackup)}) out.saveExport = mh.exportSaveString();
     return out;
   })()`));

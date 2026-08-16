@@ -150,11 +150,15 @@ recommendations, current-action plan, standard plan, abyssal plan, proposed acti
   export per character, dated archives keep recent history, and `manifest.jsonl` stores
   only metadata (timestamp, source, byte size, hash, relative path)
 - `journal/index.html`: offline decision cockpit with account indicators, priority/attention
-  filtering, a responsive character comparison view, and Now/Progress/Equipment/Plans/History
+  filtering, a responsive character comparison view, and Now/Progress/Equipment/Upgrade plans/Plans/History
   detail tabs. It opens directly from disk and links to the full Markdown journals.
   Run `./melvor-report.js journal-serve` and open `http://127.0.0.1:8787` to enable the
   dashboard's read-only refresh button for one character or the whole account. It never
   changes game state; it only runs `journal <character> --record` locally.
+- `Upgrade plans`: per equipped slot, the next loot and craft candidates plus up to three
+  alternatives. Compatibility comes from live game metadata (style, active damage type,
+  and requirements); a fixed dungeon may show an official-wiki guide link, while a Slayer
+  task is explicitly refreshed when its target changes.
 - `Level ETA`: projected time to next level, next 10-level milestone, and current cap when
   two journal snapshots have enough standard or abyssal XP gain to estimate a rate; abyssal
   thresholds come from the game `abyssalExp.levelToXP` table; otherwise it explains what

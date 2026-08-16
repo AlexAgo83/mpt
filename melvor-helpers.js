@@ -333,6 +333,42 @@
     return { context: { attackType, hitChance: p.stats.hitChance, maxHit: p.stats.maxHit, attackInterval: p.stats.attackInterval }, equipped, candidates, blocked };
   };
 
+  // Read-only per-slot acquisition plan. Game registry requirements are authoritative;
+  // wiki guidance is advisory and added by the journal renderer only for fixed dungeons.
+  mh.upgradePlan = () => {
+    const values = value => value instanceof Map || value instanceof Set ? [...value.values()] : Array.isArray(value) ? value : value?.allObjects ?? [];
+    const p = game.combat.player, combat = game.combat, attackType = p.attackType;
+    const prefixes = { melee: ['stabAttackBonus','slashAttackBonus','blockAttackBonus','meleeStrengthBonus','meleeDefenceBonus','resistance'], ranged: ['rangedAttackBonus','rangedStrengthBonus','rangedDefenceBonus','resistance'], magic: ['magicAttackBonus','magicDamageBonus','magicDefenceBonus','resistance'] }[attackType] || [];
+    const score = item => prefixes.reduce((sum, key) => sum + Math.max(0, ...Object.entries(statsOf(item)).filter(([name]) => name.startsWith(key)).map(([, value]) => value)), 0);
+    const meets = r => r.type === 'SkillLevel' ? r.skill?.level >= r.level : r.type === 'AbyssalLevel' ? (r.skill?.abyssalLevel ?? 0) >= r.level : r.type === 'DungeonCompletion' ? (combat.getDungeonCompleteCount?.(r.dungeon) ?? 0) >= r.count : r.type === 'AbyssDepthCompletion' ? false : r.type === 'ShopPurchase' ? false : false;
+    const requirement = r => r.type === 'SkillLevel' ? `${r.skill?.name || 'skill'} ${r.level}` : r.type === 'AbyssalLevel' ? `${r.skill?.name || 'abyssal skill'} ${r.level}` : r.type === 'DungeonCompletion' ? `${r.dungeon?.name || 'dungeon'} x${r.count ?? 1}` : r.type === 'AbyssDepthCompletion' ? `${r.depth?.name || r.abyssDepth?.name || 'Abyss depth'} completion` : r.type === 'ShopPurchase' ? `purchase ${r.purchase?.name || 'required'}` : r.type || 'unknown requirement';
+    const craft = new Map();
+    for (const skill of values(game.skills)) for (const action of values(skill.actions).length ? values(skill.actions) : values(skill.recipes)) {
+      const item = action.product ?? action.item ?? action.outputs?.[0]?.item;
+      if (item?.id) craft.set(item.id, { skill: skill.name, recipe: action.name ?? item.name });
+    }
+    const drops = new Map();
+    for (const monster of values(game.monsters)) for (const drop of values(monster.lootTable?.drops ?? monster.lootTable)) {
+      const item = drop.item ?? drop.drop ?? drop.itemToDrop;
+      if (item?.id && !drops.has(item.id)) drops.set(item.id, monster.name);
+    }
+    const equipped = Object.fromEntries(p.equipment.equippedArray.filter(slot => !slot.isEmpty).map(slot => [slot.slot.localID, slot.item]));
+    const damageType = equipped.Weapon?.damageType?.name ?? null;
+    const itemView = item => ({ name: item.name, id: item.id, realm: String(item.id || '').split(':')[0] || null, score: score(item), damageType: item.damageType?.name ?? null, craft: craft.get(item.id) ?? null, loot: drops.get(item.id) ?? null, blocked: (item.equipRequirements ?? []).filter(r => !meets(r)).map(requirement) });
+    const compatible = (item, slot) => item.validSlots?.[0]?.localID === slot && (!item.attackType || item.attackType === attackType) && !(slot === 'Weapon' && damageType && damageType !== 'Normal' && item.damageType?.name !== damageType);
+    const slots = {};
+    for (const [slot, current] of Object.entries(equipped)) {
+      const candidates = values(game.items).filter(item => item !== current && compatible(item, slot) && score(item) > score(current)).map(itemView).sort((a, b) => a.blocked.length - b.blocked.length || b.score - a.score || a.name.localeCompare(b.name));
+      const pick = kind => candidates.filter(item => item[kind]).slice(0, 4).map(item => ({ ...item, source: kind === 'craft' ? `craft: ${item.craft.skill} / ${item.craft.recipe}` : `loot: ${item.loot}` }));
+      const loot = pick('loot'), crafting = pick('craft');
+      if (loot.length || crafting.length) slots[slot] = { current: itemView(current), loot: loot[0] ? { primary: loot[0], alternatives: loot.slice(1, 4) } : null, craft: crafting[0] ? { primary: crafting[0], alternatives: crafting.slice(1, 4) } : null };
+    }
+    const area = combat.selectedArea;
+    const dungeon = values(game.dungeons).find(entry => entry === area);
+    const task = combat.slayerTask?.active ? { monster: combat.slayerTask.monster?.name ?? null, remaining: combat.slayerTask.killsLeft ?? null } : null;
+    return { context: task ? { kind: 'slayer_task', target: task.monster, remaining: task.remaining, refresh: 'refresh when the Slayer task changes' } : dungeon ? { kind: 'dungeon', target: dungeon.name, guide: `https://wiki.melvoridle.com/w/${encodeURIComponent(dungeon.name.replace(/ /g, '_'))}/Guide` } : { kind: 'activity', target: game.activeAction?.name ?? null }, attackType, damageType, slots };
+  };
+
   mh.equipSlot = (name, slotName, quantity) => {
     const p = game.combat.player;
     const item = findBank(name);

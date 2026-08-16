@@ -66,6 +66,12 @@ const proven = buildCharacterJournal('Proven', {
 assert.strictEqual(proven.actions[0].item, 'Jeweled Necklace', 'owned replacement is proposed');
 assert.match(proven.analysis.abyssalPlan[0], /Abyssal Soup; 20000 actions; 12.0 h runway/);
 
+const upgrades = buildCharacterJournal('UpgradeChar', {
+  ...data,
+  upgradePlan: { context: { kind: 'slayer_task', target: 'Tangled Thorns', remaining: 20, refresh: 'refresh when the Slayer task changes' }, attackType: 'magic', damageType: 'Abyssal', slots: { Weapon: { loot: { primary: { name: 'Shadow Wand', source: 'loot: Shadow Tormentor', blocked: [], alternatives: [] }, alternatives: [{ name: 'Blight Burst Staff' }] }, craft: { primary: { name: 'Abyssal Wand', source: 'craft: Runecrafting / Abyssal Wand', blocked: [], alternatives: [] }, alternatives: [] } } } },
+}, save);
+assert.strictEqual(upgrades.observed.upgradePlan.slots.Weapon.loot.alternatives.length, 1, 'upgrade alternatives survive journal generation');
+
 // same state twice -> stable id, no duplicate event on rerun
 const c2 = buildCharacterJournal('TestChar', data, save);
 assert.strictEqual(c2.actions[0].id, a.id, 'action id is stable');
@@ -198,6 +204,7 @@ assert.match(html, /wiki\.melvoridle\.com\/api\.php/, 'equipment sheet loads off
 assert.match(html, /score\(b\[1\]\) - score\(a\[1\]\)/, 'characters sort by total-level score');
 assert.match(html, /identity-title/, 'score is grouped with the character name');
 assert.match(html, /nextAction/, 'dashboard keeps the next action compact');
+assert.match(renderDashboard(buildLatest([upgrades], new Map(), null, now)), /Upgrade plans/, 'dashboard renders the dedicated upgrade plans tab');
 
 const refreshedAt = '2026-07-05T12:01:00.000Z';
 const previousForRefresh = structuredClone(snap);
