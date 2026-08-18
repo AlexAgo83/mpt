@@ -1275,7 +1275,9 @@ function buildCharacterJournal(name, data, save) {
   const report = data.report;
   const brief = briefFromData(name, data, save);
   const activeSlayerTask = report.action === 'Combat' && Boolean(report.combat?.slayerTask?.monster);
-  const actions = planActions(data).map(a => ({ ...a, id: actionId(name, a), contextHash: actionContextHash(report, a) }));
+  const improvements = planActions(data);
+  const actions = improvements.map(a => ({ ...a, id: actionId(name, a), contextHash: actionContextHash(report, a) }));
+  const upgradePlan = data.upgradePlan ? { ...data.upgradePlan, activity: improvements } : improvements.length ? { context: { kind: 'non_combat_skill', target: report.action }, slots: {}, activity: improvements } : null;
   const saveRisk = !save || save.source === 'unknown' ? 'save source of truth unknown' : null;
   return {
     name,
@@ -1294,7 +1296,7 @@ function buildCharacterJournal(name, data, save) {
       equipmentQuantities: report.equipmentQuantities || {},
       equipmentSets: data.equipmentSets || [],
       inventory: data.inventory || [],
-      upgradePlan: data.upgradePlan || null,
+      upgradePlan,
       skillingOptions: data.skillingOptions || {},
       skills: data.skills || [],
       lowSkills: report.lowSkills.slice(0, 6),
@@ -1992,15 +1994,17 @@ function equipmentSheet(c) {
 }
 function upgradeSheet(c) {
   const plan = c.observed.upgradePlan;
-  if (!plan || !Object.keys(plan.slots || {}).length) return null;
+  if (!plan || (!Object.keys(plan.slots || {}).length && !Object.keys(plan.skilling || {}).length && !plan.activity?.length && plan.context?.kind !== 'non_combat_skill')) return null;
   const body = el('section', 'panel panel-grid'); body.dataset.panel = 'upgrades';
   const context = plan.context || {};
   const contextRow = el('section', 'group'); contextRow.append(el('h3', '', 'Context'));
-  const contextText = context.kind === 'slayer_task' ? ['Slayer task: ', wiki(context.target || 'unknown'), document.createTextNode('; ' + (context.remaining ?? '?') + ' left; ' + context.refresh)] : context.kind === 'dungeon' ? ['Dungeon: ', wiki(context.target || 'unknown'), document.createTextNode('; strategy guide: '), wiki(context.target || 'unknown')] : ['Activity: ' + (context.target || 'unknown')];
+  const contextText = context.kind === 'non_combat_skill' ? ['Non-combat skill: ', wiki(context.target || 'unknown'), document.createTextNode('; combat upgrades deferred until it stops')] : context.kind === 'slayer_task' ? ['Slayer task: ', wiki(context.target || 'unknown'), document.createTextNode('; ' + (context.remaining ?? '?') + ' left; ' + context.refresh)] : context.kind === 'dungeon' ? ['Dungeon: ', wiki(context.target || 'unknown'), document.createTextNode('; strategy guide: '), wiki(context.target || 'unknown')] : ['Activity: ' + (context.target || 'unknown')];
   const contextLine = el('p'); contextLine.append(...contextText); contextRow.append(contextLine, el('p', '', 'Build: ' + (plan.attackType || 'unknown') + (plan.damageType ? ' / ' + plan.damageType : ''))); body.append(contextRow);
   const source = item => item.loot ? [document.createTextNode('loot: '), wiki(item.loot)] : item.craft ? [document.createTextNode('craft: ' + item.craft.skill + ' / '), wiki(item.craft.recipe)] : [document.createTextNode(item.source || 'source unknown')];
   const section = (title, kind) => { const box = el('section', 'group'); box.append(el('h3', '', title)); for (const [slot, entry] of Object.entries(plan.slots || {})) { const choice = entry[kind]; if (!choice) continue; const line = el('p'); line.append(document.createTextNode(slot + ': '), wiki(choice.primary.name), document.createTextNode(' ('), ...source(choice.primary), document.createTextNode(')' + (choice.primary.blocked?.length ? ' — blocked: ' + choice.primary.blocked.join(', ') : ''))); if (choice.alternatives?.length) { line.append(document.createTextNode(' | alternatives: ')); choice.alternatives.forEach((item, index) => { if (index) line.append(document.createTextNode(', ')); line.append(wiki(item.name)); }); } box.append(line); } return box.children.length > 1 ? box : null; };
-  body.append(section('Next loot', 'loot'), section('Next craft', 'craft'));
+  const skilling = Object.keys(plan.skilling || {}).length ? group('Skilling equipment upgrades', Object.entries(plan.skilling).map(([slot, entry]) => slot + ': ' + entry.current + ' → ' + entry.candidates.map(item => item.name + ' (owned x' + item.available + '; ' + item.passives.join('; ') + ')').join(' | '))) : null;
+  const activity = plan.activity?.length ? group('Current activity upgrades', plan.activity.map(a => a.slot + ': ' + a.current + ' → ' + a.item + ' (owned x' + a.available + '; ' + a.reason + ')')) : null;
+  body.append(skilling, activity, section('Next loot', 'loot'), section('Next craft', 'craft'));
   return body;
 }
 function skillsSheet(c) {

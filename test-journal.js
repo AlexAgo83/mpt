@@ -34,6 +34,7 @@ const c = buildCharacterJournal('TestChar', data, save);
 assert.strictEqual(c.actions.length, 1, 'Fishing without Octopus proposes one equip');
 const a = c.actions[0];
 assert.strictEqual(a.item, 'Octopus');
+assert.strictEqual(c.observed.upgradePlan.activity[0].item, 'Octopus', 'owned active-skill summons are upgrade-plan improvements');
 assert.match(a.id, /^[0-9a-f]{12}$/);
 assert.strictEqual(c.analysis.saveRisk, null, 'known local source is not a journal risk');
 assert.ok(c.observed.saveSource.source === 'local');
@@ -71,6 +72,11 @@ const upgrades = buildCharacterJournal('UpgradeChar', {
   upgradePlan: { context: { kind: 'slayer_task', target: 'Tangled Thorns', remaining: 20, refresh: 'refresh when the Slayer task changes' }, attackType: 'magic', damageType: 'Abyssal', slots: { Weapon: { loot: { primary: { name: 'Shadow Wand', source: 'loot: Shadow Tormentor', blocked: [], alternatives: [] }, alternatives: [{ name: 'Blight Burst Staff' }] }, craft: { primary: { name: 'Abyssal Wand', source: 'craft: Runecrafting / Abyssal Wand', blocked: [], alternatives: [] }, alternatives: [] } } } },
 }, save);
 assert.strictEqual(upgrades.observed.upgradePlan.slots.Weapon.loot.alternatives.length, 1, 'upgrade alternatives survive journal generation');
+const skillingUpgrade = buildCharacterJournal('SkillingUpgrade', { ...data, upgradePlan: { context: { kind: 'non_combat_skill', target: 'Fletching' }, attackType: 'melee', slots: {}, skilling: { Gloves: { current: 'Leather Gloves', candidates: [{ name: 'Sharp Fletcher Gloves', available: 1, passives: ['+5% Fletching XP'] }] } } } }, save);
+assert.strictEqual(skillingUpgrade.observed.upgradePlan.context.kind, 'non_combat_skill', 'non-combat work defers combat upgrade planning');
+assert.match(renderDashboard(buildLatest([skillingUpgrade], new Map(), null, now)), /combat upgrades deferred until it stops/, 'dashboard explains why combat upgrades are deferred');
+assert.match(renderDashboard(buildLatest([skillingUpgrade], new Map(), null, now)), /Skilling equipment upgrades/, 'dashboard renders non-combat equipment upgrades');
+assert.match(renderDashboard(buildLatest([c], new Map(), null, now)), /Current activity upgrades/, 'dashboard lists owned active-skill upgrades');
 
 // same state twice -> stable id, no duplicate event on rerun
 const c2 = buildCharacterJournal('TestChar', data, save);

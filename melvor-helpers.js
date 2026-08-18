@@ -356,6 +356,23 @@
     const damageType = equipped.Weapon?.damageType?.name ?? null;
     const itemView = item => ({ name: item.name, id: item.id, realm: String(item.id || '').split(':')[0] || null, score: score(item), damageType: item.damageType?.name ?? null, craft: craft.get(item.id) ?? null, loot: drops.get(item.id) ?? null, blocked: (item.equipRequirements ?? []).filter(r => !meets(r)).map(requirement) });
     const compatible = (item, slot) => item.validSlots?.[0]?.localID === slot && (!item.attackType || item.attackType === attackType) && !(slot === 'Weapon' && damageType && damageType !== 'Normal' && item.damageType?.name !== damageType);
+    const activeSkill = game.activeAction?.name ?? null;
+    if (activeSkill && activeSkill !== 'Combat') {
+      const skillScore = item => {
+        const text = passivesOf(item).join(' ');
+        const globalBonus = [...text.matchAll(/\+(\d+(?:\.\d+)?)% (?:Skill XP for all|Mastery XP in all Skills)/gi)].reduce((sum, match) => sum + Number(match[1]), 0);
+        return (new RegExp(activeSkill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(text) ? 100 : 0) + globalBonus - (/-\d+% (?:Chance to Preserve Resources|Skill XP|Mastery XP)|\+\d+% Skill Interval/i.test(text) ? 100 : 0);
+      };
+      const skilling = {};
+      for (const [slot, current] of Object.entries(equipped)) {
+        const candidates = [...game.bank.items]
+          .filter(([item]) => item !== current && item.validSlots?.some(s => s.localID === slot) && skillScore(item) > skillScore(current))
+          .map(([item, entry]) => ({ name: item.name, available: entry.quantity, passives: passivesOf(item).slice(0, 2), score: skillScore(item) }))
+          .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name)).slice(0, 3);
+        if (candidates.length) skilling[slot] = { current: current.name, candidates };
+      }
+      return { context: { kind: 'non_combat_skill', target: activeSkill, refresh: 'refresh when the active skill changes' }, attackType, damageType, slots: {}, skilling };
+    }
     const slots = {};
     for (const [slot, current] of Object.entries(equipped)) {
       const candidates = values(game.items).filter(item => item !== current && compatible(item, slot) && score(item) > score(current)).map(itemView).sort((a, b) => a.blocked.length - b.blocked.length || b.score - a.score || a.name.localeCompare(b.name));
@@ -366,7 +383,7 @@
     const area = combat.selectedArea;
     const dungeon = values(game.dungeons).find(entry => entry === area);
     const task = combat.slayerTask?.active ? { monster: combat.slayerTask.monster?.name ?? null, remaining: combat.slayerTask.killsLeft ?? null } : null;
-    return { context: task ? { kind: 'slayer_task', target: task.monster, remaining: task.remaining, refresh: 'refresh when the Slayer task changes' } : dungeon ? { kind: 'dungeon', target: dungeon.name, guide: `https://wiki.melvoridle.com/w/${encodeURIComponent(dungeon.name.replace(/ /g, '_'))}/Guide` } : { kind: 'activity', target: game.activeAction?.name ?? null }, attackType, damageType, slots };
+    return { context: task ? { kind: 'slayer_task', target: task.monster, remaining: task.remaining, refresh: 'refresh when the Slayer task changes' } : dungeon ? { kind: 'dungeon', target: dungeon.name, guide: `https://wiki.melvoridle.com/w/${encodeURIComponent(dungeon.name.replace(/ /g, '_'))}/Guide` } : { kind: 'activity', target: activeSkill }, attackType, damageType, slots };
   };
 
   mh.equipSlot = (name, slotName, quantity) => {
