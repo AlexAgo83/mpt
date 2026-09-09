@@ -730,7 +730,7 @@ const combatRunScript = (dungeonRef, timeoutMs) => `(async () => {
   const dungeon = allDungeons.find(d => d.id.toLowerCase() === ref)
     ?? allDungeons.find(d => d.name.toLowerCase() === ref)
     ?? allDungeons.find(d => d.name.toLowerCase().includes(ref));
-  if (!dungeon) return { status: 'error', error: 'unknown dungeon: ${dungeonRef.replace(/'/g, "\\'")}' };
+  if (!dungeon) return { status: 'error', error: ${JSON.stringify('unknown dungeon: ' + dungeonRef)} };
   const monsters = dungeon.monsters ?? [];
   const boss = monsters[monsters.length - 1];
   const style = beats[boss?.attackType] || null;
@@ -928,7 +928,7 @@ const skillStartScript = (skillName, recipeName, shouldApply) => `(async () => {
   const methodNames = object => { const names = new Set(); for (let value = object; value && value !== Object.prototype; value = Object.getPrototypeOf(value)) for (const name of Object.getOwnPropertyNames(value)) if (typeof object[name] === 'function') names.add(name); return [...names].filter(name => /select|create|start/i.test(name)); };
   const method = (object, names) => names.find(name => typeof object[name] === 'function');
   const skill = values(game.skills).find(skill => skill.name.toLowerCase() === ${JSON.stringify(skillName.toLowerCase())});
-  if (!skill) return { error: 'unknown skill: ${skillName.replace(/'/g, "\\'")}' };
+  if (!skill) return { error: ${JSON.stringify('unknown skill: ' + skillName)} };
   const actions = values(skill.actions).length ? values(skill.actions) : values(skill.recipes);
   const action = actions.find(action => (action.name ?? action.product?.name ?? '').toLowerCase() === ${JSON.stringify(recipeName.toLowerCase())});
   const result = { name: game.characterName, skill: skill.name, recipe: ${JSON.stringify(recipeName)}, applied: false };
@@ -956,7 +956,7 @@ const skillStartScript = (skillName, recipeName, shouldApply) => `(async () => {
 const talentUnlockScript = (skillName, nodeName, shouldApply) => `(async () => {
   const values = value => value instanceof Map || value instanceof Set ? [...value.values()] : value?.allObjects ?? value ?? [];
   const skill = values(game.skills).find(skill => skill.name.toLowerCase() === ${JSON.stringify(skillName.toLowerCase())});
-  if (!skill) return { error: 'unknown skill: ${skillName.replace(/'/g, "\\'")}' };
+  if (!skill) return { error: ${JSON.stringify('unknown skill: ' + skillName)} };
   const tree = values(skill.skillTrees).find(tree => values(tree.nodes).some(node => node.name?.toLowerCase() === ${JSON.stringify(nodeName.toLowerCase())} || node.shortName?.toLowerCase() === ${JSON.stringify(nodeName.toLowerCase())}));
   const node = tree && values(tree.nodes).find(node => node.name?.toLowerCase() === ${JSON.stringify(nodeName.toLowerCase())} || node.shortName?.toLowerCase() === ${JSON.stringify(nodeName.toLowerCase())});
   const result = { name: game.characterName, skill: skill.name, node: ${JSON.stringify(nodeName)}, pointsBefore: tree?.points ?? null, applied: false };
