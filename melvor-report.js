@@ -76,6 +76,7 @@ const usage = `usage:
   ./melvor-report.js talents <character>
   ./melvor-report.js export-state [all|character]
   ./melvor-report.js save-backup [all|character]
+  ./melvor-report.js save-push <character> [--local-source]
   ./melvor-report.js journal [all|character] [--record] [--save-backup]
   ./melvor-report.js journal-serve [--port 8787]
   ./melvor-report.js journal-status [all|character]
@@ -90,7 +91,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'talents', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'export-state', 'save-backup', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'talents', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -2368,6 +2369,26 @@ if (require.main === module) (async () => {
 
     if (cmd === 'save-backup') {
       await runSaveBackup();
+      return;
+    }
+
+    if (cmd === 'save-push') {
+      if (who === 'all') throw Error('usage: ./melvor-report.js save-push <character>');
+      const forceLocal = argv.includes('--local-source');
+      const { sources } = await readSourcesByName();
+      const before = sources[who] || null;
+      const data = await withCharacterSource(who, forceLocal ? 'local' : before?.source, async client => {
+        const result = await evalExpr(client, `(() => {
+        const report = mh.readOnlyReport();
+        return { name: report.name, action: report.action, gp: report.gp };
+      })()`);
+        const saved = await evalExpr(client, 'mh.save()', 60000);
+        return { ...result, saved };
+      });
+      const afterSlots = await readSlots();
+      const after = sourceOfTruth(afterSlots).find(s => s.name === who) || null;
+      console.log(`${data.name} | save-push | ${data.action || 'idle'} | GP ${fmtNum(data.gp)}`);
+      console.log(`  saved: ${data.saved} | source ${forceLocal ? 'local (forced)' : before?.source || 'unknown'} -> ${after?.source || 'unknown'}`);
       return;
     }
 
