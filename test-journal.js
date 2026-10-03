@@ -4,7 +4,7 @@ const assert = require('assert');
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const { spawnSync } = require('child_process');
-const { buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, potionItemName, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript } = require('./melvor-report.js');
+const { buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, potionItemName, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData } = require('./melvor-report.js');
 
 assert.match(execFileSync(process.execPath, ['melvor-report.js', 'journal-serve', '--help'], { encoding: 'utf8' }), /journal-serve/, 'journal-serve help must not start a server');
 const guardedHelp = execFileSync(process.execPath, ['melvor-report.js', '--help'], { encoding: 'utf8' });
@@ -13,6 +13,11 @@ assert.match(equipmentActionScript('Test item', 'Weapon', undefined, false), /if
 assert.match(skillStartScript('Fletching', 'Test recipe', false), /insufficient recipe materials/, 'skill start guards materials');
 assert.match(skillStartScript('Fletching', 'Test recipe', true), /unsupported Melvor artisan action API/, 'skill start fails closed for unknown APIs');
 assert.match(talentUnlockScript('Attack', 'A1', true), /unsupported Melvor talent API/, 'talent unlock fails closed for unknown APIs');
+
+assert.match(configSetScript('potion', 'Test Potion', false), /if \(!apply\) return result/, 'config-set stays preview-only without apply');
+const setupBrief = slayer => briefFromData('T', { report: { equipment: {}, combatGoals: { nextSetup: { dungeon: 'Bandit Base', set: { index: 0 } } } }, skills: [{ name: 'Slayer', level: 120, levelCap: 120, abyssalLevel: slayer, abyssalCap: 60 }] }, null, null).standard.next.join();
+assert.match(setupBrief(1), /Bandit Base/, 'standard-realm character keeps the standard dungeon setup');
+assert.doesNotMatch(setupBrief(50), /Bandit Base/, 'abyssal character drops leftover standard dungeon setups');
 
 const data = {
   report: {

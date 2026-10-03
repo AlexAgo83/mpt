@@ -105,10 +105,17 @@ Rules:
   (circular references), always map to primitives.
 - The `game` object is huge: go through the helpers rather than exploring blindly.
 
+## Read-only configuration audit
+
+`./melvor-report.js config <character|all>` lists active potions per skill, bank potion stock,
+active and usable prayers (with effects), attack spell, auto-eat, and the Cartography map/POI.
+Use it before recommending potions, prayers, or Cartography moves (see `logics/runbook/run_002_*`).
+
 ## Guarded CLI actions
 
 `melvor-report.js` supports one reviewed mutation at a time: `equip <character> <item> <slot>`,
-`skill-start <character> <skill> <recipe>`, and `talent-unlock <character> <skill> <node>`.
+`skill-start <character> <skill> <recipe>`, `talent-unlock <character> <skill> <node>`, and
+`config-set <character> <potion|prayers|poi> <value>` (prayers as `"A,B"`; poi travels on the active map and previews the GP cost).
 Each command is a no-write preview until `--apply` is explicit. Before applying, run the
 preview, confirm the character and target, then let the command load the newest source, save,
 and verify the final game state. Never add or use an all-character/apply-all variation.

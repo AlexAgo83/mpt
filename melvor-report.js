@@ -73,6 +73,8 @@ const usage = `usage:
   ./melvor-report.js talent-unlock <character> <skill> <node> [--apply]
   ./melvor-report.js skilling <character>
   ./melvor-report.js agility [all|character]
+  ./melvor-report.js config [all|character]
+  ./melvor-report.js config-set <character> <potion|prayers|poi> <value> [--apply]
   ./melvor-report.js talents <character>
   ./melvor-report.js export-state [all|character]
   ./melvor-report.js save-backup [all|character]
@@ -91,7 +93,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'talents', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -387,8 +389,8 @@ function printAudit(r) {
   const low = report.lowSkills.filter(s => s.level > 1).slice(0, 6).map(s => `${s.name} ${s.level}`);
   console.log(`${report.name} | ${report.mode} | ${report.action} | total ${report.totalLevel} | max ${report.maxedSkills}`);
   if (low.length) console.log(`  progression: ${low.join(', ')}`);
-  if (report.lowSkills.some(s => s.name === 'Harvesting' && s.level === 1)) console.log('  unlock: Harvesting still level 1');
-  if (report.lowSkills.some(s => s.name === 'Corruption' && s.level === 1)) console.log('  unlock: Corruption still level 1');
+  // Harvesting and Corruption only have Abyssal Levels; their standard level is always 1.
+  for (const s of report.lowSkills.filter(s => ['Harvesting', 'Corruption'].includes(s.name) && (s.abyssalLevel ?? 0) <= 1)) console.log(`  unlock: ${s.name} abyssal level still 1`);
 
   const skillingNotes = r.skilling.notes || [];
   for (const note of skillingNotes) console.log(`  skilling: ${note}`);
@@ -581,7 +583,8 @@ function briefFromData(name, data, save, previousEntry, now = new Date().toISOSt
   const currentNext = currentActionPlan(data);
   const standardNext = [
     ...standardOpen.slice(0, 3).map(s => verifiedSkillPlan(data, s, false)),
-    goals.nextSetup ? `combat setup: ${goals.nextSetup.dungeon} with set ${goals.nextSetup.set?.index ?? '?'} ${goals.nextSetup.set?.attackType || 'unknown'} (${goals.nextSetup.set?.weapon || 'no weapon'})` : null,
+    // ponytail: abyssal Slayer > 1 means the character left the standard realm; a leftover standard dungeon is completion, not progression
+    goals.nextSetup && !skills.some(s => s.name === 'Slayer' && (s.abyssalLevel ?? 0) > 1) ? `combat setup: ${goals.nextSetup.dungeon} with set ${goals.nextSetup.set?.index ?? '?'} ${goals.nextSetup.set?.attackType || 'unknown'} (${goals.nextSetup.set?.weapon || 'no weapon'})` : null,
   ].filter(Boolean);
   return {
     name,
@@ -924,6 +927,63 @@ const equipmentActionScript = (itemName, slotName, quantity, shouldApply) => `((
   return result;
 })()`;
 
+// Guarded combat configuration change: kind is potion | prayers | poi.
+const configSetScript = (kind, value, shouldApply) => `(async () => {
+  const kind = ${JSON.stringify(kind)}, value = ${JSON.stringify(value)}, apply = ${JSON.stringify(shouldApply)};
+  const player = game.combat.player;
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const result = { name: game.characterName, kind, target: value, applied: false };
+  if (kind === 'potion') {
+    const item = [...game.bank.items.keys()].find(item => item.name === value);
+    if (!item?.action) return { ...result, error: 'potion is not in bank' };
+    // ponytail: getActivePotionForAction(item.action) misses combat potions; match the activePotions key by name
+    const active = () => [...game.potions.activePotions].find(([action]) => action === item.action || action.name === item.action.name)?.[1];
+    result.current = active()?.item?.name ?? 'none';
+    result.available = game.bank.items.get(item)?.quantity ?? 0;
+    if (!apply) return result;
+    game.potions.usePotion(item);
+    await sleep(300);
+    result.final = active()?.item?.name ?? 'none';
+    if (result.final !== value) return { ...result, error: 'Melvor did not activate the potion' };
+  } else if (kind === 'prayers') {
+    const wanted = value.split(',').map(name => name.trim()).filter(Boolean).map(name => game.prayers.allObjects.find(prayer => prayer.name === name) || name);
+    const missing = wanted.filter(prayer => typeof prayer === 'string');
+    const names = set => [...set].map(prayer => prayer.name).join(' + ') || 'none';
+    result.current = names(player.activePrayers);
+    if (missing.length) return { ...result, error: 'unknown prayer: ' + missing.join(', ') };
+    const unusable = wanted.filter(prayer => !player.canEnablePrayer?.(prayer) && !player.activePrayers.has(prayer));
+    if (unusable.length) return { ...result, error: 'prayer not usable now: ' + unusable.map(prayer => prayer.name).join(', ') };
+    if (!apply) return result;
+    for (const prayer of [...player.activePrayers]) if (!wanted.includes(prayer)) player.togglePrayer(prayer);
+    for (const prayer of wanted) if (!player.activePrayers.has(prayer)) player.togglePrayer(prayer);
+    await sleep(300);
+    result.final = names(player.activePrayers);
+    if (wanted.some(prayer => !player.activePrayers.has(prayer)) || player.activePrayers.size !== wanted.length) return { ...result, error: 'Melvor did not set the requested prayers' };
+  } else if (kind === 'poi') {
+    const map = game.cartography.activeMap;
+    const poi = map?.pointsOfInterest.allObjects.find(poi => poi.name === value);
+    result.current = map?.playerPosition?.pointOfInterest?.name ?? 'none';
+    if (!poi?.isDiscovered) return { ...result, error: 'point of interest is not discovered on the active map' };
+    if (map.playerPosition === poi.hex) return { ...result, error: 'already at this point of interest' };
+    map.selectHex(poi.hex);
+    const path = map.selectedHexPath;
+    if (!path?.length) return { ...result, error: 'no travel path to this point of interest' };
+    const costs = game.cartography.getTravelCosts(path);
+    result.cost = [...(costs._items ?? new Map())].map(([item, qty]) => item.name + ' x' + qty).concat([...(costs._currencies ?? new Map())].map(([currency, qty]) => currency.name + ' ' + qty)).join(', ') || 'free';
+    result.affordable = costs.checkIfOwned ? costs.checkIfOwned() : null;
+    if (!apply) { map.deselectHex(); return result; }
+    if (result.affordable === false) return { ...result, error: 'travel cost is not affordable' };
+    game.cartography.travelOnClick();
+    await sleep(800);
+    if (typeof mh !== 'undefined') mh.dismissModal?.(true);
+    result.final = map.playerPosition?.pointOfInterest?.name ?? 'none';
+    if (map.playerPosition !== poi.hex) return { ...result, error: 'Melvor did not move to the point of interest' };
+  } else return { ...result, error: 'kind must be potion, prayers, or poi' };
+  result.hitChance = player.stats.hitChance;
+  result.applied = true;
+  return result;
+})()`;
+
 const skillStartScript = (skillName, recipeName, shouldApply) => `(async () => {
   const values = value => value instanceof Map || value instanceof Set ? [...value.values()] : value?.allObjects ?? value ?? [];
   const methodNames = object => { const names = new Set(); for (let value = object; value && value !== Object.prototype; value = Object.getPrototypeOf(value)) for (const name of Object.getOwnPropertyNames(value)) if (typeof object[name] === 'function') names.add(name); return [...names].filter(name => /select|create|start/i.test(name)); };
@@ -978,7 +1038,7 @@ const talentUnlockScript = (skillName, nodeName, shouldApply) => `(async () => {
 
 function printGuardedAction(result) {
   console.log(`${result.name || 'unknown'} | ${result.applied ? 'applied' : 'preview'}`);
-  for (const key of ['item', 'slot', 'current', 'final', 'quantity', 'available', 'skill', 'recipe', 'activeSkill', 'activeRecipe', 'node', 'pointsBefore', 'pointsAfter', 'unlocked']) if (result[key] !== undefined && result[key] !== null) console.log(`  ${key}: ${result[key]}`);
+  for (const key of ['kind', 'target', 'item', 'slot', 'current', 'cost', 'affordable', 'final', 'quantity', 'available', 'skill', 'recipe', 'activeSkill', 'activeRecipe', 'node', 'pointsBefore', 'pointsAfter', 'unlocked', 'hitChance']) if (result[key] !== undefined && result[key] !== null) console.log(`  ${key}: ${result[key]}`);
   for (const input of result.inputs || []) console.log(`  input: ${input.item} ${input.available}/${input.required}`);
   if (result.methods?.length) console.log(`  supported methods: ${result.methods.join(', ')}`);
   if (result.error) console.log(`  error: ${result.error}`);
@@ -2333,7 +2393,7 @@ function lock(retry = true) {
   }
 }
 
-module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript };
+module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData };
 if (require.main === module) (async () => {
   if (cmd === 'journal-serve') return runJournalServer();
   if (cmd === 'journal-action') return runJournalAction(who, arg3);
@@ -2461,12 +2521,14 @@ if (require.main === module) (async () => {
       return;
     }
 
-    if (cmd === 'equip' || cmd === 'skill-start' || cmd === 'talent-unlock') {
+    if (cmd === 'equip' || cmd === 'skill-start' || cmd === 'talent-unlock' || cmd === 'config-set') {
       if (who === 'all' || !arg3 || !arg4) {
-        const usage = cmd === 'equip' ? 'equip <character> <item> <slot>' : `${cmd} <character> <skill> <${cmd === 'skill-start' ? 'recipe' : 'node'}>`;
+        const usage = cmd === 'equip' ? 'equip <character> <item> <slot>' : cmd === 'config-set' ? 'config-set <character> <potion|prayers|poi> <value>' : `${cmd} <character> <skill> <${cmd === 'skill-start' ? 'recipe' : 'node'}>`;
         throw Error(`usage: ./melvor-report.js ${usage} [--apply]`);
       }
-      const script = cmd === 'equip'
+      const script = cmd === 'config-set'
+        ? configSetScript(arg3, arg4, apply)
+        : cmd === 'equip'
         ? equipmentActionScript(arg3, arg4, requestedQuantity, apply)
         : cmd === 'skill-start'
           ? skillStartScript(arg3, arg4, apply)
@@ -2551,6 +2613,30 @@ if (require.main === module) (async () => {
           }));
           return { name: game.characterName, action: game.activeAction?.name ?? null, activeObstacles, activePillars };
         })()`);
+        // ponytail: probes several property names because Melvor renames internals between patches
+        if (cmd === 'config') return evalExpr(client, `(() => {
+          const name = value => value?.name ?? value?.localID ?? null;
+          const list = value => value instanceof Map ? [...value.entries()] : value instanceof Set ? [...value] : Array.isArray(value) ? value : [];
+          const tryGet = fn => { try { return fn(); } catch { return null; } };
+          const player = game.combat.player;
+          const potions = list(game.potions?.activePotions).map(([action, active]) => ({ action: name(action), potion: name(active.item), charges: active.charges }));
+          const bankPotions = [...game.bank.items].filter(([item]) => item.constructor?.name === 'PotionItem' || /Potion/.test(item.name)).map(([item, bank]) => ({ potion: item.name, action: name(item.action), qty: bank.quantity }));
+          const spells = tryGet(() => Object.fromEntries(Object.entries(player.spellSelection || {}).map(([key, spell]) => [key, name(spell)]).filter(([, value]) => value)));
+          const map = tryGet(() => game.cartography.activeMap);
+          const position = tryGet(() => map.playerPosition);
+          return {
+            name: game.characterName,
+            action: game.activeAction?.name ?? null,
+            equipmentSet: tryGet(() => player.selectedEquipmentSet),
+            prayers: list(player.activePrayers).map(prayer => ({ name: prayer.name, effect: tryGet(() => prayer.stats.describePlain()) })),
+            usablePrayers: game.prayers.allObjects.filter(prayer => tryGet(() => prayer.canUseWithDamageType(player.damageType)) && (prayer.isAbyssal ? game.prayer.abyssalLevel >= prayer.abyssalLevel : game.prayer.level >= prayer.level)).map(prayer => ({ name: prayer.name, unholy: prayer.isUnholy, effect: tryGet(() => prayer.stats.describePlain()) })),
+            spells,
+            autoEat: { threshold: player.autoEatThreshold, hpLimit: tryGet(() => player.autoEatHPLimit), efficiency: player.autoEatEfficiency },
+            potions,
+            bankPotions,
+            cartography: map ? { map: name(map), hex: position ? position._q + ',' + position._r : null, poi: tryGet(() => position.pointOfInterest.name), poiEffect: tryGet(() => position.pointOfInterest.activeStats.describePlain()), discoveredPois: tryGet(() => map.pointsOfInterest.allObjects.filter(poi => poi.isDiscovered && poi.activeStats?.hasStats).map(poi => ({ name: poi.name, effect: poi.activeStats.describePlain() }))) } : null,
+          };
+        })()`);
         if (cmd === 'talents') return evalExpr(client, `(() => {
           const values = value => value instanceof Map ? [...value.values()] : value instanceof Set ? [...value] : Array.isArray(value) ? value : value?.allObjects ?? [];
           const talents = game.skills.allObjects.flatMap(skill => values(skill.skillTrees).map(tree => ({ skill: skill.name, points: tree.points || 0, candidates: values(tree.nodes).filter(node => node.canUnlock && tree.canAffordNode(node) && !values(tree.unlockedNodes).includes(node)).map(node => ({ name: node.name, shortName: node.shortName })) }))).filter(tree => tree.points > 0);
@@ -2591,7 +2677,7 @@ if (require.main === module) (async () => {
       });
       if (cmd === 'summary') printSummary(data);
       else if (cmd === 'skilling') printSkilling({ name, ...data });
-      else if (cmd === 'agility') console.log(JSON.stringify(data));
+      else if (cmd === 'agility' || cmd === 'config') console.log(JSON.stringify(data));
       else if (cmd === 'talents') {
         console.log(`${data.report.name}: ${data.report.action || 'idle'}`);
         for (const line of talentAdvice(data.report, data.talents)) console.log(`  ${line}`);

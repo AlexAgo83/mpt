@@ -6,7 +6,7 @@
 > Related backlog: (none yet)
 > Related task: (none yet)
 > Reminder: Update status, category, verification, and linked refs when you edit this doc.
-> Indicators reviewed: 2026-08-15 17:35:52
+> Indicators reviewed: 2026-10-03 16:06:48
 
 # Trigger
 
@@ -31,7 +31,7 @@
 # Verification
 
 - The apply command saves via the newest local/cloud source and reports the source before and after internally.
-- The final preview contains Despair Wand and does not contain the displaced shield.
+- The final preview contains Abyssal Staff (or the owned Abyssal Wand after Magic abyssale 5) and does not contain the displaced shield. Despair Wand is Normal Damage and must not appear in this set.
 - Abyssal Blast, Mystic Lore, Augury, and Damage Reduction Potion IV are global combat settings; verify them again when changing to a different combat task.
 - The restored Ranged set contains Blighted Feather Bow, Abyssium Arrows, Toxic Protection Mask, Bundled Protection Body, Thorn Legs, Abyssal Leather Boots, Amulet of Distance, Woeful Gloves, Ranged Hinder Scroll, and the retained Abyss Ring/cape/passive/gem.
 

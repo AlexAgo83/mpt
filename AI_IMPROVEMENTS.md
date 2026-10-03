@@ -72,6 +72,14 @@ Purpose: capture what made the assistant less reliable, then promote only repeat
 - Fix shipped: Failed CLI runs now append sanitized signed events under `journal/`; `improve` groups signatures seen twice, and explicit `improve --record` creates one Logics request per unpromoted candidate.
 - Follow-up: Keep human review between the generated request and any backlog, task, code, or game-state change.
 
+### 2026-10-03 - Potion/prayer/Cartography blind spot
+- Observed: An account-wide gear review could not see active potions, prayers, or the Cartography POI; GrifhinZ was fighting with no combat potion and several combat characters sat on skilling POIs.
+- Impact: Recommendations covered equipment only and missed the cheapest accuracy fixes.
+- Root cause: No read-only command exposed `game.potions`, `player.activePrayers`, or `game.cartography`.
+- Fix shipped: `config [all|character]` lists active/bank potions, active and usable prayers with effects, attack spell, auto-eat, current POI, and discovered POIs with effects; run_002 now requires it.
+- Follow-up (shipped same day): guarded `config-set <character> <potion|prayers|poi>`. `game.potions.getActivePotionForAction(item.action)` returned nothing for combat potions, so the first apply wrongly reported failure although the potion was active and saved; verification now matches the `activePotions` key by name.
+- Follow-up: `combat-setup` tries to equip potions as items (always `skipped`); switch it to `game.potions` if potion setup gets automated. Fixed same day: `brief` no longer suggests leftover standard dungeons once abyssal Slayer > 1, and `audit` checks the abyssal level of Harvesting/Corruption (they have no standard levels).
+
 ## Entry template
 
 ```markdown

@@ -99,9 +99,19 @@ npm run source
 ./melvor-report.js combat-plan <character> --abyssal
 ./melvor-report.js gear <character>
 ./melvor-report.js skilling <character>
+./melvor-report.js config [all|character]
+./melvor-report.js agility [all|character]
+./melvor-report.js talents <character>
+./melvor-report.js combat-setup <character>
+./melvor-report.js combat-run <character> <dungeon>
+./melvor-report.js magic-setup <character> [--slot 6] [--apply]
+./melvor-report.js slayer-abyssal <character>
+./melvor-report.js slayer-start <character> [--slot 6]
+./melvor-report.js save-push <character> [--local-source]
 ./melvor-report.js equip <character> <item> <slot>
 ./melvor-report.js skill-start <character> <skill> <recipe>
 ./melvor-report.js talent-unlock <character> <skill> <node>
+./melvor-report.js config-set <character> <potion|prayers|poi> <value>
 ./melvor-report.js export-state all > /tmp/melvor-state.json
 ./melvor-report.js save-backup all
 ./melvor-report.js journal <character>
@@ -112,7 +122,8 @@ npm run source
 ./melvor-report.js journal-action <id> dismissed
 ```
 
-All report commands are read-only. `equip`, `skill-start`, and `talent-unlock` are
+Report commands, including `config`, are read-only. `combat-setup`, `combat-run`, `slayer-start`,
+`save-push`, and `magic-setup --apply` write immediately and need explicit approval first. `equip`, `skill-start`, `talent-unlock`, and `config-set` are
 preview-only until the same command is repeated with `--apply`; they accept one character
 only, load the newest save source, save, and verify the requested result. There is no bulk
 or apply-all command.
