@@ -350,3 +350,18 @@ console.log('journal self-check ok');
   assert.strictEqual(dungeonVerdict({ ...ready, simulated: false }).ready, false, 'no simulation is never ready');
 }
 console.log('dungeon verdict and clear choice ok');
+
+// Impending Darkness round modifier choice
+{
+  const { chooseIdModifier } = require('./melvor-report.js');
+  const offers = ['+15% chance to apply Affliction and +15% Lifesteal', '+20% Maximum Hit and +20% Accuracy Rating', '+15% Damage Reduction and +15% Evasion'];
+  assert.strictEqual(chooseIdModifier(offers).index, 1, 'max hit + accuracy (rank 3) beats damage reduction (6) and affliction (11)');
+  assert.strictEqual(chooseIdModifier(['+2,000 Max HP and -10% Max Hit', '+100% chance to ignore Stuns and Freezes, Immune to Sleep']).rank, 1, 'stun/sleep immunity is the best');
+  assert.strictEqual(chooseIdModifier(['+20% Max Hit and -10% Maximum Hitpoints', '+20% Max Hit and +20% Accuracy']).rank, 2, 'max hit with less HP outranks max hit with accuracy');
+  assert.strictEqual(chooseIdModifier(['+2,000 Max HP and -10% Max Hit']).rank, 4, '+2000 HP with less max hit is rank 4, not rank 2');
+  assert.strictEqual(chooseIdModifier(['+50% chance to Poison and +10% Max HP']).rank, 5, 'poison + HP is rank 5');
+  assert.strictEqual(chooseIdModifier(['+10% Max Hit, -10% Attack Interval, -10% Evasion', 'Something new']).rank, 10, 'a known offer is picked over an unknown one');
+  assert.deepStrictEqual(chooseIdModifier(['+10% Max Hit, -10% Attack Interval, -10% Evasion', 'Something new']).unknown, ['Something new'], 'unknown offers are reported');
+  assert.match(chooseIdModifier(['Something new', 'Another']).error, /no offer recognised/, 'nothing recognised: refused');
+}
+console.log('impending darkness modifier choice ok');

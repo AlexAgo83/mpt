@@ -2007,6 +2007,23 @@ function dungeonVerdict(r, threshold = r.hardcore ? 0 : Number(process.env.MELVO
 
 // dungeon-clear's choice, kept pure for the tests: the safest set when the check is ready as is, otherwise the safest
 // then fastest plan under the threshold. Hardcore characters are never run automatically.
+// Impending Darkness round modifiers, best first (docs/dungeons/impending-darkness.md, from the wiki Guide). The game's
+// exact wording is not verified yet: each rank is recognised by keywords that must all appear in the offer text.
+const ID_MODIFIER_RANKING = [
+  ['ignore stun', 'sleep'], ['+20% max hit', 'max hp'], ['max hit', 'accuracy'], ['2000', 'max hp'],
+  ['poison', 'max hp'], ['damage reduction', 'evasion'], ['burn', 'frostburn'], ['slow', 'attack interval'],
+  ['slayer area effect'], ['max hit', 'attack interval', 'evasion'], ['affliction', 'lifesteal'], ['heal', 'min hit'],
+];
+// The offer to click: the best recognised rank; an offer no rank recognises is never picked over a known one,
+// and with nothing recognised the choice is refused (to be taken by the operator).
+function chooseIdModifier(offers) {
+  const text = o => String(o).toLowerCase().replace(/maximum/g, 'max').replace(/hitpoints/g, 'hp').replace(/,/g, '');
+  const rankOf = o => { const t = text(o); const i = ID_MODIFIER_RANKING.findIndex(keys => keys.every(k => t.includes(k))); return i < 0 ? null : i + 1; };
+  const ranked = offers.map((o, index) => ({ index, offer: o, rank: rankOf(o) }));
+  const known = ranked.filter(r => r.rank !== null).sort((a, b) => a.rank - b.rank);
+  return known.length ? { ...known[0], unknown: ranked.filter(r => r.rank === null).map(r => r.offer) } : { error: 'no offer recognised', unknown: offers };
+}
+
 function chooseClearPlan(check, planResults = []) {
   if (check.hardcore) return { error: 'Hardcore character, not run automatically' };
   const verdict = dungeonVerdict(check);
@@ -2271,7 +2288,7 @@ function lock(retry = true) {
   }
 }
 
-module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData, completionLine, verifiedSkillPlan, buildGoals, dungeonVerdict, chooseClearPlan };
+module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData, completionLine, verifiedSkillPlan, buildGoals, dungeonVerdict, chooseClearPlan, chooseIdModifier };
 if (require.main === module) (async () => {
   if (cmd === 'journal-serve') return runJournalServer();
   if (cmd === 'dungeon-guide') return runDungeonGuide(who);
