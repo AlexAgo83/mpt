@@ -2025,9 +2025,24 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .tab-intro { margin: -.2rem 0 .7rem; color: var(--muted); font-size: .84rem; }
 .decision-actions { display: flex; gap: .35rem; }
 .decision-actions button { width: auto; padding: .2rem .6rem; font-size: .78rem; border-radius: 999px; }
-.goal-tabs.tab-switch { margin: 0; padding: 0; border-bottom: 1px solid var(--line); }
-.goal-tabs.tab-switch button { padding: .5rem .6rem; }
-.goal-pick { width: auto; margin-bottom: .2rem; padding: .05rem .4rem; border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .03em; cursor: pointer; }
+.goal-head { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .7rem; padding-bottom: .6rem; border-bottom: 1px solid var(--line); }
+.goal-head-label { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
+.goal-head .muted { font-size: .84rem; }
+.goal-trigger, .goal-pick { width: auto; display: inline-flex; align-items: center; gap: .35rem; border-radius: 999px; cursor: pointer; }
+.goal-trigger { padding: .3rem .7rem; border: 1px solid #6b5a33; background: #1d1a13; color: var(--accent); font-weight: 600; }
+.goal-trigger:hover { border-color: var(--accent); }
+.goal-pick { margin-bottom: .2rem; padding: .05rem .45rem; border: 1px solid transparent; background: transparent; color: var(--muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .03em; }
+.goal-trigger svg, .goal-pick svg, .goal-opt svg { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.goal-pick svg { width: 12px; height: 12px; }
+.goal-trigger .caret, .goal-pick .caret { width: 12px; height: 12px; opacity: .7; }
+.goal-pop { position: absolute; z-index: 30; width: min(30rem, calc(100vw - 16px)); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .25rem; padding: .45rem; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 12px 32px #000a; }
+.goal-opt { width: auto; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: .05rem .55rem; padding: .45rem .55rem; text-align: left; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--ink); }
+.goal-opt svg { grid-row: span 2; color: var(--muted); }
+.goal-opt b { font-weight: 600; font-size: .86rem; }
+.goal-opt small { color: var(--muted); font-size: .74rem; }
+.goal-opt:hover { border-color: var(--line); background: #111614; }
+.goal-opt[aria-checked="true"] { border-color: #6b5a33; background: #1d1a13; }
+.goal-opt[aria-checked="true"] svg, .goal-opt[aria-checked="true"] b { color: var(--accent); }
 .goal-pick:hover, .goal-pick:focus-visible { border-color: var(--line); color: var(--accent); }
 .goal-intro { margin: -.3rem 0 0; font-size: .84rem; }
 .panel-grid > .tab-intro { margin-bottom: -.4rem; }
@@ -2135,6 +2150,7 @@ a:hover { text-decoration: underline; }
   .topbar { flex-wrap: wrap; }
   #scanTime { display: none; }
   .todo-pill .tab-label { display: none; }
+  .goal-pop { grid-template-columns: minmax(0, 1fr); }
   .split button span { display: none; }
   .seg { overflow-x: auto; max-width: 100%; }
   .character-head { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem .7rem; }
@@ -2217,6 +2233,39 @@ const saveGoal = async (name, patch) => {
 };
 const goalLines = (c, goal) => goal === 'progression' ? null : c.analysis.goals?.[goal] || null;
 let keepOpen = null; // reopen this card on this tab after a re-render
+const GOAL_SHORT = { progression: 'Lowest skills first', dungeons: 'Next dungeon, what blocks the rest', completion: 'Cheapest Completion Log gains', target: 'The path to one item', mastery: 'Pools near a checkpoint', profit: 'Best GP per hour', afk: 'Runs long without you', slayer: 'Task, coins, locked areas', safe: 'Fights at 0% deaths', capes: 'Capes and pets left', shop: 'Affordable upgrades' };
+const goalIcon = id => '<svg viewBox="0 0 24 24" aria-hidden="true">' + GOAL_ICONS[id] + '</svg>';
+// One goal picker for the Plans tab and the Next column: a small popover under the button that opened it.
+function openGoalPicker(anchor, name, c) {
+  document.querySelector('.goal-pop')?.remove();
+  const current = goalOf(name, c);
+  const pop = el('div', 'goal-pop'); pop.setAttribute('role', 'menu'); pop.setAttribute('aria-label', 'Plan goal for ' + name);
+  for (const [id, label] of Object.entries(GOAL_LABELS)) {
+    const b = el('button', 'goal-opt'); b.type = 'button'; b.setAttribute('role', 'menuitemradio'); b.setAttribute('aria-checked', String(id === current));
+    b.innerHTML = goalIcon(id); b.append(el('b', '', label), el('small', '', GOAL_SHORT[id]));
+    b.addEventListener('click', async e => {
+      e.stopPropagation(); pop.remove();
+      const card = anchor.closest('details.character');
+      keepOpen = card?.open ? { name, tab: card.querySelector('[data-tab][aria-selected=true]')?.dataset.tab || 'plans' } : null;
+      await saveGoal(name, { goal: id }); render(); loadWikiIcons();
+    });
+    pop.append(b);
+  }
+  document.body.append(pop);
+  const r = anchor.getBoundingClientRect();
+  pop.style.top = (window.scrollY + r.bottom + 6) + 'px';
+  pop.style.left = Math.max(8, Math.min(window.scrollX + r.left, window.scrollX + document.documentElement.clientWidth - pop.offsetWidth - 8)) + 'px';
+  pop.querySelector('[aria-checked=true]')?.focus();
+  const close = e => { if (e.type === 'keydown' ? e.key === 'Escape' : !pop.contains(e.target) && e.target !== anchor) { pop.remove(); document.removeEventListener('click', close, true); document.removeEventListener('keydown', close); } };
+  setTimeout(() => { document.addEventListener('click', close, true); document.addEventListener('keydown', close); });
+}
+const goalButton = (name, c, cls) => {
+  const id = goalOf(name, c); const b = el('button', cls); b.type = 'button'; b.title = 'Change the plan goal for ' + name; b.setAttribute('aria-haspopup', 'menu');
+  b.innerHTML = goalIcon(id); b.append(el('span', '', GOAL_LABELS[id])); b.insertAdjacentHTML('beforeend', '<svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>');
+  for (const type of ['mousedown', 'keydown']) b.addEventListener(type, e => e.stopPropagation());
+  b.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openGoalPicker(b, name, c); });
+  return b;
+};
 
 const STATUSES = ['proposed', 'approved', 'done', 'blocked', 'dismissed', 'stale'];
 const RANK = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -2358,7 +2407,7 @@ const TAB_INTRO = {
   upgrades: 'Better gear for what this character is doing now: items to loot or craft, and owned items worth equipping.',
   inventory: 'Everything in the bank, grouped by kind and worth (sell price). In use shows what the current activity consumes.',
   skills: 'Every skill with its level, abyssal level, XP to the next level and mastery pool.',
-  plans: 'Pick a goal: the plan below, the Next column and To do follow it for this character.',
+  plans: 'The plan for the chosen goal; the Next column and To do follow it.',
   history: 'What changed between journal scans: activity, total level, maxed skills and GP.',
 };
 const TAB_GROUP = { now: 0, progress: 0, completion: 0, equipment: 1, upgrades: 1, inventory: 1, skills: 1, plans: 2, history: 2 };
@@ -2396,17 +2445,8 @@ function decisionRow(a, status) {
 function plansPanel(name, c, actions, hidden) {
   const goal = goalOf(name, c);
   const body = el('div', 'panel panel-grid'); body.dataset.panel = 'plans';
-  // same look as the tab bar: icon + label, underline on the active goal, three groups
-  const switcher = el('div', 'tab-switch goal-tabs span-all'); switcher.setAttribute('role', 'tablist'); switcher.setAttribute('aria-label', 'Plan goal');
-  let lastGroup = null;
-  for (const [id, label] of Object.entries(GOAL_LABELS)) {
-    if (lastGroup !== null && GOAL_GROUP[id] !== lastGroup) switcher.append(el('span', 'tab-sep')); lastGroup = GOAL_GROUP[id];
-    const b = el('button', ''); b.type = 'button'; b.title = label; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(id === goal));
-    b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + GOAL_ICONS[id] + '</svg>'; b.append(el('span', 'tab-label', label));
-    b.addEventListener('click', async () => { await saveGoal(name, { goal: id }); keepOpen = { name, tab: 'plans' }; render(); loadWikiIcons(); });
-    switcher.append(b);
-  }
-  body.append(switcher, el('p', 'muted span-all goal-intro', GOAL_INTRO[goal]));
+  const head = el('div', 'goal-head span-all'); head.append(el('span', 'goal-head-label', 'Goal'), goalButton(name, c, 'goal-trigger'), el('span', 'muted', GOAL_INTRO[goal]));
+  body.append(head);
   if (goal === 'target') {
     const form = el('form', 'controls span-all'); const input = el('input'); input.type = 'search'; input.placeholder = 'Item name, e.g. Hollow Reaper Scythe'; input.value = snap.goals?.[name]?.target || c.analysis.goals?.targetName || '';
     const go = el('button', '', 'Set target'); go.type = 'submit'; go.style.width = 'auto';
@@ -2691,12 +2731,8 @@ function render() {
     const goal = goalOf(name, c), gl = goalLines(c, goal);
     const next = gl?.length ? short(planLine(gl[0]) || gl[0].split('; ').slice(0, 2).join(' · '), 72) : nextAction(decision);
     const nextCell = cell('Next', wikiText(next)); if (/^(Nothing|ETA pending)/.test(next)) nextCell.classList.add('idle');
-    // discreet goal picker: changing it rewrites Next without opening the card
-    const picker = el('select', 'goal-pick'); picker.title = 'Plan goal for ' + name; picker.setAttribute('aria-label', 'Plan goal for ' + name);
-    for (const [id, label] of Object.entries(GOAL_LABELS)) picker.append(new Option(label, id, false, id === goal));
-    for (const type of ['click', 'keydown', 'mousedown']) picker.addEventListener(type, e => e.stopPropagation());
-    picker.addEventListener('change', async () => { await saveGoal(name, { goal: picker.value }); keepOpen = details.open ? { name, tab: body.querySelector('[data-tab][aria-selected=true]')?.dataset.tab || 'now' } : null; render(); loadWikiIcons(); });
-    nextCell.querySelector('.cell-label').after(picker);
+    // discreet goal button: the shared picker rewrites Next without opening the card
+    nextCell.querySelector('.cell-label').after(goalButton(name, c, 'goal-pick'));
     const done = c.observed.completion?.total;
     const completionCell = cell('Completion', null); completionCell.classList.add('completion-cell');
     if (done != null) { const bar = el('progress'); bar.max = 100; bar.value = done; completionCell.querySelector('.cell-value').replaceChildren(el('span', '', done.toFixed(1) + '%'), bar); }
