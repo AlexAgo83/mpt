@@ -2010,7 +2010,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .tab-switch button:hover { color: var(--ink); border-color: transparent; }
 .tab-switch button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
 .tab-intro { margin: -.2rem 0 .7rem; color: var(--muted); font-size: .84rem; }
-.goal-switch { flex-wrap: wrap; }
+.goal-tabs.tab-switch { margin: 0; padding: 0; border-bottom: 1px solid var(--line); }
+.goal-tabs.tab-switch button { padding: .5rem .6rem; }
 .goal-pick { width: auto; margin-bottom: .2rem; padding: .05rem .4rem; border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .03em; cursor: pointer; }
 .goal-pick:hover, .goal-pick:focus-visible { border-color: var(--line); color: var(--accent); }
 .goal-intro { margin: -.3rem 0 0; font-size: .84rem; }
@@ -2173,6 +2174,20 @@ const GOAL_INTRO = {
   capes: 'Skillcapes you can buy or still need, and pets left to find.',
   shop: 'Permanent shop upgrades you can afford right now.',
 };
+const GOAL_GROUP = { progression: 0, dungeons: 0, completion: 0, target: 0, mastery: 1, profit: 1, afk: 1, slayer: 2, safe: 2, capes: 2, shop: 2 };
+const GOAL_ICONS = {
+  progression: '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
+  dungeons: '<polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" y1="14" x2="9" y2="18"/><line x1="7" y1="17" x2="4" y2="20"/><line x1="3" y1="19" x2="5" y2="21"/>',
+  completion: '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
+  target: '<circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/>',
+  mastery: '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
+  profit: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  afk: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+  slayer: '<circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><path d="M8 20v2h8v-2"/><path d="M16 20a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20"/>',
+  safe: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>',
+  capes: '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
+  shop: '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+};
 const goalStore = (() => { try { return JSON.parse(localStorage.getItem('mpt-goals') || '{}'); } catch { return {}; } })();
 // served pages trust journal/goals.json (shared by every browser); a page opened from disk keeps its own choice
 const served = location.protocol.startsWith('http');
@@ -2326,9 +2341,13 @@ const TAB_ICONS = {
 function plansPanel(name, c, actions, hidden) {
   const goal = goalOf(name, c);
   const body = el('div', 'panel panel-grid'); body.dataset.panel = 'plans';
-  const switcher = el('div', 'seg goal-switch span-all');
+  // same look as the tab bar: icon + label, underline on the active goal, three groups
+  const switcher = el('div', 'tab-switch goal-tabs span-all'); switcher.setAttribute('role', 'tablist'); switcher.setAttribute('aria-label', 'Plan goal');
+  let lastGroup = null;
   for (const [id, label] of Object.entries(GOAL_LABELS)) {
-    const b = el('button', '', label); b.type = 'button'; b.setAttribute('aria-pressed', String(id === goal));
+    if (lastGroup !== null && GOAL_GROUP[id] !== lastGroup) switcher.append(el('span', 'tab-sep')); lastGroup = GOAL_GROUP[id];
+    const b = el('button', ''); b.type = 'button'; b.title = label; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(id === goal));
+    b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + GOAL_ICONS[id] + '</svg>'; b.append(el('span', 'tab-label', label));
     b.addEventListener('click', async () => { await saveGoal(name, { goal: id }); keepOpen = { name, tab: 'plans' }; render(); loadWikiIcons(); });
     switcher.append(b);
   }
