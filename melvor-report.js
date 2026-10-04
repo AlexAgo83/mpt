@@ -1989,7 +1989,7 @@ function printDungeonCheck(name, r) {
   const v = dungeonVerdict(r);
   console.log(`${name} | ${r.dungeon} | clears ${r.clears ?? '?'} | ${v.ready ? 'READY' : 'NOT READY'} (death threshold ${(v.threshold * 100).toFixed(0)}%)`);
   for (const c of r.checks) console.log(`  ${c.ok ? 'ok ' : 'NO '} ${c.label}${c.detail ? ' (' + c.detail + ')' : ''}`);
-  if (!r.simulated) console.log('  simulator not available: fights not checked');
+  if (!r.simulated) console.log(`  simulator not available: fights not checked${r.simMissing ? ' (' + r.simMissing + ')' : ''}`);
   if (r.cape) console.log(`  simulated with ${r.cape} in the cape slot (required in every area)`);
   for (const f of v.fights) {
     const b = f.best;

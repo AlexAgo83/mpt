@@ -504,6 +504,7 @@
       fights.sort((a, b) => (b.monster.combatLevel ?? 0) - (a.monster.combatLevel ?? 0)); fights.splice(6);
     }
     // simulations: each fight against each combat set of the right realm
+    await mh.waitSimulator();
     const G = self.mcs?.global, api = typeof mod !== 'undefined' ? mod.api?.mythCombatSimulator : null;
     const sims = [];
     if (G?.simulation && api) {
@@ -522,12 +523,20 @@
         }
       }
     }
-    return { cape: forcedCape?.name ?? null, dungeon: area.name, id: area.id, abyssal, mode: game.currentGamemode?.id, hardcore: /Hardcore/i.test(game.currentGamemode?.name || ''), clears: clears(area), checks, fights: fights.map(f => ({ key: f.key, label: f.label, style: f.style || null })), sims, simulated: Boolean(G?.simulation && api) };
+    return { cape: forcedCape?.name ?? null, dungeon: area.name, id: area.id, abyssal, mode: game.currentGamemode?.id, hardcore: /Hardcore/i.test(game.currentGamemode?.name || ''), clears: clears(area), checks, fights: fights.map(f => ({ key: f.key, label: f.label, style: f.style || null })), sims, simulated: Boolean(G?.simulation && api),
+      // why the fights were not simulated: each step the simulator needs, first missing one wins
+      simMissing: G?.simulation && api ? null : typeof mod === 'undefined' ? 'mod manager not loaded' : !mod.api?.mythCombatSimulator ? 'Combat Simulator mod not loaded for this character' : !self.mcs ? 'simulator global missing (document-start script not run)' : !self.mcs.global ? 'simulator not in debug mode' : 'simulator not initialised (simulation missing)' };
   };
 
   // Greedy search, by simulation, of the set that survives one fight best: owned gear slot by slot, then the combat
   // potion and prayers. Read-only: everything happens in the simulator's copy. Returns the changes to apply.
+  // the simulator builds its engine after the game loads, later on a large save: wait for it before calling it missing
+  mh.waitSimulator = async (ms = 60000) => {
+    for (const end = Date.now() + ms; self.mcs?.global && !self.mcs.global.simulation && Date.now() < end;) await new Promise(r => setTimeout(r, 500));
+  };
+
   mh.optimizeFight = async ({ monsterId, entityId, setIndex, style, cape = null, maxSims = 70 }) => {
+    await mh.waitSimulator();
     const G = self.mcs?.global, api = typeof mod !== 'undefined' ? mod.api?.mythCombatSimulator : null;
     if (!G?.simulation || !api) return { error: 'combat simulator not available' };
     const sleep = ms => new Promise(r => setTimeout(r, ms));
