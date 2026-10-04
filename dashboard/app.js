@@ -721,7 +721,7 @@ function render() {
   applyFocus();
 }
 // list > detail: with a focused character the list folds into a column of names and the detail takes the rest
-const rail = document.getElementById('rail'), focusClose = document.getElementById('focusClose');
+const rail = document.getElementById('rail');
 const cardOf = name => [...cards.querySelectorAll('details.character')].find(d => d.dataset.name === name);
 const selectTab = (card, tab) => {
   const body = card.querySelector('.character-body'); if (!body || !body.querySelector(`[data-tab="${tab}"]`)) return;
@@ -731,14 +731,15 @@ const selectTab = (card, tab) => {
 function applyFocus() {
   const open = keepOpen && cardOf(keepOpen.name);
   document.body.classList.toggle('focus', Boolean(open));
-  rail.hidden = focusClose.hidden = !open;
+  rail.hidden = !open;
   for (const d of cards.querySelectorAll('details.character')) { d.hidden = Boolean(open) && d !== open; d.open = d === open; }
   rail.replaceChildren();
   if (!open) return;
+  // the table folded: its Character header becomes the way back
+  const back = el('button', 'rail-head', '‹ Characters'); back.type = 'button'; back.title = 'Back to the table (Esc)'; back.addEventListener('click', unfocus); rail.append(back);
   for (const d of cards.querySelectorAll('details.character')) {
-    const b = el('button', 'rail-item'); b.type = 'button'; b.dataset.name = d.dataset.name; b.setAttribute('aria-current', String(d === open));
+    const b = el('button', 'rail-item' + (d.classList.contains('priority-critical') ? ' priority-critical' : '')); b.type = 'button'; b.dataset.name = d.dataset.name; b.setAttribute('aria-current', String(d === open));
     const top = el('span', 'rail-top'); top.append(el('strong', '', d.dataset.name), d.querySelector('.lvl-tag')?.cloneNode(true) || '');
-    if (d.classList.contains('priority-critical')) top.append(el('span', 'rail-dot', '●'));
     b.append(top, el('small', '', d.dataset.current)); rail.append(b);
   }
   const tab = open.querySelector('[data-tab][aria-selected=true]')?.dataset.tab || keepOpen.tab;
@@ -749,7 +750,6 @@ function applyFocus() {
 const focusOn = (name, tab) => { const card = cardOf(name); if (!card) return; keepOpen = { name, tab }; selectTab(card, tab); applyFocus(); loadWikiIcons(); window.scrollTo({ top: 0 }); };
 const unfocus = () => { keepOpen = null; savePref('focus', null); history.replaceState(null, '', location.pathname + location.search); applyFocus(); };
 rail.addEventListener('click', e => { const b = e.target.closest('.rail-item'); if (b) focusOn(b.dataset.name, keepOpen?.tab || 'now'); });
-focusClose.addEventListener('click', unfocus);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && keepOpen && !document.querySelector('dialog[open], .goal-pop, .pick-pop')) unfocus(); });
 async function loadWikiIcons() {
   const slots = [...document.querySelectorAll('[data-wiki-title]')].filter(slot => !slot.dataset.wikiLoaded);

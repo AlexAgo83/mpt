@@ -1958,7 +1958,6 @@ ${DASHBOARD_CSS}
 </div></details>
 </div>
 <div id="board"><nav id="rail" aria-label="Characters" hidden></nav><div class="board-main">
-<button id="focusClose" class="focus-close" type="button" hidden>← All characters</button>
 <div class="column-head" aria-hidden="true"><span>Character</span><span>Current</span><span>Next</span><span>Completion</span></div>
 <div id="cards"></div></div></div>
 <script id="data" type="application/json">${json}</script>
@@ -2372,12 +2371,16 @@ if (require.main === module) (async () => {
         try {
           if (plans.length) {
             out.setup = await evalExpr(client, `mh.dungeonSetupApply(${JSON.stringify(plans)})`, 120000);
+            // the replaced gear on disk too, so `dungeon-setup --restore --apply` can put it back if this session fails
+            if (out.setup.before) fs.writeFileSync(path.join(dir, `${safeFilePart(who)}-${safeFilePart(check.dungeon)}-before.json`), JSON.stringify({ at: new Date().toISOString(), character: who, dungeon: check.dungeon, results: out.setup.before.map(b => ({ ...b, best: { death: 0 } })) }, null, 2));
             if (out.setup.error) { out.status = 'setup failed: ' + out.setup.error; return out; }
           }
           if (potion && potion !== out.prev.potion) out.potion = await evalExpr(client, configSetScript('potion', potion, true), 60000);
           out.run = await evalExpr(client, combatRunScript(arg3, timeout, setNumber), timeout + 60000);
           out.status = out.run.status;
         } finally {
+          // the game refuses gear changes inside a dungeon: leave the fight first (a timed-out run is still in it)
+          out.stopped = await evalExpr(client, `(async () => { if (game.combat.isActive) { game.combat.stop(); await new Promise(r => setTimeout(r, 1000)); } return !game.combat.isActive; })()`, 30000);
           if (out.setup?.before) out.restore = await evalExpr(client, `mh.dungeonSetupApply(${JSON.stringify(out.setup.before.map(b => ({ ...b, best: { death: 0 } })))})`, 120000);
           if (out.potion && out.prev.potion) out.potionBack = await evalExpr(client, configSetScript('potion', out.prev.potion, true), 60000);
           out.resume = await evalExpr(client, `(async () => {
@@ -2406,7 +2409,8 @@ if (require.main === module) (async () => {
       console.log(`${who} | dungeon-clear | ${check.dungeon} | ${r.status} | S${setNumber}${plans.length ? ' with the plan' : ''}${r.potion ? ' | potion ' + potion : ''}`);
       for (const s of run.samples || []) console.log(`  ${s.t.slice(11, 19)} progress ${s.progress} | ${s.monster || '-'} | player ${s.hp}/${s.maxHP} | food ${s.food ?? '?'}${s.stoppedCombat !== undefined ? ' | fled ' + s.stoppedCombat : ''}`);
       for (const o of run.rewardOptions || []) console.log(`  pending option: ${o.label}`);
-      if (r.restore) console.log(`  gear back: ${r.restore.applied ? 'yes' : 'NO: ' + (r.restore.left || []).join('; ')}`);
+      if (r.restore) console.log(`  gear back: ${r.restore.applied ? 'yes' : 'NO: ' + (r.restore.left || []).join('; ') + ` (dungeon-setup ${who} "${check.dungeon}" --restore --apply)`}`);
+      if (r.restore?.applied) { try { fs.unlinkSync(path.join(dir, `${safeFilePart(who)}-${safeFilePart(check.dungeon)}-before.json`)); } catch {} }
       if (r.potionBack) console.log(`  potion back: ${r.potionBack.final ?? r.potionBack.error}`);
       console.log(`  previous activity: ${r.prev.name}${r.prev.trees ? ' (' + r.prev.trees.join(', ') + ')' : ''}${r.prev.onTask ? ' (Slayer task)' : ''} -> now ${r.resume.now}${r.resume.trees ? ' (' + r.resume.trees.join(', ') + ')' : ''} on S${r.resume.set} (was S${r.resume.wantedSet})${r.resume.area ? ' in ' + r.resume.area : ''}: ${r.resume.ok ? 'resumed' : 'NOT resumed'}`);
       console.log(`  saved: ${r.saved} | source ${r.sourceBefore} -> ${r.sourceAfter}`);
@@ -2602,8 +2606,13 @@ if (require.main === module) (async () => {
           const area = [...game.combatAreas.allObjects, ...game.slayerAreas.allObjects].find(a => a.monsters.includes(task.monster));
           if (area) { game.combat.selectMonster(task.monster, area); await new Promise(resolve => setTimeout(resolve, 2000)); }
         }
-        if (game.combat.selectedMonster !== task.monster && game.combat.enemy?.monster !== task.monster)
-          return { error: 'not on the task monster after the jump: ' + (game.combat.selectedArea?.name ?? 'no area') + ' / ' + (game.combat.enemy?.monster?.name ?? 'no monster') };
+        // a selected monster is not a fight: the combat must actually be running on the task monster
+        if (game.activeAction !== game.combat || (game.combat.selectedMonster !== task.monster && game.combat.enemy?.monster !== task.monster)) {
+          const area = [...game.combatAreas.allObjects, ...game.slayerAreas.allObjects].find(a => a.monsters.includes(task.monster));
+          let entry = null; try { entry = area ? game.checkRequirements(area.entryRequirements || [], false) : null; } catch {}
+          const popup = [...document.querySelectorAll('.swal2-popup')].filter(x => x.offsetParent !== null).map(x => x.innerText.replace(/\s+/g, ' ').trim().slice(0, 300)).join(' | ');
+          return { error: 'combat not running on the task monster: ' + (popup ? 'game popup: ' + popup + '; ' : '') + 'active ' + (game.activeAction?.name ?? 'nothing') + ', area ' + (area?.name ?? 'not found') + (area ? ', entry requirements ' + (entry ? 'met' : 'NOT met') + ', area effect ' + (area.areaEffectDescription || area.areaEffect?.description || 'none') : '') };
+        }
         return {
           name: game.characterName, task: task.monster.name, remaining: task.killsLeft,
           slot: slot + 1, style: player.attackType, area: game.combat.selectedArea?.name ?? null,

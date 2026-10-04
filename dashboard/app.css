@@ -263,17 +263,23 @@ a:hover { text-decoration: underline; }
 .dg-table td { padding: .22rem .45rem; border-bottom: 1px solid #1d2522; }
 .dg-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dg-prereq .bad, .dg-table .bad { color: var(--warning); }
-/* list > detail: a focused character keeps a column of names on the left */
-body.focus #board { display: grid; grid-template-columns: 14rem minmax(0, 1fr); gap: .8rem; align-items: start; }
-body.focus .column-head { display: none; }
-#rail { position: sticky; top: .6rem; display: grid; gap: .3rem; max-height: calc(100vh - 1.2rem); overflow-y: auto; }
-.rail-item { width: 100%; display: grid; gap: .1rem; padding: .45rem .6rem; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); text-align: left; cursor: pointer; }
+/* list > detail: the table folds into its Character column; the detail keeps the other columns' header */
+body.focus #board { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: .6rem; align-items: start; }
+body.focus .column-head > span:first-child, body.focus .character-head .identity { display: none; }
+body.focus .column-head, body.focus .character-head { grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.6fr) 7.5rem; }
+body.focus .character-head { cursor: default; }
+#rail { position: sticky; top: .6rem; display: grid; gap: .45rem; max-height: calc(100vh - 1.2rem); overflow-y: auto; }
+.rail-head { width: auto; justify-self: start; padding: .35rem .75rem; border: 0; background: none; color: var(--muted); font-size: .72rem; text-transform: uppercase; cursor: pointer; }
+.rail-head:hover { color: var(--ink); }
+.rail-item { width: 100%; display: grid; gap: .15rem; padding: .6rem .75rem; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); text-align: left; cursor: pointer; }
 .rail-item:hover { border-color: #58675f; }
-.rail-item[aria-current=true] { border-color: var(--accent); background: #1d2420; }
+.rail-item.priority-critical { border-left: 3px solid var(--danger); }
+.rail-item[aria-current=true] { border-color: #58675f; border-left: 3px solid var(--accent); background: #1c2320; }
 .rail-top { display: flex; align-items: baseline; gap: .4rem; }
 .rail-item small { overflow: hidden; color: var(--muted); font-size: .74rem; white-space: nowrap; text-overflow: ellipsis; }
-.rail-dot { margin-left: auto; color: var(--danger); font-size: .7rem; }
-.focus-close { width: auto; margin: 0 0 .5rem; padding: .3rem .7rem; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--muted); font-size: .82rem; cursor: pointer; }
-.focus-close:hover { color: var(--ink); border-color: #58675f; }
-body.focus .character-head { cursor: default; }
-@media (max-width: 900px) { body.focus #board { display: block; } body.focus #rail { display: none; } }
+@media (max-width: 900px) {
+  body.focus #board { display: block; }
+  body.focus #rail { position: static; max-height: none; }
+  body.focus .rail-item { display: none; }
+  body.focus .character-head .identity { display: block; }
+}
