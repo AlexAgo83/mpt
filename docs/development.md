@@ -33,7 +33,8 @@ flowchart LR
 
 ## Repository layout
 
-- [`melvor-report.js`](../melvor-report.js): read-only CLI reports and source-of-truth checks
+- [`melvor-report.js`](../melvor-report.js): CLI, journal and dashboard server
+- [`dashboard/`](../dashboard/): dashboard client (`app.js`, `app.css`), plain files inlined into `journal/index.html`
 - [`melvor-helpers.js`](../melvor-helpers.js): injected `window.mh` browser helper library
 - [`test-journal.js`](../test-journal.js): offline self-check for the journal logic (part of `npm run check`)
 - [`package.json`](../package.json): standard local command aliases, no dependencies
