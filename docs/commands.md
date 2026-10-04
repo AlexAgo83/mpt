@@ -13,8 +13,6 @@ npm run source
 ./melvor-report.js brief all
 ./melvor-report.js brief <character>
 ./melvor-report.js summary all
-./melvor-report.js audit all
-./melvor-report.js plan all
 ./melvor-report.js combat-plan all
 ./melvor-report.js combat-plan <character> --abyssal
 ./melvor-report.js gear <character>

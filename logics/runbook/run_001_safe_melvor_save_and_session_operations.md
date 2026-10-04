@@ -22,7 +22,7 @@
 
 1. Run `./melvor-report.js slots` and `./melvor-report.js source-of-truth`.
 2. Treat the newest local or cloud save as authoritative. If local is newer, do not load the older cloud save.
-3. For inspection, use read-only reports such as `brief`, `summary`, `gear`, `skilling`, and `audit`.
+3. For inspection, use read-only reports such as `brief`, `summary`, `gear`, and `skilling`.
 4. Before an approved write, name the exact character, slot/configuration, and intended source of truth. Load one character only, use `mh.equipSlot(item, slot)`, save, then reload and verify.
 5. To push the newest save to the cloud without changing anything else, run `./melvor-report.js save-push <character>`. It loads the source-of-truth save, runs `mh.save()`, and prints the source before/after. Use `--local-source` only when `source-of-truth` reports local as newest and the operator approved overwriting the cloud copy.
 6. If login or session state is invalid, restart the shared profile visibly, let the operator authenticate, then return to headless use.

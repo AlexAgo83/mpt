@@ -60,8 +60,6 @@ const usage = `usage:
   ./melvor-report.js improve [--record]
   ./melvor-report.js brief [all|character]
   ./melvor-report.js summary [all|character]
-  ./melvor-report.js audit [all|character]
-  ./melvor-report.js plan [all|character]
   ./melvor-report.js combat-plan [all|character] [--abyssal]
   ./melvor-report.js combat-setup <character>
   ./melvor-report.js combat-run <character> <dungeon name|id>
@@ -95,7 +93,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -396,34 +394,6 @@ function gearCandidates(r) {
     .map(([slot, best]) => `${slot}: ${best.name}`);
 }
 
-function printAudit(r) {
-  const report = r.report;
-  const low = report.lowSkills.filter(s => s.level > 1).slice(0, 6).map(s => `${s.name} ${s.level}`);
-  console.log(`${report.name} | ${report.mode} | ${report.action} | total ${report.totalLevel} | max ${report.maxedSkills}`);
-  if (low.length) console.log(`  progression: ${low.join(', ')}`);
-  // Harvesting and Corruption only have Abyssal Levels; their standard level is always 1.
-  for (const s of report.lowSkills.filter(s => ['Harvesting', 'Corruption'].includes(s.name) && (s.abyssalLevel ?? 0) <= 1)) console.log(`  unlock: ${s.name} abyssal level still 1`);
-
-  const skillingNotes = r.skilling.notes || [];
-  for (const note of skillingNotes) console.log(`  skilling: ${note}`);
-
-  if (report.action === 'Fishing' && report.equipment.Summon2 !== 'Octopus') console.log('  skilling: consider Octopus summon for Fishing yield');
-  if (report.action === 'Agility' && report.equipment.Summon2 !== 'Eagle') console.log('  skilling: consider Eagle summon for Agility interval');
-  if (report.action === 'Herblore' && report.equipment.Weapon !== 'Potion Stirrer') console.log('  skilling: consider Potion Stirrer for Herblore');
-  if (report.action === 'Astrology' && report.equipment.Consumable !== 'Golden Star') console.log('  skilling: consider Golden Star for Astrology');
-  if (report.action === 'Agility' && report.equipment.Amulet === 'Amulet of Fishing') console.log('  skilling: swap Amulet of Fishing off Agility');
-  if (report.action === 'Agility' && report.equipment.Summon1 === 'Bear') console.log('  skilling: Bear is Herblore-focused, not Agility');
-  if (report.action === 'Agility' && report.equipment.Consumable === 'Golden Star') console.log('  skilling: Golden Star is Astrology-focused, not Agility');
-  if (report.action === 'Astrology' && /Quill|Logbook/.test(`${report.equipment.Weapon || ''} ${report.equipment.Shield || ''}`))
-    console.log('  skilling: Cartography tools equipped during Astrology');
-
-  const gear = gearCandidates(r.gear);
-  if (report.action === 'Combat') {
-    for (const item of gear.slice(0, 4)) console.log(`  combat raw candidate: ${item}`);
-    if (report.mode === 'Hardcore Mode' && gear.length) console.log('  caution: Hardcore, test survivability before DPS swaps');
-  }
-}
-
 // Decisions = gear swaps the simulator proves (owned items, more XP/h, no extra deaths) + the first step of the chosen goal.
 // Swaps are only judged when this scan simulated (journal --sim); otherwise open swaps keep their status.
 function planActions(r, goalStep = null) {
@@ -652,13 +622,6 @@ function briefFromData(name, data, save, previousEntry, now = new Date().toISOSt
       ...abyssalNext,
     ].filter(Boolean).slice(0, 8),
   };
-}
-
-function printPlan(r) {
-  const lines = planLines(r);
-  console.log(`${r.report.name} | ${r.report.action}`);
-  if (!lines.length) console.log('  no obvious skilling swap');
-  for (const line of lines) console.log(`  would equip ${line}`);
 }
 
 function printCombatPlan(r, options = {}) {
@@ -2454,19 +2417,6 @@ if (require.main === module) (async () => {
           const talents = game.skills.allObjects.flatMap(skill => values(skill.skillTrees).map(tree => ({ skill: skill.name, points: tree.points || 0, candidates: values(tree.nodes).filter(node => node.canUnlock && tree.canAffordNode(node) && !values(tree.unlockedNodes).includes(node)).map(node => ({ name: node.name, shortName: node.shortName })) }))).filter(tree => tree.points > 0);
           return { report: mh.readOnlyReport(), talents };
         })()`);
-        if (cmd === 'plan') return evalExpr(client, `(() => {
-          const wanted = ['Octopus','Potion Stirrer','Bear','Jeweled Necklace','Book of Scholars','Ancient Ring of Mastery','Golden Star','Eagle'];
-          const qty = name => { for (const [item, bi] of game.bank.items) if (item.name === name) return bi.quantity; return 0; };
-          return { report: mh.readOnlyReport(), bank: Object.fromEntries(wanted.map(name => [name, qty(name)])) };
-        })()`);
-        if (cmd === 'audit') return evalExpr(client, `(() => {
-          const gear = mh.gearAudit(game.combat.player.attackType, 2);
-          return { report: mh.readOnlyReport(), skilling: mh.skillingAudit(), gear: {
-            context: gear.context,
-            equipped: gear.equipped,
-            candidates: gear.candidates,
-          } };
-        })()`);
         if (cmd === 'combat-plan') return evalExpr(client, `(() => {
           const report = mh.readOnlyReport();
           const sets = game.combat.player.equipmentSets.map((set, index) => {
@@ -2495,8 +2445,6 @@ if (require.main === module) (async () => {
         for (const line of talentAdvice(data.report, data.talents)) console.log(`  ${line}`);
         for (const talent of data.talents.filter(talent => talent.candidates.length)) console.log(`  available: ${talent.skill} ${talent.points} point(s) -> ${talent.candidates.map(node => node.shortName || node.name).join(', ')}`);
       }
-      else if (cmd === 'audit') printAudit(data);
-      else if (cmd === 'plan') printPlan(data);
       else if (cmd === 'combat-plan') printCombatPlan(data, { abyssalOnly });
       else printGear(data);
     }

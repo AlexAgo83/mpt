@@ -19,7 +19,7 @@
 
 # Procedure
 
-1. Run `./melvor-report.js source-of-truth`, then `brief all` and `audit all` to prioritize active, idle, stopped, or at-risk characters.
+1. Run `./melvor-report.js source-of-truth`, then `brief all` (and the dashboard's Upgrades tab, `journal <character> --record --sim` for simulated gains) to prioritize active, idle, stopped, or at-risk characters.
 2. For each priority character, run `./melvor-report.js gear <character> --detail` and `./melvor-report.js skilling <character>`. To assess a switch, use `gear <character> --detail --style melee|ranged|magic`; this is read-only and ranks bank gear for that style.
 3. Compare equipped items with candidates by stats **and passives**. Read `blocked` candidates too: they state the exact skill level and Abyss Depth completion required, so do not describe them as available upgrades. Reject a raw stat upgrade when it loses task-relevant resistance, defence, reflect, Auto Eat efficiency, or a required passive.
 4. Run `./melvor-report.js config <character>` (read-only) for active potions per skill, bank potion stock, active prayers plus every usable prayer for the current damage type, attack spell, auto-eat threshold/efficiency, the Cartography map/hex/POI with its effect, and every discovered POI with its effect (moving costs travel resources, so state the gain). Flag an empty Combat potion slot when the bank holds a matching accuracy, damage, or Slayer potion.
