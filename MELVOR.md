@@ -115,7 +115,7 @@ Use it before recommending potions, prayers, or Cartography moves (see `logics/r
 
 `melvor-report.js` supports one reviewed mutation at a time: `equip <character> <item> <slot>`,
 `skill-start <character> <skill> <recipe>`, `talent-unlock <character> <skill> <node>`, and
-`config-set <character> <potion|prayers|poi> <value>` (prayers as `"A,B"`; poi travels on the active map and previews the GP cost).
+`config-set <character> <potion|prayers|poi|style> <value>` (prayers as `"A,B"`; poi travels on the active map and previews the GP cost; style sets the attack style of the current attack type, e.g. `Block` for Defence XP).
 Each command is a no-write preview until `--apply` is explicit. Before applying, run the
 preview, confirm the character and target, then let the command load the newest source, save,
 and verify the final game state. Never add or use an all-character/apply-all variation.

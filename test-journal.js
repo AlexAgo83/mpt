@@ -15,6 +15,7 @@ assert.match(skillStartScript('Fletching', 'Test recipe', true), /unsupported Me
 assert.match(talentUnlockScript('Attack', 'A1', true), /unsupported Melvor talent API/, 'talent unlock fails closed for unknown APIs');
 
 assert.match(configSetScript('potion', 'Test Potion', false), /if \(!apply\) return result/, 'config-set stays preview-only without apply');
+assert.match(configSetScript('style', 'Block', false), /kind === 'style'[\s\S]*if \(!apply\) return result;\n    player.setAttackStyle/, 'config-set style stays preview-only without apply');
 const setupBrief = slayer => briefFromData('T', { report: { equipment: {}, combatGoals: { nextSetup: { dungeon: 'Bandit Base', set: { index: 0 } } } }, skills: [{ name: 'Slayer', level: 120, levelCap: 120, abyssalLevel: slayer, abyssalCap: 60 }] }, null, null).standard.next.join();
 assert.match(setupBrief(1), /Bandit Base/, 'standard-realm character keeps the standard dungeon setup');
 assert.doesNotMatch(setupBrief(50), /Bandit Base/, 'abyssal character drops leftover standard dungeon setups');

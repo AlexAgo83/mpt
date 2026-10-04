@@ -74,7 +74,7 @@ const usage = `usage:
   ./melvor-report.js skilling <character>
   ./melvor-report.js agility [all|character]
   ./melvor-report.js config [all|character]
-  ./melvor-report.js config-set <character> <potion|prayers|poi> <value> [--apply]
+  ./melvor-report.js config-set <character> <potion|prayers|poi|style> <value> [--apply]
   ./melvor-report.js talents <character>
   ./melvor-report.js export-state [all|character]
   ./melvor-report.js save-backup [all|character]
@@ -927,7 +927,7 @@ const equipmentActionScript = (itemName, slotName, quantity, shouldApply) => `((
   return result;
 })()`;
 
-// Guarded combat configuration change: kind is potion | prayers | poi.
+// Guarded combat configuration change: kind is potion | prayers | poi | style.
 const configSetScript = (kind, value, shouldApply) => `(async () => {
   const kind = ${JSON.stringify(kind)}, value = ${JSON.stringify(value)}, apply = ${JSON.stringify(shouldApply)};
   const player = game.combat.player;
@@ -978,7 +978,20 @@ const configSetScript = (kind, value, shouldApply) => `(async () => {
     if (typeof mh !== 'undefined') mh.dismissModal?.(true);
     result.final = map.playerPosition?.pointOfInterest?.name ?? 'none';
     if (map.playerPosition !== poi.hex) return { ...result, error: 'Melvor did not move to the point of interest' };
-  } else return { ...result, error: 'kind must be potion, prayers, or poi' };
+  } else if (kind === 'style') {
+    // Block / Longrange / Defensive are the styles that send combat XP to Defence.
+    const type = player.attackType;
+    const styles = game.attackStyles.allObjects.filter(style => style.attackType === type);
+    result.current = player.attackStyles?.[type]?.name ?? 'unknown';
+    result.available = styles.map(style => style.name).join(', ');
+    const style = styles.find(style => style.name === value);
+    if (!style) return { ...result, error: 'unknown ' + type + ' attack style' };
+    if (!apply) return result;
+    player.setAttackStyle(type, style);
+    await sleep(300);
+    result.final = player.attackStyles?.[type]?.name ?? 'unknown';
+    if (result.final !== value) return { ...result, error: 'Melvor did not set the attack style' };
+  } else return { ...result, error: 'kind must be potion, prayers, poi, or style' };
   result.hitChance = player.stats.hitChance;
   result.applied = true;
   return result;
@@ -2523,7 +2536,7 @@ if (require.main === module) (async () => {
 
     if (cmd === 'equip' || cmd === 'skill-start' || cmd === 'talent-unlock' || cmd === 'config-set') {
       if (who === 'all' || !arg3 || !arg4) {
-        const usage = cmd === 'equip' ? 'equip <character> <item> <slot>' : cmd === 'config-set' ? 'config-set <character> <potion|prayers|poi> <value>' : `${cmd} <character> <skill> <${cmd === 'skill-start' ? 'recipe' : 'node'}>`;
+        const usage = cmd === 'equip' ? 'equip <character> <item> <slot>' : cmd === 'config-set' ? 'config-set <character> <potion|prayers|poi|style> <value>' : `${cmd} <character> <skill> <${cmd === 'skill-start' ? 'recipe' : 'node'}>`;
         throw Error(`usage: ./melvor-report.js ${usage} [--apply]`);
       }
       const script = cmd === 'config-set'
