@@ -740,7 +740,9 @@
     const unfoundCraftable = values(game.items).filter(item => !item.ignoreCompletion && (abyss || !isAbyssal(item)) && findCount(item) === 0).map(item => ({ item, craft: craftMap.get(item.id) })).filter(x => x.craft?.unlocked && x.craft.affordable).slice(0, 15).map(x => ({ name: x.item.name, skill: x.craft.skill }));
     const killCount = m => { try { return game.stats.monsterKillCount(m); } catch { return null; } };
     const areaOf = new Map(); for (const a of [...values(game.combatAreas), ...values(game.slayerAreas)]) for (const m of values(a.monsters)) if (!areaOf.has(m.id)) areaOf.set(m.id, a);
-    const unkilled = values(game.monsters).filter(m => !m.ignoreCompletion && (abyss || !isAbyssal(m)) && killCount(m) === 0 && areaOf.has(m.id)).map(m => ({ id: m.id, name: m.name, area: areaOf.get(m.id).name, unlocked: met(areaOf.get(m.id).entryRequirements), combatLevel: m.combatLevel ?? null })).filter(m => m.unlocked).sort((a, b) => (a.combatLevel ?? 0) - (b.combatLevel ?? 0)).slice(0, 10);
+    // every monster never killed (Monsters goal): reachable ones first, by combat level; the locked ones say what blocks
+    const unkilledAll = values(game.monsters).filter(m => !m.ignoreCompletion && (abyss || !isAbyssal(m)) && killCount(m) === 0 && areaOf.has(m.id)).map(m => { const area = areaOf.get(m.id); const unlocked = met(area.entryRequirements); return { id: m.id, name: m.name, area: area.name, unlocked, missing: unlocked ? [] : missing(area.entryRequirements), combatLevel: m.combatLevel ?? null }; }).sort((a, b) => (b.unlocked - a.unlocked) || (a.combatLevel ?? 0) - (b.combatLevel ?? 0));
+    const unkilled = unkilledAll.filter(m => m.unlocked).slice(0, 10);
     const nearMastery = values(game.skills).filter(sk => sk.hasMastery).flatMap(sk => values(sk.actions).filter(a => abyss || !isAbyssal(a)).map(a => { let lvl = null; try { lvl = sk.getMasteryLevel(a); } catch {} return { skill: sk.name, action: a.name ?? a.product?.name, level: lvl, cap: sk.masteryLevelCap ?? 99 }; })).filter(x => x.level != null && x.level >= 90 && x.level < x.cap).sort((a, b) => b.level - a.level).slice(0, 10);
     const petsMissing = values(game.pets).filter(p => !p.ignoreCompletion && (abyss || !isAbyssal(p)) && !game.petManager.isPetUnlocked(p)).map(p => ({ name: p.name, skill: p.skill?.name ?? null, how: (p.acquiredBy || p.description || '').toString().replace(/<[^>]+>/g, '').slice(0, 90) }));
 
@@ -788,7 +790,7 @@
     const task = game.combat.slayerTask;
     const slayer = { active: Boolean(task?.active), monster: task?.monster?.name ?? null, killsLeft: task?.killsLeft ?? null, coins: game.slayerCoins?.amount ?? null, abyssalCoins: game.abyssalSlayerCoins?.amount ?? null, locked: slayerAreas.filter(a => !a.unlocked).slice(0, 6) };
     let grown = null; try { grown = game.farming.isAnyPlotGrown; if (typeof grown === 'function') grown = grown.call(game.farming); } catch {}
-    return { abyss, dungeons, slayer, completion: { unfoundCraftable, unkilled, nearMastery, petsMissing: petsMissing.slice(0, 12), petsMissingCount: petsMissing.length }, target, pools, profit: profit.slice(0, 8), capes, shop, quick: { farmingReady: Boolean(grown), slayerTaskDone: game.activeAction?.name === 'Combat' && !task?.active } };
+    return { abyss, dungeons, slayer, completion: { unfoundCraftable, unkilled, nearMastery, petsMissing: petsMissing.slice(0, 12), petsMissingCount: petsMissing.length }, monsters: { unkilled: unkilledAll.slice(0, 25), total: unkilledAll.length, reachable: unkilledAll.filter(m => m.unlocked).length }, pets: { missing: petsMissing.slice(0, 25), total: petsMissing.length }, target, pools, profit: profit.slice(0, 8), capes, shop, quick: { farmingReady: Boolean(grown), slayerTaskDone: game.activeAction?.name === 'Combat' && !task?.active } };
   };
 
   mh.equipSlot = (name, slotName, quantity) => {

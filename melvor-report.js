@@ -1511,7 +1511,7 @@ function journalMd(c) {
 const LEDGER = path.join(JOURNAL_DIR, 'actions.jsonl');
 // Plans goal per character ({ goal, target }), chosen in the dashboard; private like the rest of journal/.
 const GOALS_FILE = path.join(JOURNAL_DIR, 'goals.json');
-const GOAL_IDS = ['progression', 'dungeons', 'completion', 'target', 'mastery', 'profit', 'afk', 'slayer', 'safe', 'capes', 'shop'];
+const GOAL_IDS = ['progression', 'dungeons', 'completion', 'target', 'mastery', 'profit', 'afk', 'slayer', 'safe', 'capes', 'pets', 'monsters', 'shop'];
 const readGoals = () => { try { return JSON.parse(fs.readFileSync(GOALS_FILE, 'utf8')); } catch { return {}; } };
 const writeGoal = (name, patch) => { const all = readGoals(); all[name] = { ...(all[name] || {}), ...patch }; fs.mkdirSync(JOURNAL_DIR, { recursive: true }); fs.writeFileSync(GOALS_FILE, JSON.stringify(all, null, 2)); return all[name]; };
 
@@ -1571,11 +1571,21 @@ function buildGoals(data, analysis, observed) {
     simmed.some(x => x.r) ? null : 'Refresh this character alone (it simulates) to check deaths before any fight.',
   ].filter(Boolean);
   const capeLines = [
-    ...(g.capes || []).slice(0, 8).map(cp => join(cp.missing.length ? cp.name : 'Buy ' + cp.name, cp.missing.length ? 'needs ' + cp.missing.join(', ') : 'requirements met')),
-    ...(c.petsMissing || []).slice(0, 4).map(p => join('Pet ' + p.name, p.how || p.skill)),
+    ...(g.capes || []).slice(0, 12).map(cp => join(cp.missing.length ? cp.name : 'Buy ' + cp.name, cp.missing.length ? 'needs ' + cp.missing.join(', ') : 'requirements met', cp.gp ? fmtRate(cp.gp) + ' GP' : null)),
   ];
+  // older scans only carry the first pets/monsters under completion: fall back to them until the next refresh
+  const pets = g.pets || { missing: c.petsMissing || [], total: c.petsMissingCount ?? (c.petsMissing || []).length };
+  const petLines = pets.total ? [
+    ...pets.missing.map(p => join('Pet ' + p.name, p.skill, p.how)),
+    pets.total > pets.missing.length ? (pets.total - pets.missing.length) + ' more pets missing' : null,
+  ].filter(Boolean) : ['Every pet found'];
+  const mons = g.monsters || { unkilled: (c.unkilled || []).map(m => ({ ...m, unlocked: true, missing: [] })), total: (c.unkilled || []).length, reachable: (c.unkilled || []).length };
+  const monsterLines = mons.total ? [
+    ...mons.unkilled.map(m => m.unlocked ? join('Kill ' + m.name, m.area, m.combatLevel ? 'combat ' + m.combatLevel : null, simChip(sim['mon:' + m.id])) : join('Unlock ' + m.area + ' for ' + m.name, 'needs ' + (m.missing.join(', ') || 'area requirements'))),
+    join(mons.total + ' monsters never killed', mons.reachable + ' reachable now'),
+  ] : ['Every monster killed'];
   const shopLines = (g.shop || []).map(p => join('Buy ' + p.name, p.gp ? fmtRate(p.gp) + ' GP' : p.items.length ? p.items.join(', ') : 'price varies'));
-  return { progression: null, dungeons: dungeonLines, completion: completionLines, target: targetLines, mastery: masteryLines, profit: profitLines, afk: afkLines, slayer: slayerLines, safe: safeLines, capes: capeLines, shop: shopLines, quick: g.quick || {}, targetName: t?.name ?? null };
+  return { progression: null, dungeons: dungeonLines, completion: completionLines, target: targetLines, mastery: masteryLines, profit: profitLines, afk: afkLines, slayer: slayerLines, safe: safeLines, capes: capeLines, pets: petLines, monsters: monsterLines, shop: shopLines, quick: g.quick || {}, targetName: t?.name ?? null };
 }
 const ACTION_STATUSES = ['proposed', 'approved', 'done', 'blocked', 'dismissed', 'stale'];
 

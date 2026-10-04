@@ -4,7 +4,7 @@
 window.addEventListener('error', e => { const box = document.getElementById('pageError'); if (box) { box.hidden = false; box.textContent = 'Dashboard error: ' + (e.message || 'unknown') + '. Refresh the journal; if it persists, run ./melvor-report.js improve --record.'; } });
 const snap = JSON.parse(document.getElementById('data').textContent);
 // Plans goal per character: journal/goals.json via journal-serve, localStorage when the page is opened from disk.
-const GOAL_LABELS = { progression: 'Progression', dungeons: 'Dungeon path', completion: 'Completion', target: 'Target item', mastery: 'Mastery pools', profit: 'Profit', afk: 'AFK', slayer: 'Slayer', safe: 'Hardcore safe', capes: 'Capes & pets', shop: 'Shop' };
+const GOAL_LABELS = { progression: 'Progression', dungeons: 'Dungeon path', completion: 'Completion', target: 'Target item', mastery: 'Mastery pools', profit: 'Profit', afk: 'AFK', slayer: 'Slayer', safe: 'Hardcore safe', capes: 'Capes', pets: 'Pets', monsters: 'Monsters', shop: 'Shop' };
 const GOAL_INTRO = {
   progression: 'Raise the lowest skills (standard and abyssal) with the best recipe you have materials for.',
   dungeons: 'Dungeons, Abyss depths and strongholds in game order: what to clear next and what blocks the rest.',
@@ -15,10 +15,12 @@ const GOAL_INTRO = {
   afk: 'What runs longest without you: no deaths, enough food, materials for 12 h or more.',
   slayer: 'Current task, Slayer coins and the Slayer areas still locked with what each needs.',
   safe: 'For Hardcore: only fights the simulator clears with 0% deaths; skilling is always safe.',
-  capes: 'Skillcapes you can buy or still need, and pets left to find.',
+  capes: 'Skillcapes you can buy now or still need, and what each one needs.',
+  pets: 'Every pet still missing and how it is found.',
+  monsters: 'Every monster never killed: the reachable ones first, easiest first, then the areas to unlock.',
   shop: 'Permanent shop upgrades you can afford right now.',
 };
-const GOAL_GROUP = { progression: 0, dungeons: 0, completion: 0, target: 0, mastery: 1, profit: 1, afk: 1, slayer: 2, safe: 2, capes: 2, shop: 2 };
+const GOAL_GROUP = { progression: 0, dungeons: 0, completion: 0, target: 0, mastery: 1, profit: 1, afk: 1, slayer: 2, safe: 2, capes: 2, pets: 2, monsters: 2, shop: 2 };
 const GOAL_ICONS = {
   progression: '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
   dungeons: '<polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" y1="19" x2="19" y2="13"/><line x1="16" y1="16" x2="20" y2="20"/><line x1="19" y1="21" x2="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" y1="14" x2="9" y2="18"/><line x1="7" y1="17" x2="4" y2="20"/><line x1="3" y1="19" x2="5" y2="21"/>',
@@ -30,6 +32,8 @@ const GOAL_ICONS = {
   slayer: '<circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><path d="M8 20v2h8v-2"/><path d="M16 20a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20"/>',
   safe: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>',
   capes: '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
+  pets: '<circle cx="11" cy="4" r="2"/><circle cx="18" cy="8" r="2"/><circle cx="20" cy="16" r="2"/><path d="M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.045Q6.52 17.48 4.46 16.84A3.5 3.5 0 0 1 5.5 10Z"/>',
+  monsters: '<circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><path d="M8 20v2h8v-2"/><path d="m12.5 17-.5-1-.5 1h1z"/><path d="M16 20a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20"/>',
   shop: '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>',
 };
 // Viewer settings (sort, filters, skills and inventory views): per browser, survive reloads and journal refreshes.
@@ -92,7 +96,7 @@ const dungeonRow = (name, line, cls) => {
 const goalLines = (c, goal) => goal === 'progression' ? null : c.analysis.goals?.[goal] || null;
 // The focused character (list > detail): reopened on this tab after a re-render, kept in the URL and the viewer settings
 let keepOpen = (() => { const m = /[#&]c=([^&]+)(?:&t=(\w+))?/.exec(location.hash); return m ? { name: decodeURIComponent(m[1]), tab: m[2] || 'now' } : null; })() || prefs.focus || null;
-const GOAL_SHORT = { progression: 'Lowest skills first', dungeons: 'Next dungeon, what blocks the rest', completion: 'Cheapest Completion Log gains', target: 'The path to one item', mastery: 'Pools near a checkpoint', profit: 'Best GP per hour', afk: 'Runs long without you', slayer: 'Task, coins, locked areas', safe: 'Fights at 0% deaths', capes: 'Capes and pets left', shop: 'Affordable upgrades' };
+const GOAL_SHORT = { progression: 'Lowest skills first', dungeons: 'Next dungeon, what blocks the rest', completion: 'Cheapest Completion Log gains', target: 'The path to one item', mastery: 'Pools near a checkpoint', profit: 'Best GP per hour', afk: 'Runs long without you', slayer: 'Task, coins, locked areas', safe: 'Fights at 0% deaths', capes: 'Skillcapes to buy', pets: 'Pets left to find', monsters: 'Monsters never killed', shop: 'Affordable upgrades' };
 const goalIcon = id => '<svg viewBox="0 0 24 24" aria-hidden="true">' + GOAL_ICONS[id] + '</svg>';
 // One goal picker for the Plans tab and the Next column: a small popover under the button that opened it.
 function openGoalPicker(anchor, name, c) {
