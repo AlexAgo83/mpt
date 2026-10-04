@@ -63,6 +63,12 @@ action stopped after Smithing; check resources/recipe inputs before restarting".
 Level ETA is intentionally snapshot-based: the first scan records XP, and later scans show
 projections only when enough time and XP changed to produce a useful estimate.
 
+Decisions come from two sources: owned gear the simulator proves better (more XP/h, no extra deaths, only judged on a
+`--sim` scan) and the first step of the character's Plans goal. Each open decision has Done, Approve and Dismiss
+buttons in the Plans tab (served dashboard; from disk the button copies the `journal-action` command). The To do
+pill in the top bar counts one item per character (save risk, alert, goal step, ready farming, finished Slayer
+task) and opens the list; an item opens that character on its Plans tab.
+
 Action lifecycle statuses: `proposed` → `approved` → `done`, or `blocked` / `dismissed`;
 an open action becomes `done` automatically when the observed equipment matches it, or
 `stale` when the observed state no longer produces the recommendation. Change a status

@@ -29,6 +29,9 @@ const data = {
   },
   skilling: { notes: ['some note'] },
   bank: { Octopus: 3 },
+  // decisions come from simulated bank swaps: Octopus in the bank beats the equipped Bear
+  upgradePlan: { slots: { Summon2: { current: { name: 'Bear' }, bank: { primary: { name: 'Octopus', owned: 3 }, alternatives: [] } } } },
+  upgradeSim: { monster: 'Shrimp', baseline: { xpPerHour: 1000, deathRate: 0 }, results: { Summon2: { Octopus: { xpPerHour: 1100, deathRate: 0 } } } },
 };
 const save = { source: 'local', diffMs: 10 * 60000 };
 const now = '2026-07-05T12:00:00.000Z';
@@ -37,10 +40,10 @@ assert.strictEqual(potionItemName('Damage Reduction Potion IV for first clear sa
 assert.strictEqual(potionItemName('Ranged Assistance Potion IV if accuracy is the bottleneck'), 'Ranged Assistance Potion IV');
 
 const c = buildCharacterJournal('TestChar', data, save);
-assert.strictEqual(c.actions.length, 1, 'Fishing without Octopus proposes one equip');
-const a = c.actions[0];
+assert.strictEqual(c.actions.filter(x => x.type === 'equip').length, 1, 'a simulated gain from a bank item proposes one equip');
+const a = c.actions.find(x => x.type === 'equip');
 assert.strictEqual(a.item, 'Octopus');
-assert.strictEqual(c.observed.upgradePlan.activity[0].item, 'Octopus', 'owned active-skill summons are upgrade-plan improvements');
+assert.match(a.reason, /sim \+10\.0% XP\/h on Shrimp/, 'the decision says what the simulator measured');
 assert.match(a.id, /^[0-9a-f]{12}$/);
 assert.strictEqual(c.analysis.saveRisk, null, 'known local source is not a journal risk');
 assert.ok(c.observed.saveSource.source === 'local');
@@ -61,8 +64,10 @@ assert.ok(!magicCombat.analysis.currentActionPlan.some(line => /Ammo:|Ranged Hin
 assert.ok(!magicCombat.analysis.currentActionPlan.some(line => /finish Slayer task/.test(line)), 'automatic Slayer tasks are not recommendations');
 assert.ok(!journalMd(magicCombat).includes('Underwater City'), 'active Slayer task suppresses unrelated dungeon goals');
 
-const noStock = buildCharacterJournal('NoStock', { ...data, bank: {} }, save);
-assert.strictEqual(noStock.actions.length, 0, 'missing bank items are not proposed');
+const noStock = buildCharacterJournal('NoStock', { ...data, upgradeSim: undefined }, save);
+assert.strictEqual(noStock.actions.filter(x => x.type === 'equip').length, 0, 'no simulation, no gear decision');
+const worse = buildCharacterJournal('Worse', { ...data, upgradeSim: { ...data.upgradeSim, results: { Summon2: { Octopus: { xpPerHour: 900, deathRate: 0 } } } } }, save);
+assert.strictEqual(worse.actions.filter(x => x.type === 'equip').length, 0, 'a simulated loss is never proposed');
 const proven = buildCharacterJournal('Proven', {
   ...data,
   report: { ...data.report, action: 'Cooking', equipment: { Amulet: 'Amulet of Fishing' } },
@@ -70,7 +75,6 @@ const proven = buildCharacterJournal('Proven', {
   skills: [{ name: 'Cooking', level: 10, levelCap: 120, abyssalLevel: 1, abyssalCap: 60 }],
   skillingOptions: { Cooking: [{ recipe: 'Abyssal Soup', abyssalLevel: 1, maxActions: 20000, runwayHours: 12, xpPerHour: 1000, inputs: [{ item: 'Abyssal Fish', owned: 20000, perAction: 1 }] }] },
 }, save);
-assert.strictEqual(proven.actions[0].item, 'Jeweled Necklace', 'owned replacement is proposed');
 assert.match(proven.analysis.abyssalPlan[0], /Abyssal Soup; 20000 actions; 12.0 h runway/);
 
 const upgrades = buildCharacterJournal('UpgradeChar', {
@@ -82,14 +86,12 @@ const skillingUpgrade = buildCharacterJournal('SkillingUpgrade', { ...data, upgr
 assert.strictEqual(skillingUpgrade.observed.upgradePlan.context.kind, 'non_combat_skill', 'non-combat work defers combat upgrade planning');
 assert.match(renderDashboard(buildLatest([skillingUpgrade], new Map(), null, now)), /combat upgrades wait until it stops/, 'dashboard explains why combat upgrades are deferred');
 assert.match(renderDashboard(buildLatest([skillingUpgrade], new Map(), null, now)), /Skilling gear in your bank/, 'dashboard renders non-combat equipment upgrades');
-assert.match(renderDashboard(buildLatest([c], new Map(), null, now)), /For the current activity/, 'dashboard lists owned active-skill upgrades');
 
 // same state twice -> stable id, no duplicate event on rerun
 const c2 = buildCharacterJournal('TestChar', data, save);
-assert.strictEqual(c2.actions[0].id, a.id, 'action id is stable');
+assert.strictEqual(c2.actions.find(x => x.type === 'equip').id, a.id, 'action id is stable');
 const first = mergeLedger([c], new Map(), now);
-assert.strictEqual(first.events.length, 1);
-assert.strictEqual(first.events[0].status, 'proposed');
+assert.ok(first.events.some(e => e.id === a.id && e.status === 'proposed'));
 const rerun = mergeLedger([c2], first.latest, now);
 assert.strictEqual(rerun.events.length, 0, 'unchanged context proposes nothing');
 
@@ -104,7 +106,7 @@ const reproposed = mergeLedger([changed], dismissed, now);
 assert.ok(reproposed.events.some(e => e.id === a.id && e.status === 'proposed'), 'context change re-proposes');
 
 // open action no longer recommended -> stale
-const idle = buildCharacterJournal('TestChar', { ...data, report: { ...data.report, action: 'Woodcutting' } }, save);
+const idle = buildCharacterJournal('TestChar', { ...data, upgradeSim: { ...data.upgradeSim, results: { Summon2: { Octopus: { xpPerHour: 900, deathRate: 0 } } } } }, save);
 const stale = mergeLedger([idle], first.latest, now);
 assert.ok(stale.events.some(e => e.id === a.id && e.status === 'stale'), 'dropped recommendation goes stale');
 
@@ -114,7 +116,9 @@ const applied = buildCharacterJournal('TestChar', {
 }, save);
 const doneMerge = mergeLedger([applied], first.latest, now);
 assert.ok(doneMerge.events.some(e => e.id === a.id && e.status === 'done'), 'applied action goes done');
-assert.ok(!doneMerge.events.some(e => e.status === 'stale'), 'applied action is not stale');
+assert.ok(!doneMerge.events.some(e => e.id === a.id && e.status === 'stale'), 'applied action is not stale');
+const unsimulated = buildCharacterJournal('TestChar', { ...data, upgradeSim: undefined }, save);
+assert.ok(!mergeLedger([unsimulated], first.latest, now).events.some(e => e.id === a.id), 'a scan without simulation leaves open swaps alone');
 
 // decisions are rebuilt from the ledger even for carried-over characters
 const prevSnap = buildLatest([c], first.latest, null, now);

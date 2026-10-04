@@ -424,37 +424,30 @@ function printAudit(r) {
   }
 }
 
-function planActions(r) {
-  const eq = r.report.equipment;
-  const bank = r.bank || {};
+// Decisions = gear swaps the simulator proves (owned items, more XP/h, no extra deaths) + the first step of the chosen goal.
+// Swaps are only judged when this scan simulated (journal --sim); otherwise open swaps keep their status.
+function planActions(r, goalStep = null) {
+  const eq = r.report.equipment || {};
   const actions = [];
-  const add = (slot, item, reason) => {
-    if (eq[slot] === item || !bank[item] || actions.some(a => a.slot === slot && a.item === item)) return;
-    actions.push({ type: 'equip', slot, item, current: eq[slot] || 'empty', available: bank[item] || 0, reason,
-      risk: r.report.mode === 'Hardcore Mode' ? 'medium' : 'low' });
-  };
-  if (r.report.action !== 'Fishing' && eq.Amulet === 'Amulet of Fishing')
-    add('Amulet', 'Jeweled Necklace', 'replace Fishing-only amulet with an owned skilling amulet');
-  if (r.report.action === 'Fishing') add('Summon2', 'Octopus', 'Fishing yield');
-  if (r.report.action === 'Herblore') {
-    add('Weapon', 'Potion Stirrer', 'Herblore interval/potion preserve');
-    add('Summon1', 'Bear', 'Herblore resource preserve');
-    add('Amulet', 'Jeweled Necklace', 'remove Fishing-only amulet');
+  const sim = r.upgradeSim && !r.upgradeSim.error ? r.upgradeSim : null;
+  const base = sim?.baseline;
+  for (const [slot, entry] of Object.entries(r.upgradePlan?.slots || {})) {
+    const lane = entry.bank; if (!sim || !lane) continue;
+    const best = [lane.primary, ...(lane.alternatives || [])]
+      .map(item => ({ item, res: sim.results?.[slot]?.[item.name] }))
+      .filter(x => x.res && !x.res.failed && base?.xpPerHour && (x.res.deathRate || 0) <= (base.deathRate || 0))
+      .map(x => ({ ...x, gain: (x.res.xpPerHour - base.xpPerHour) / base.xpPerHour * 100 }))
+      .filter(x => x.gain > 0.5 && eq[slot] !== x.item.name)
+      .sort((a, b) => b.gain - a.gain)[0];
+    if (best) actions.push({ type: 'equip', slot, item: best.item.name, current: eq[slot] || 'empty', available: best.item.owned || 0,
+      reason: `sim +${best.gain.toFixed(1)}% XP/h on ${sim.monster}`, risk: r.report.mode === 'Hardcore Mode' ? 'medium' : 'low' });
   }
-  if (r.report.action === 'Astrology') {
-    add('Shield', 'Book of Scholars', 'global skill XP');
-    add('Ring', 'Ancient Ring of Mastery', 'mastery XP');
-    add('Consumable', 'Golden Star', 'Astrology stardust');
-  }
-  if (r.report.action === 'Agility') {
-    add('Amulet', 'Jeweled Necklace', 'remove Fishing-only amulet');
-    add('Summon2', 'Eagle', 'Agility interval');
-  }
+  if (goalStep) actions.push({ type: 'goal', slot: goalStep.goal, item: goalStep.line.split('; ')[0], current: '', available: 0, reason: goalStep.line.split('; ').slice(1).join(' · ') || 'next step of the ' + goalStep.goal + ' goal', risk: 'low' });
   return actions;
 }
 
 function planLines(r) {
-  return planActions(r).map(a => `${a.slot}: ${a.current} -> ${a.item} (available x${a.available}; ${a.reason})`);
+  return planActions(r).filter(a => a.type === 'equip').map(a => `Equip ${a.item} in ${a.slot}; ${a.reason}; replaces ${a.current}`);
 }
 
 function talentAdvice(report, talents = []) {
@@ -1387,12 +1380,19 @@ function buildCharacterJournal(name, data, save) {
   const report = data.report;
   const brief = briefFromData(name, data, save);
   const activeSlayerTask = report.action === 'Combat' && Boolean(report.combat?.slayerTask?.monster);
-  const improvements = planActions(data);
+  const goalStep = (() => {
+    const goal = readGoals()[name]?.goal || (report.mode === 'Hardcore Mode' ? 'safe' : 'progression');
+    const lines = goal === 'progression' ? (activeSlayerTask ? [] : brief.standard.next) : buildGoals(data, {}, {})?.[goal] || [];
+    const line = lines.find(l => /^(Switch|Clear|Kill|Craft|Fish|Cut|Mine|Grow|Steal|Harvest|Dig up|Buy|Farm|Unlock|Safe:|[A-Z][a-z]+: )/.test(l) && !/^(Task|Slayer coins|Pets missing):/.test(l));
+    return line ? { goal, line } : null;
+  })();
+  const improvements = planActions(data, goalStep);
   const actions = improvements.map(a => ({ ...a, id: actionId(name, a), contextHash: actionContextHash(report, a) }));
-  const upgradePlan = data.upgradePlan ? { ...data.upgradePlan, activity: improvements, ...(data.upgradeSim ? { sim: data.upgradeSim } : {}) } : improvements.length ? { context: { kind: 'non_combat_skill', target: report.action }, slots: {}, activity: improvements } : null;
+  const upgradePlan = data.upgradePlan ? { ...data.upgradePlan, activity: [], ...(data.upgradeSim ? { sim: data.upgradeSim } : {}) } : null;
   const saveRisk = !save || save.source === 'unknown' ? 'save source of truth unknown' : null;
   return {
     name,
+    simulated: Boolean(data.upgradeSim && !data.upgradeSim.error),
     observed: {
       at: new Date().toISOString(),
       abyss: data.abyss ?? null,
@@ -1625,8 +1625,9 @@ function mergeLedger(chars, latest, now) {
       if (prev.character !== c.name || !['proposed', 'approved'].includes(prev.status)) continue;
       if (c.actions.some(a => a.id === prev.id)) continue;
       const applied = prev.type === 'equip' && c.observed.equipment[prev.slot] === prev.item;
+      if (prev.type === 'equip' && !applied && c.simulated === false) continue; // not judged without a simulation
       push(applied ? 'done' : 'stale', c.name, prev,
-        applied ? 'observed equipment now matches this action' : 'observed state no longer produces this recommendation');
+        applied ? 'observed equipment now matches this action' : prev.type === 'goal' ? 'the goal plan moved on (done, or another goal was picked)' : 'observed state no longer produces this recommendation');
     }
   }
   const merged = new Map(latest);
@@ -1749,7 +1750,7 @@ function structuredInsights(entry) {
     const isSave = !isPending && /save|source-of-truth/i.test(label);
     const isRunway = /^(ammo|consumable|familiar|food):|quiver|summon|runway/i.test(label);
     const isTask = /slayer task|finish |ETA/i.test(label) && !isRunway;
-    const actionable = !isPending && (isSave || / -> .*available x[1-9]\d*/i.test(label) || /; (\d+ actions; [\d.]+ h runway|no materials needed);/i.test(label) || /\bfinish\b/i.test(label));
+    const actionable = !isPending && (isSave || /^Equip .+ in \w+; sim /i.test(label) || /; (\d+ actions; [\d.]+ h runway|no materials needed);/i.test(label) || /\bfinish\b/i.test(label));
     const priority = isPending ? 'low' : isIdle || (isAlert && isSave) ? 'critical'
       : (isAlert || actionable || (etaSeconds !== null && etaSeconds <= 3600)) ? 'high'
         : isRunway || isTask ? 'medium' : 'low';
@@ -1801,7 +1802,7 @@ function buildLatest(chars, latest, previous, now) {
     const decisions = Object.fromEntries(ACTION_STATUSES.map(s => [s, []]));
     for (const e of latest.values()) {
       if (e.character !== name) continue;
-      decisions[e.status]?.push({ id: e.id, slot: e.slot, item: e.item, risk: e.risk, reason: e.reason, ts: e.ts });
+      decisions[e.status]?.push({ id: e.id, type: e.type, slot: e.slot, item: e.item, risk: e.risk, reason: e.reason, ts: e.ts });
     }
     characters[name] = { ...entry, decisions, history: recentJournalEntries(name, 6) };
   }
@@ -1944,6 +1945,18 @@ h1 { margin: 0; color: var(--accent); font-size: 1.55rem; letter-spacing: 0; }
 .topbar svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 #refreshStatus { margin: -.5rem 0 .6rem; text-align: right; }
 #refreshStatus:empty { display: none; }
+#pageError { margin: 0 0 .7rem; padding: .6rem .8rem; border: 1px solid var(--danger); border-radius: 8px; background: #2a1715; color: #ffd8d2; }
+.todo-pill { width: auto; height: 2.25rem; display: flex; align-items: center; gap: .35rem; padding: 0 .8rem; border-radius: 999px; color: var(--muted); }
+.todo-pill b { font-variant-numeric: tabular-nums; }
+.todo-pill.has { color: #101413; background: var(--accent); border-color: var(--accent); font-weight: 650; }
+.todo-pill.critical { background: var(--danger); border-color: var(--danger); }
+#todo { width: min(36rem, 92vw); border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: var(--panel); }
+#todo::backdrop { background: #0009; }
+#todo h2 { margin-top: 0; color: var(--accent); font-size: 1.05rem; }
+#todo form button { width: auto; margin-top: .8rem; }
+.todo-item { display: flex; align-items: center; gap: .6rem; width: 100%; text-align: left; padding: .5rem .6rem; border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: 0 8px 8px 0; background: #111614; }
+.todo-item.p-critical { border-left-color: var(--danger); } .todo-item.p-high { border-left-color: var(--accent); }
+.todo-item:hover { border-color: var(--accent); }
 #setup { max-width: 34rem; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: var(--panel); }
 #setup::backdrop { background: #0009; }
 #setup h2 { margin-top: 0; color: var(--accent); font-size: 1.05rem; }
@@ -2010,6 +2023,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .tab-switch button:hover { color: var(--ink); border-color: transparent; }
 .tab-switch button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
 .tab-intro { margin: -.2rem 0 .7rem; color: var(--muted); font-size: .84rem; }
+.decision-actions { display: flex; gap: .35rem; }
+.decision-actions button { width: auto; padding: .2rem .6rem; font-size: .78rem; border-radius: 999px; }
 .goal-tabs.tab-switch { margin: 0; padding: 0; border-bottom: 1px solid var(--line); }
 .goal-tabs.tab-switch button { padding: .5rem .6rem; }
 .goal-pick { width: auto; margin-bottom: .2rem; padding: .05rem .4rem; border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .03em; cursor: pointer; }
@@ -2119,6 +2134,7 @@ a:hover { text-decoration: underline; }
   .column-head { display: none; }
   .topbar { flex-wrap: wrap; }
   #scanTime { display: none; }
+  .todo-pill .tab-label { display: none; }
   .split button span { display: none; }
   .seg { overflow-x: auto; max-width: 100%; }
   .character-head { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem .7rem; }
@@ -2135,10 +2151,12 @@ a:hover { text-decoration: underline; }
 <header class="topbar"><div class="brand"><img src="/assets/mpt-crest.png" alt=""><h1>MelvorPT</h1></div>
 <div class="top-actions"><span id="scanTime" class="muted"></span>
 <div class="split" aria-label="Refresh journal"><select id="refreshCharacter" aria-label="Character to refresh"><option value="all">All</option></select><button id="refreshButton" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg><span>Refresh</span></button></div>
+<button id="todoButton" class="todo-pill" type="button" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><b id="todoCount">0</b><span class="tab-label">To do</span></button>
 <button id="setupButton" class="icon-button" type="button" title="Account setup" aria-label="Account setup"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div></header>
 <p id="refreshStatus" class="muted"></p>
 <dialog id="setup"><h2>Account setup</h2><ol><li>Sign in through the official Melvor page in the shared browser profile.</li><li>Set your character roster in <code>.env.local</code>.</li><li>Use Refresh to build the first local journal.</li></ol><p><a href="https://melvoridle.com/" target="_blank" rel="noopener">Open Melvor sign-in</a> · MPT never stores your credentials.</p><form method="dialog"><button>Close</button></form></dialog>
-<section id="start" aria-label="To do"></section>
+<p id="pageError" hidden></p>
+<dialog id="todo"><h2>To do</h2><div id="todoList" class="stack"></div><form method="dialog"><button>Close</button></form></dialog>
 <div id="summary" class="kpis"></div>
 <div class="toolbar">
   <input id="q" type="search" placeholder="Search character, activity or item" aria-label="Search">
@@ -2157,7 +2175,7 @@ a:hover { text-decoration: underline; }
 <script id="data" type="application/json">${json}</script>
 <script>
 // A script error must never leave a blank page: say what broke, where the To do box is.
-window.addEventListener('error', e => { const box = document.getElementById('start'); if (box) { box.className = 'page-error'; box.textContent = 'Dashboard error: ' + (e.message || 'unknown') + '. Refresh the journal; if it persists, run ./melvor-report.js improve --record.'; } });
+window.addEventListener('error', e => { const box = document.getElementById('pageError'); if (box) { box.hidden = false; box.textContent = 'Dashboard error: ' + (e.message || 'unknown') + '. Refresh the journal; if it persists, run ./melvor-report.js improve --record.'; } });
 const snap = JSON.parse(document.getElementById('data').textContent);
 // Plans goal per character: journal/goals.json via journal-serve, localStorage when the page is opened from disk.
 const GOAL_LABELS = { progression: 'Progression', dungeons: 'Dungeon path', completion: 'Completion', target: 'Target item', mastery: 'Mastery pools', profit: 'Profit', afk: 'AFK', slayer: 'Slayer', safe: 'Hardcore safe', capes: 'Capes & pets', shop: 'Shop' };
@@ -2252,22 +2270,40 @@ refreshButton.addEventListener('click', async () => {
 
 // Only real actions: "ETA pending" lines are status, they stay muted in the card's Next column.
 const isAction = i => !isAutomaticTask(i.label) && !/^ETA pending/i.test(i.label);
-const urgent = Object.entries(snap.characters)
-  .map(([name, c]) => [name, hasRisk(name)
-    ? { priority: 'critical', label: 'Local save is newer than cloud: do not load cloud.' }
-    : insights(c).find(i => isAction(i) && (i.severity === 'danger' || i.severity === 'warning')) || (goalLines(c, goalOf(name, c))?.[0] && !/^(Safe|No Slayer|Pick a target|Refresh this)/.test(goalLines(c, goalOf(name, c))[0]) ? { priority: 'high', label: goalLines(c, goalOf(name, c))[0] } : null) || insights(c).find(i => isAction(i) && i.actionable)])
-  .filter(([, item]) => item)
-  .sort((a, b) => RANK[a[1].priority] - RANK[b[1].priority])
-  .slice(0, 3);
-const start = document.getElementById('start');
-if (!urgent.length) { start.className = 'all-good'; start.textContent = '✓ All running, nothing to do'; }
-else start.append(el('h2', '', 'To do'));
-for (const [name, item] of urgent) {
-  const parts = item.label.split('; ');
-  const row = el('div', 'start-item p-' + item.priority); row.title = item.label;
-  row.append(el('span', 'name-chip', name), el('span', '', planLine(item.label) || [parts[0], parts.find(p => /runway|left|ETA/.test(p))].filter(Boolean).join(' · ')));
-  start.append(row);
+// To do: one item per character (save risk, alert, the goal's next step, quick wins), shown in a dialog behind a count pill.
+// Rebuilt by render() so it follows goal changes.
+function todoItems() {
+  const items = [];
+  for (const [name, c] of Object.entries(snap.characters)) {
+    const gl = goalLines(c, goalOf(name, c))?.[0];
+    const item = hasRisk(name) ? { priority: 'critical', label: 'Local save is newer than cloud: do not load cloud.' }
+      : insights(c).find(i => isAction(i) && (i.severity === 'danger' || i.severity === 'warning'))
+      || (gl && !/^(Safe|No Slayer|Pick a target|Refresh this|Every unlocked)/.test(gl) ? { priority: 'high', label: gl } : null)
+      || insights(c).find(i => isAction(i) && i.actionable);
+    if (item) items.push([name, item]);
+    const quick = c.analysis.goals?.quick || {};
+    if (quick.farmingReady) items.push([name, { priority: 'medium', label: 'Harvest the farming plots' }]);
+    if (quick.slayerTaskDone) items.push([name, { priority: 'medium', label: 'Start a new Slayer task' }]);
+  }
+  return items.sort((a, b) => RANK[a[1].priority] - RANK[b[1].priority]);
 }
+function renderTodo() {
+  const items = todoItems();
+  const pill = document.getElementById('todoButton'), list = document.getElementById('todoList');
+  document.getElementById('todoCount').textContent = items.length || '✓';
+  pill.classList.toggle('has', items.length > 0); pill.classList.toggle('critical', items.some(([, i]) => i.priority === 'critical'));
+  pill.title = items.length ? items.length + ' thing(s) to do' : 'All running, nothing to do';
+  list.replaceChildren();
+  if (!items.length) list.append(el('p', 'muted', '✓ All running, nothing to do.'));
+  for (const [name, item] of items) {
+    const parts = item.label.split('; ');
+    const row = el('button', 'todo-item p-' + item.priority); row.type = 'button'; row.title = item.label;
+    row.append(el('span', 'name-chip', name), el('span', '', planLine(item.label) || [parts[0], parts.find(p => /runway|left|ETA/.test(p))].filter(Boolean).join(' · ')));
+    row.addEventListener('click', () => { document.getElementById('todo').close(); keepOpen = { name, tab: 'plans' }; render(); loadWikiIcons(); [...document.querySelectorAll('#cards details.character')].find(d => d.querySelector('.identity-title strong')?.textContent === name)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    list.append(row);
+  }
+}
+document.getElementById('todoButton').addEventListener('click', () => document.getElementById('todo').showModal());
 
 const summary = document.getElementById('summary');
 const operations = snap.account.operations || {};
@@ -2338,6 +2374,25 @@ const TAB_ICONS = {
   plans: '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>',
   history: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
 };
+// One open decision: what, why, and buttons that write the ledger (journal-serve) or give the CLI command (file).
+function decisionRow(a, status) {
+  const row = el('div', 'insight decision status-' + status);
+  const head = el('div'); head.append(el('span', 'badge ' + (status === 'blocked' ? 'danger' : status === 'approved' ? 'ok' : 'info'), status));
+  if (a.type === 'goal') head.append(document.createTextNode(' '), wikiText(a.item)); else head.append(document.createTextNode(' Equip '), wiki(a.item), document.createTextNode(' in ' + a.slot));
+  const bar = el('div', 'decision-actions'); const note = el('span', 'muted');
+  for (const [label, next] of [['Done', 'done'], ['Approve', 'approved'], ['Dismiss', 'dismissed']]) {
+    if (next === status) continue;
+    const b = el('button', '', label); b.type = 'button';
+    b.addEventListener('click', async () => {
+      if (!location.protocol.startsWith('http')) { await navigator.clipboard?.writeText('./melvor-report.js journal-action ' + a.id + ' ' + next); note.textContent = 'Command copied (open the page with journal-serve to click instead).'; return; }
+      const r = await fetch('/action', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: a.id, status: next }) });
+      if (r.ok) { if (next === 'approved') { head.firstChild.textContent = 'approved'; b.remove(); } else row.remove(); } else note.textContent = (await r.json()).error || 'failed';
+    });
+    bar.append(b);
+  }
+  row.append(head, el('div', 'muted', a.reason || ''), bar, note);
+  return row;
+}
 function plansPanel(name, c, actions, hidden) {
   const goal = goalOf(name, c);
   const body = el('div', 'panel panel-grid'); body.dataset.panel = 'plans';
@@ -2363,7 +2418,7 @@ function plansPanel(name, c, actions, hidden) {
   const goalBox = goal === 'progression'
     ? [box('Standard plan', (c.analysis.standardPlan || []).map(line => detailRow(line))), box('Abyssal plan', (c.analysis.abyssalPlan || []).map(line => detailRow(line))), box('After the Slayer task', (c.analysis.afterTaskPlan || []).map(line => detailRow(line))), (c.analysis.standardPlan || []).length || (c.analysis.abyssalPlan || []).length || (c.analysis.afterTaskPlan || []).length ? null : box('Next activities', [el('p', 'muted', c.observed.action === 'Combat' && c.observed.combat?.slayerTask ? 'Paused while a Slayer task runs: skill plans come back when it ends.' : 'Nothing to switch to: no low skill has materials for 8 h or more.')])]
     : [spanAll(box(GOAL_LABELS[goal], lines ? (lines.length ? lines.map(line => detailRow(line, /^(Risky|Unlock)/.test(line) ? 'sev-warning' : /^(Safe|Clear|Buy|Craft|Kill|Farm)/.test(line) ? 'p-high' : '')) : [el('p', 'muted', 'Nothing found for this goal.')]) : [el('p', 'muted', 'Refresh this character to build this plan.')]))];
-  for (const node of [...goalBox, box('Decisions', actions.length || !hidden ? actions : [el('p', 'muted', 'No open decision (' + hidden + ' closed or stale hidden).')]), box('Risk notes', (c.analysis.riskNotes || []).map(line => detailRow(line, 'sev-warning')))].filter(Boolean)) body.append(node);
+  for (const node of [...goalBox, box('Decisions', actions), box('Risk notes', (c.analysis.riskNotes || []).map(line => detailRow(line, 'sev-warning')))].filter(Boolean)) body.append(node);
   return body;
 }
 const completionSheet = c => {
@@ -2593,6 +2648,7 @@ function inventorySheet(c) {
   return panel;
 }
 function render() {
+  renderTodo();
   const q = document.getElementById('q').value.toLowerCase();
   const wantAction = fAction.value, wantRisk = document.getElementById('fRisk').value, wantStatus = fStatus.value, wantPriority = document.getElementById('fPriority').value;
   const attentionOnly = document.getElementById('fAttention').checked;
@@ -2674,7 +2730,7 @@ function render() {
       const box = el('div', 'insight'); box.append(chips); row.append(box); history.append(row);
     }
     const hidden = ['stale', 'done', 'dismissed'].reduce((n, s) => n + (c.decisions[s] || []).length, 0);
-    const actions = STATUSES.filter(s => !['stale', 'done', 'dismissed'].includes(s)).flatMap(s => (c.decisions[s] || []).map(a => { const row = el('div', 'insight status-' + s); const head = el('div'); head.append(el('span', 'badge ' + (s === 'stale' ? 'stale' : s === 'blocked' ? 'danger' : 'info'), s), wiki(a.item), document.createTextNode(' in ' + a.slot)); row.append(head, el('div', 'muted', a.reason)); return row; }));
+    const actions = STATUSES.filter(s => !['stale', 'done', 'dismissed'].includes(s)).flatMap(s => (c.decisions[s] || []).map(a => decisionRow(a, s)));
     const panels = [
       insightPanel(insights(c).filter(i => i.source !== 'progress_eta' && i.type !== 'status' && !planLine(i.label))),
       panel('progress', [
@@ -2772,6 +2828,15 @@ function runJournalServer() {
       const name = path.basename(url.pathname, '.md');
       if (!CHARS.includes(name)) return send(res, 404, JSON.stringify({ error: 'not found' }));
       try { return send(res, 200, fs.readFileSync(path.join(JOURNAL_DIR, `${name}.md`)), 'text/markdown; charset=utf-8'); } catch { return send(res, 404, JSON.stringify({ error: 'not found' })); }
+    }
+    if (req.method === 'POST' && url.pathname === '/action') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; if (body.length > 1024) req.destroy(); });
+      req.on('end', () => {
+        try { const { id, status } = JSON.parse(body); const { event } = setActionStatus(String(id), String(status)); return send(res, 200, JSON.stringify({ ok: true, status: event.status })); }
+        catch (error) { return send(res, 400, JSON.stringify({ error: sanitizeIncident(error.message) })); }
+      });
+      return;
     }
     if (req.method === 'POST' && url.pathname === '/goal') {
       let body = '';
@@ -2872,7 +2937,8 @@ async function withCharacterWrite(name, fn) {
 }
 
 // Offline status change: appends a ledger event and refreshes latest.json + dashboard.
-function runJournalAction(id, status) {
+// Change one decision's status: CLI journal-action and the dashboard buttons share this.
+function setActionStatus(id, status) {
   const allowed = ['approved', 'dismissed', 'done', 'blocked'];
   if (!id || !allowed.includes(status)) throw Error(`usage: journal-action <id> <${allowed.join('|')}>`);
   const latest = readLedger();
@@ -2888,7 +2954,12 @@ function runJournalAction(id, status) {
     fs.writeFileSync(path.join(JOURNAL_DIR, 'latest.json'), JSON.stringify(snapshot, null, 2));
     fs.writeFileSync(path.join(JOURNAL_DIR, 'index.html'), renderDashboard(snapshot));
   }
-  console.log(`${id} -> ${status} (${prev.character}: ${prev.item} in ${prev.slot})`);
+  return { prev, event };
+}
+
+function runJournalAction(id, status) {
+  const { prev } = setActionStatus(id, status);
+  console.log(`${id} -> ${status} (${prev.character}: ${prev.item}${prev.slot ? ' in ' + prev.slot : ''})`);
 }
 
 async function runJournal() {
