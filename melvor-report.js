@@ -1911,7 +1911,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .badge.info, .badge.ok { color: #ccefe7; border-color: var(--teal); background: #163c34; }
 .priority-critical { border-left: 3px solid var(--danger); }
 .priority-high { border-left: 3px solid var(--line); }
-.character-body { border-top: 1px solid var(--line); padding: .7rem .8rem .85rem; }
+.character-body { border-top: 1px solid var(--line); padding: .7rem .8rem .8rem; }
 .tabs { display: flex; gap: .35rem; overflow-x: auto; margin-bottom: .7rem; }
 .tabs button { width: auto; padding: .35rem .65rem; white-space: nowrap; }
 .tabs button[aria-selected="true"] { color: #101413; border-color: var(--accent); background: var(--accent); }
@@ -1919,6 +1919,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .tab-switch button { width: auto; flex: 0 0 auto; display: flex; align-items: center; gap: .4rem; padding: .6rem .7rem; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); }
 .tab-switch button:hover { color: var(--ink); border-color: transparent; }
 .tab-switch button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-switch .tab-link { margin-left: auto; flex: 0 0 auto; display: flex; align-items: center; gap: .4rem; padding: .6rem .7rem; color: var(--muted); }
+.tab-switch .tab-link:hover { color: var(--accent); text-decoration: none; }
 .tab-switch .tab-sep { flex: 0 0 1px; margin: .55rem .35rem; background: var(--line); }
 .tab-switch svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .insight-list { display: grid; gap: .35rem; }
@@ -2011,7 +2013,7 @@ a:hover { text-decoration: underline; }
   .tab-switch .tab-sep { margin: .55rem .15rem; }
   .identity { grid-column: 1 / -1; }
   .cell-label { display: block; color: var(--muted); font-size: .68rem; text-transform: uppercase; }
-  .cell-value { white-space: normal; overflow-wrap: anywhere; }
+  .cell-value { white-space: normal; overflow-wrap: anywhere; -webkit-line-clamp: unset; }
   .panel-grid, .equipment-grid { grid-template-columns: minmax(0, 1fr); }
 }
 </style>
@@ -2417,7 +2419,10 @@ function render() {
       content.hidden = index !== 0; tabs.append(btn); body.append(content);
     }
     body.prepend(tabs);
-    const footer = el('p', 'muted'); const link = el('a', '', 'Full Markdown journal'); link.href = encodeURIComponent(name) + '.md'; footer.append(link); body.append(footer);
+    // the raw Markdown journal sits at the end of the tab bar instead of a footer link
+    const journal = el('a', 'tab-link'); journal.href = encodeURIComponent(name) + '.md'; journal.target = '_blank'; journal.rel = 'noopener'; journal.title = 'Full Markdown journal';
+    journal.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>';
+    journal.append(el('span', 'tab-label', 'Journal')); tabs.append(journal);
     details.append(body);
     cards.append(details);
   }
