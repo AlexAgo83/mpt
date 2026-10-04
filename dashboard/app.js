@@ -90,7 +90,8 @@ const dungeonRow = (name, line, cls) => {
   return row;
 };
 const goalLines = (c, goal) => goal === 'progression' ? null : c.analysis.goals?.[goal] || null;
-let keepOpen = null; // reopen this card on this tab after a re-render
+// The focused character (list > detail): reopened on this tab after a re-render, kept in the URL and the viewer settings
+let keepOpen = (() => { const m = /[#&]c=([^&]+)(?:&t=(\w+))?/.exec(location.hash); return m ? { name: decodeURIComponent(m[1]), tab: m[2] || 'now' } : null; })() || prefs.focus || null;
 const GOAL_SHORT = { progression: 'Lowest skills first', dungeons: 'Next dungeon, what blocks the rest', completion: 'Cheapest Completion Log gains', target: 'The path to one item', mastery: 'Pools near a checkpoint', profit: 'Best GP per hour', afk: 'Runs long without you', slayer: 'Task, coins, locked areas', safe: 'Fights at 0% deaths', capes: 'Capes and pets left', shop: 'Affordable upgrades' };
 const goalIcon = id => '<svg viewBox="0 0 24 24" aria-hidden="true">' + GOAL_ICONS[id] + '</svg>';
 // One goal picker for the Plans tab and the Next column: a small popover under the button that opened it.
@@ -635,7 +636,7 @@ function render() {
     const concern = insights(c).find(i => i.severity === 'danger' || i.severity === 'warning');
     const decision = (concern && !isAutomaticTask(concern.label) ? concern : null) || insights(c).find(i => !isAutomaticTask(i.label) && i.actionable);
     const progress = eta?.etaSeconds && eta.metric ? fmtEta(eta.etaSeconds) + ' · ' + eta.metric.toLocaleString() + ' ' + eta.unit + ' left' : eta?.label || 'No ETA yet';
-    const details = el('details', 'character priority-' + p);
+    const details = el('details', 'character priority-' + p); details.dataset.name = name; details.dataset.current = current(c);
     if (keepOpen?.name === name) details.open = true;
     const head = el('summary', 'character-head');
     const identity = el('div', 'identity');
@@ -645,7 +646,7 @@ function render() {
     const lagging = Math.abs(Date.parse(snap.generatedAt) - Date.parse(c.observed.at)) > 30 * 60000;
     identity.append(identityTitle, el('small', '', (c.observed.mode || '') + (lagging ? ' · scanned ' + relative(c.observed.at) : '')));
     if (hasRisk(name)) identity.append(el('span', 'badge risk', 'save risk'));
-    const cell = (label, value) => { const n = el('div', 'cell'); const text = el('span', 'cell-value'); text.append(value || 'n/a'); n.append(el('span', 'cell-label', label), text); return n; };
+    const cell = (label, value) => { const n = el('div', 'cell'); n.dataset.goto = { Current: 'now', Next: 'plans', Completion: 'completion' }[label] || ''; const text = el('span', 'cell-value'); text.append(value || 'n/a'); n.append(el('span', 'cell-label', label), text); return n; };
     const goal = goalOf(name, c), gl = goalLines(c, goal);
     const next = gl?.length ? short(planLine(gl[0]) || gl[0].split('; ').slice(0, 2).join(' · '), 72) : nextAction(decision);
     const nextCell = cell('Next', wikiText(next)); if (/^(Nothing|ETA pending)/.test(next)) nextCell.classList.add('idle');
@@ -717,7 +718,39 @@ function render() {
     cards.append(details);
   }
   if (!cards.children.length) cards.append(el('p', 'muted', 'No characters match these filters.'));
+  applyFocus();
 }
+// list > detail: with a focused character the list folds into a column of names and the detail takes the rest
+const rail = document.getElementById('rail'), focusClose = document.getElementById('focusClose');
+const cardOf = name => [...cards.querySelectorAll('details.character')].find(d => d.dataset.name === name);
+const selectTab = (card, tab) => {
+  const body = card.querySelector('.character-body'); if (!body || !body.querySelector(`[data-tab="${tab}"]`)) return;
+  for (const t of body.querySelectorAll('[data-tab]')) t.setAttribute('aria-selected', String(t.dataset.tab === tab));
+  for (const panel of body.querySelectorAll('[data-panel]')) panel.hidden = panel.dataset.panel !== tab;
+};
+function applyFocus() {
+  const open = keepOpen && cardOf(keepOpen.name);
+  document.body.classList.toggle('focus', Boolean(open));
+  rail.hidden = focusClose.hidden = !open;
+  for (const d of cards.querySelectorAll('details.character')) { d.hidden = Boolean(open) && d !== open; d.open = d === open; }
+  rail.replaceChildren();
+  if (!open) return;
+  for (const d of cards.querySelectorAll('details.character')) {
+    const b = el('button', 'rail-item'); b.type = 'button'; b.dataset.name = d.dataset.name; b.setAttribute('aria-current', String(d === open));
+    const top = el('span', 'rail-top'); top.append(el('strong', '', d.dataset.name), d.querySelector('.lvl-tag')?.cloneNode(true) || '');
+    if (d.classList.contains('priority-critical')) top.append(el('span', 'rail-dot', '●'));
+    b.append(top, el('small', '', d.dataset.current)); rail.append(b);
+  }
+  const tab = open.querySelector('[data-tab][aria-selected=true]')?.dataset.tab || keepOpen.tab;
+  keepOpen = { name: open.dataset.name, tab };
+  history.replaceState(null, '', '#c=' + encodeURIComponent(keepOpen.name) + '&t=' + tab);
+  savePref('focus', keepOpen);
+}
+const focusOn = (name, tab) => { const card = cardOf(name); if (!card) return; keepOpen = { name, tab }; selectTab(card, tab); applyFocus(); loadWikiIcons(); window.scrollTo({ top: 0 }); };
+const unfocus = () => { keepOpen = null; savePref('focus', null); history.replaceState(null, '', location.pathname + location.search); applyFocus(); };
+rail.addEventListener('click', e => { const b = e.target.closest('.rail-item'); if (b) focusOn(b.dataset.name, keepOpen?.tab || 'now'); });
+focusClose.addEventListener('click', unfocus);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && keepOpen && !document.querySelector('dialog[open], .goal-pop, .pick-pop')) unfocus(); });
 async function loadWikiIcons() {
   const slots = [...document.querySelectorAll('[data-wiki-title]')].filter(slot => !slot.dataset.wikiLoaded);
   for (const slot of slots) slot.dataset.wikiLoaded = '1';
@@ -750,7 +783,17 @@ for (const id of ['q', ...FILTER_IDS]) document.getElementById(id).addEventListe
 cards.addEventListener('click', e => {
   const set = e.target.closest('[data-equipment-set]');
   if (set) { const sheet = set.closest('.equipment-sheet'); for (const button of sheet.querySelectorAll('[data-equipment-set]')) button.setAttribute('aria-selected', String(button === set)); for (const grid of sheet.querySelectorAll('.equipment-grid')) grid.hidden = grid.dataset.equipmentSet !== set.dataset.equipmentSet; loadWikiIcons(); return; }
+  // a click on a row opens it in the detail, on the tab matching the cell (Current > Now, Next > Plans, Completion)
+  const head = e.target.closest('summary.character-head');
+  if (head) {
+    e.preventDefault();
+    if (e.target.closest('a, button, .goal-pop')) return;
+    const card = head.closest('details.character'), go = e.target.closest('[data-goto]')?.dataset.goto;
+    if (keepOpen?.name === card.dataset.name && !go) return;
+    focusOn(card.dataset.name, go || keepOpen?.tab || 'now'); return;
+  }
   const btn = e.target.closest('[data-tab]'); if (!btn) return;
+  if (keepOpen) { keepOpen.tab = btn.dataset.tab; history.replaceState(null, '', '#c=' + encodeURIComponent(keepOpen.name) + '&t=' + btn.dataset.tab); savePref('focus', keepOpen); }
   const body = btn.closest('.character-body');
   for (const tab of body.querySelectorAll('[data-tab]')) tab.setAttribute('aria-selected', String(tab === btn));
   for (const panel of body.querySelectorAll('[data-panel]')) panel.hidden = panel.dataset.panel !== btn.dataset.tab;

@@ -1957,8 +1957,10 @@ ${DASHBOARD_CSS}
   <label class="check"><input id="fAttention" type="checkbox"> needs attention</label>
 </div></details>
 </div>
+<div id="board"><nav id="rail" aria-label="Characters" hidden></nav><div class="board-main">
+<button id="focusClose" class="focus-close" type="button" hidden>← All characters</button>
 <div class="column-head" aria-hidden="true"><span>Character</span><span>Current</span><span>Next</span><span>Completion</span></div>
-<div id="cards"></div>
+<div id="cards"></div></div></div>
 <script id="data" type="application/json">${json}</script>
 <script>
 ${DASHBOARD_JS}
