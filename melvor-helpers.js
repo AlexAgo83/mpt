@@ -204,7 +204,18 @@
         level, abyssalLevel, inputs, maxActions: Number.isFinite(maxActions) ? maxActions : null, intervalMs, runwayHours: Number.isFinite(runwayHours) ? runwayHours : null, gathering: !inputs.length,
         xpPerHour: xp && intervalMs ? xp * 3600000 / intervalMs : null,
       }];
-    }).sort((a, b) => (b.xpPerHour ?? 0) - (a.xpPerHour ?? 0) || (b.runwayHours ?? 0) - (a.runwayHours ?? 0));
+    }).sort((a, b) => (b.xpPerHour ?? 0) - (a.xpPerHour ?? 0) || (b.runwayHours ?? 0) - (a.runwayHours ?? 0))
+      .map((option, index) => index < 5 ? withEtaRate(skill, actions, option) : option);
+  };
+  // The ETA mod (gmiclotte) computes XP/h with every modifier; refine the top options with it when it is installed.
+  const withEtaRate = (skill, actions, option) => {
+    try {
+      const calc = mod.api.ETA?.ETA?.skillCalculators?.get(skill.id)?.get(actions.find(a => (a.name ?? a.product?.name) === option.recipe)?.id);
+      if (!calc) return option;
+      calc.iterate(game);
+      const xp = calc.currentRates?.hourlyRates?.xp;
+      return Number.isFinite(xp) && xp > 0 ? { ...option, xpPerHour: xp, rateSource: 'ETA' } : option;
+    } catch { return option; }
   };
 
   // Skill state by name ("Fishing", "Herblore"...).
@@ -403,6 +414,42 @@
     const dungeon = values(game.dungeons).find(entry => entry === area);
     const task = combat.slayerTask?.active ? { monster: combat.slayerTask.monster?.name ?? null, remaining: combat.slayerTask.killsLeft ?? null } : null;
     return { context: task ? { kind: 'slayer_task', target: task.monster, remaining: task.remaining, refresh: 'refresh when the Slayer task changes' } : dungeon ? { kind: 'dungeon', target: dungeon.name, guide: `https://wiki.melvoridle.com/w/${encodeURIComponent(dungeon.name.replace(/ /g, '_'))}/Guide` } : { kind: 'activity', target: activeSkill }, attackType, damageType, slots };
+  };
+
+  // Simulate the current target with each upgrade candidate swapped in, using [Myth] Combat Simulator.
+  // Needs the simulator in debug mode (self.mcs.global), set by a document-start script; read-only, the sim runs on its own copy.
+  mh.simUpgrades = async (plan, maxSims = 30) => {
+    const G = self.mcs?.global, api = typeof mod !== 'undefined' ? mod.api?.mythCombatSimulator : null;
+    if (!G?.simulation || !api) return { error: 'combat simulator not available' };
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const set = game.combat.player.selectedEquipmentSet;
+    const button = [...document.querySelectorAll('mcs-equipment-page button.mcs-button')].find(b => b.textContent.trim() === String(set + 1));
+    if (!button) return { error: 'combat simulator UI not ready' };
+    button.click(); await sleep(300);
+    const monster = game.combat.enemy?.monster ?? game.combat.selectedMonster;
+    if (!monster) return { error: 'no combat target' };
+    const task = game.combat.slayerTask;
+    const base = { ...api.export(), isSlayerTask: Boolean(task?.active && task.monster === monster) };
+    const run = async settings => {
+      api.import(settings); await sleep(50);
+      const r = (await G.simulation.simulate({ monsterId: monster.id, entityId: undefined, saveString: G.game.generateSaveStringSimple(), trials: G.stores.simulator.state.trials, maxTicks: G.stores.simulator.state.ticks })).result;
+      return r.simSuccess ? { xpPerHour: Math.max(r.xpPerSecondAbyssal || 0, r.xpPerSecondMelvor || 0) * 3600, killTimeS: r.killTimeS, deathRate: r.deathRate } : { failed: r.reason || 'simulation failed' };
+    };
+    const baseline = await run(base);
+    const results = {}; let sims = 0;
+    for (const [slot, entry] of Object.entries(plan?.slots || {})) {
+      const key = [...base.equipment.keys()].find(k => k.endsWith(':' + slot)) || 'melvorD:' + slot;
+      for (const lane of ['bank', 'loot', 'craft']) {
+        const choice = entry[lane]; if (!choice) continue;
+        for (const item of lane === 'bank' ? [choice.primary, ...choice.alternatives] : [choice.primary]) {
+          if (sims >= maxSims || !item?.id) continue;
+          const equipment = new Map(base.equipment); equipment.set(key, item.id);
+          (results[slot] ??= {})[item.name] = await run({ ...base, equipment }); sims++;
+        }
+      }
+    }
+    api.import(base);
+    return { monster: monster.name, baseline, results, sims };
   };
 
   mh.equipSlot = (name, slotName, quantity) => {

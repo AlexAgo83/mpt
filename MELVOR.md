@@ -126,3 +126,14 @@ and verify the final game state. Never add or use an all-character/apply-all var
 expansion (base, TotH, AoD, ItA) and per category (skills, mastery, items, monsters, pets), always
 over the whole game whatever the in-game completion toggle shows. `--record` (and every `journal --record`,
 including the dashboard refresh button) appends one row per character to `journal/completion.jsonl`; later runs show the delta since the last record.
+
+## Mods used when present
+
+- **[Myth] Combat Simulator**: `journal <character> --record --sim` loads the page with a document-start
+  script that turns on the simulator's debug mode (`self.mcs.global`), imports the selected equipment
+  set, then `mh.simUpgrades(plan)` replays the current target with each upgrade candidate. Read-only:
+  the simulator works on its own copy of the game.
+- **ETA** (gmiclotte): `mh.skillingOptions` refines the top recipes' XP/h with ETA's calculators.
+
+Both are optional: without them the tools fall back to the stat score and base XP rates.
+

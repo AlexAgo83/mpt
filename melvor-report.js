@@ -39,6 +39,7 @@ const record = argv.includes('--record');
 const abyssalOnly = argv.includes('--abyssal');
 const detail = argv.includes('--detail');
 const saveBackup = argv.includes('--save-backup');
+const simulate = argv.includes('--sim');
 const apply = argv.includes('--apply');
 const restoreRanged = argv.includes('--restore-ranged');
 const quantityIndex = argv.indexOf('--quantity');
@@ -49,7 +50,7 @@ const slotIndex = argv.indexOf('--slot');
 const requestedSlot = slotIndex >= 0 ? Number(argv[slotIndex + 1]) : 6;
 const dashboardPortIndex = argv.indexOf('--port');
 const dashboardPort = dashboardPortIndex >= 0 ? Number(argv[dashboardPortIndex + 1]) : Number(process.env.MELVOR_JOURNAL_PORT || 8787);
-const [cmd = 'summary', who = 'all', arg3, arg4] = argv.filter((a, i) => !['--record', '--abyssal', '--save-backup', '--detail', '--apply', '--restore-ranged', '--style', '--slot', '--port', '--quantity'].includes(a) && (styleIndex < 0 || i !== styleIndex + 1) && (slotIndex < 0 || i !== slotIndex + 1) && (dashboardPortIndex < 0 || i !== dashboardPortIndex + 1) && (quantityIndex < 0 || i !== quantityIndex + 1));
+const [cmd = 'summary', who = 'all', arg3, arg4] = argv.filter((a, i) => !['--record', '--abyssal', '--save-backup', '--sim', '--detail', '--apply', '--restore-ranged', '--style', '--slot', '--port', '--quantity'].includes(a) && (styleIndex < 0 || i !== styleIndex + 1) && (slotIndex < 0 || i !== slotIndex + 1) && (dashboardPortIndex < 0 || i !== dashboardPortIndex + 1) && (quantityIndex < 0 || i !== quantityIndex + 1));
 const usage = `usage:
   ./melvor-report.js slots
   ./melvor-report.js smoke
@@ -79,7 +80,7 @@ const usage = `usage:
   ./melvor-report.js export-state [all|character]
   ./melvor-report.js save-backup [all|character]
   ./melvor-report.js save-push <character> [--local-source]
-  ./melvor-report.js journal [all|character] [--record] [--save-backup]
+  ./melvor-report.js journal [all|character] [--record] [--save-backup] [--sim]
   ./melvor-report.js completion [all|character] [--record]
   ./melvor-report.js journal-serve [--port 8787]
   ./melvor-report.js journal-status [all|character]
@@ -250,12 +251,22 @@ async function waitFor(client, expression, timeoutMs = 120000) {
   throw Error(`timeout waiting for ${expression}`);
 }
 
-async function withCharacter(name, fn) {
+// A document-start script must exist before the game's mods run (puts the combat simulator in debug mode for --sim).
+const SIM_DEBUG = `(() => { let v; Object.defineProperty(self, 'mcs', { configurable: true, get() { return v; }, set(x) { if (x && typeof x === 'object') x.isDebug = true; v = x; } }); })();`;
+async function preparePage(client, init) {
+  await client.send('Runtime.enable');
+  await client.send('Page.enable');
+  if (!init) return;
+  await client.send('Page.addScriptToEvaluateOnNewDocument', { source: init });
+  await client.send('Page.reload', { ignoreCache: false });
+  await sleep(1500);
+}
+
+async function withCharacter(name, fn, init) {
   const tab = await newTab(URL);
   const client = await cdp(tab.webSocketDebuggerUrl);
   try {
-    await client.send('Runtime.enable');
-    await client.send('Page.enable');
+    await preparePage(client, init);
     await waitFor(client, "document.readyState === 'complete'", 90000);
     await sleep(2200);
     await evalExpr(client, helper);
@@ -270,13 +281,12 @@ async function withCharacter(name, fn) {
   }
 }
 
-async function withCharacterSource(name, source, fn) {
-  if (source !== 'local') return withCharacter(name, fn);
+async function withCharacterSource(name, source, fn, init) {
+  if (source !== 'local') return withCharacter(name, fn, init);
   const tab = await newTab(URL);
   const client = await cdp(tab.webSocketDebuggerUrl);
   try {
-    await client.send('Runtime.enable');
-    await client.send('Page.enable');
+    await preparePage(client, init);
     await waitFor(client, "document.readyState === 'complete'", 90000);
     await sleep(2200);
     await evalExpr(client, helper);
@@ -559,7 +569,7 @@ function verifiedSkillPlan(data, skill, abyssal) {
     .filter(o => Boolean(o.abyssalLevel) === abyssal && (o.gathering || o.runwayHours >= 8))
     .sort((a, b) => (b.xpPerHour ?? 0) - (a.xpPerHour ?? 0) || (b.runwayHours ?? Infinity) - (a.runwayHours ?? Infinity))[0];
   if (!option) return null;
-  if (option.gathering) return `${abyssal ? 'abyssal ' : ''}${skill.name}: ${option.recipe}; no materials needed; ${option.xpPerHour ? fmtRate(option.xpPerHour) + ' XP/h' : 'XP rate unknown'}`;
+  if (option.gathering) return `${abyssal ? 'abyssal ' : ''}${skill.name}: ${option.recipe}; no materials needed; ${option.xpPerHour ? fmtRate(option.xpPerHour) + ' XP/h' + (option.rateSource === 'ETA' ? ' (ETA)' : '') : 'XP rate unknown'}`;
   const inputs = option.inputs.map(i => `${i.item} ${i.owned} (${i.perAction}/action)`).join(', ');
   return `${abyssal ? 'abyssal ' : ''}${skill.name}: ${option.recipe}; ${option.maxActions} actions; ${option.runwayHours.toFixed(1)} h runway; ${inputs}`;
 }
@@ -1378,7 +1388,7 @@ function buildCharacterJournal(name, data, save) {
   const activeSlayerTask = report.action === 'Combat' && Boolean(report.combat?.slayerTask?.monster);
   const improvements = planActions(data);
   const actions = improvements.map(a => ({ ...a, id: actionId(name, a), contextHash: actionContextHash(report, a) }));
-  const upgradePlan = data.upgradePlan ? { ...data.upgradePlan, activity: improvements } : improvements.length ? { context: { kind: 'non_combat_skill', target: report.action }, slots: {}, activity: improvements } : null;
+  const upgradePlan = data.upgradePlan ? { ...data.upgradePlan, activity: improvements, ...(data.upgradeSim ? { sim: data.upgradeSim } : {}) } : improvements.length ? { context: { kind: 'non_combat_skill', target: report.action }, slots: {}, activity: improvements } : null;
   const saveRisk = !save || save.source === 'unknown' ? 'save source of truth unknown' : null;
   return {
     name,
@@ -1998,6 +2008,8 @@ a:hover { text-decoration: underline; }
 .tile-alt { color: var(--muted); font-size: .78rem; }
 .tile.blocked { border-style: dashed; }
 .insight-chips .chip-warn { color: #ffe5b8; border-color: var(--warning); }
+.insight-chips .chip-good { color: #ccefe7; border-color: var(--teal); }
+.tile.worse { opacity: .55; }
 .insight.compact { padding: .3rem .55rem; font-size: .86rem; }
 .insight.compact .insight-chips, .insight.compact .meter-row { display: none; }
 .insight.status-stale { opacity: .75; }
@@ -2273,13 +2285,23 @@ function upgradeSheet(c) {
   const context = plan.context || {};
   const contextRow = el('section', 'group'); contextRow.append(el('h3', '', 'Context'));
   const contextText = context.kind === 'non_combat_skill' ? ['Skilling: ', wiki(context.target || 'unknown'), document.createTextNode(' · combat upgrades wait until it stops')] : context.kind === 'slayer_task' ? ['Slayer task: ', wiki(context.target || 'unknown'), document.createTextNode(' · ' + (context.remaining ?? '?') + ' kills left · ' + context.refresh)] : context.kind === 'dungeon' ? ['Dungeon: ', wiki(context.target || 'unknown'), document.createTextNode(' · strategy guide: '), wiki(context.target || 'unknown')] : ['Activity: ' + (context.target || 'unknown')];
-  const contextLine = el('div'); contextLine.append(...contextText); const build = el('div', 'insight-chips'); build.append(el('span', '', 'build: ' + (plan.attackType || 'unknown') + (plan.damageType ? ' / ' + plan.damageType : ''))); const ctx = el('div', 'insight'); ctx.append(contextLine); if (context.kind !== 'non_combat_skill') ctx.append(build); contextRow.append(ctx); contextRow.classList.add('span-all'); body.append(contextRow);
+  const contextLine = el('div'); contextLine.append(...contextText); const build = el('div', 'insight-chips'); build.append(el('span', '', 'build: ' + (plan.attackType || 'unknown') + (plan.damageType ? ' / ' + plan.damageType : ''))); const ctx = el('div', 'insight'); ctx.append(contextLine); if (plan.sim) { const sc = el('div', 'insight-chips'); sc.append(el('span', plan.sim.error ? 'chip-warn' : '', plan.sim.error ? 'not simulated: ' + plan.sim.error : 'simulated on ' + plan.sim.monster + ': current gear ' + fmtCompact(plan.sim.baseline.xpPerHour || 0) + ' XP/h, kill ' + (plan.sim.baseline.killTimeS || 0).toFixed(1) + ' s, ' + plan.sim.sims + ' candidates')); ctx.append(sc); } if (context.kind !== 'non_combat_skill') ctx.append(build); contextRow.append(ctx); contextRow.classList.add('span-all'); body.append(contextRow);
   const source = (item, kind) => kind === 'craft' && item.craft ? (item.craft.recipe === item.name ? [document.createTextNode('craft: ' + item.craft.skill)] : [document.createTextNode('craft: ' + item.craft.skill + ' / '), wiki(item.craft.recipe)]) : kind === 'bank' ? [document.createTextNode('in bank x' + (item.owned || 0).toLocaleString('en-US'))] : item.loot ? [document.createTextNode('loot: '), wiki(item.loot), document.createTextNode(item.lootChance ? ' · ' + (item.lootChance >= 1 ? item.lootChance.toFixed(1) : item.lootChance.toPrecision(2)) + '%' : '')] : [document.createTextNode(item.source || 'source unknown')];
+  // --sim results: XP/h change against the current gear on the current target, from [Myth] Combat Simulator
+  const sim = plan.sim && !plan.sim.error ? plan.sim : null;
+  const simOf = (slot, item) => sim?.results?.[slot]?.[item.name];
+  const gain = r => r && !r.failed && sim.baseline?.xpPerHour ? (r.xpPerHour - sim.baseline.xpPerHour) / sim.baseline.xpPerHour * 100 : null;
   const section = (title, kind) => {
     const tiles = Object.entries(plan.slots || {}).filter(([, entry]) => entry[kind]).map(([slot, entry]) => {
-      const choice = entry[kind]; const tile = el('div', 'tile' + (choice.primary.blocked?.length ? ' blocked' : ''));
+      let choice = entry[kind];
+      if (sim && kind === 'bank') { const all = [choice.primary, ...(choice.alternatives || [])].sort((a, b) => (gain(simOf(slot, b)) ?? -1e9) - (gain(simOf(slot, a)) ?? -1e9)); choice = { primary: all[0], alternatives: all.slice(1) }; }
+      const g = gain(simOf(slot, choice.primary)), r = simOf(slot, choice.primary);
+      const worse = g !== null && (g < 0 || (r.deathRate || 0) > (sim.baseline.deathRate || 0));
+      const tile = el('div', 'tile' + (choice.primary.blocked?.length ? ' blocked' : '') + (worse ? ' worse' : ''));
       const name = el('div', 'tile-title'); name.append(wiki(choice.primary.name));
       const meta = el('div', 'insight-chips'); const src = el('span'); src.append(...source(choice.primary, kind)); meta.append(src);
+      if (g !== null) meta.append(el('span', g > 0.5 ? 'chip-good' : g < -0.5 ? 'chip-warn' : '', 'sim ' + (g >= 0 ? '+' : '') + g.toFixed(1) + '% XP/h · kill ' + r.killTimeS.toFixed(1) + ' s' + (r.deathRate ? ' · deaths ' + (r.deathRate * 100).toFixed(1) + '%' : '')));
+      else if (r?.failed) meta.append(el('span', 'chip-warn', 'sim failed: ' + r.failed));
       if (choice.primary.blocked?.length) meta.append(el('span', 'chip-warn', 'blocked: ' + choice.primary.blocked.join(', ')));
       if (kind !== 'bank' && choice.primary.owned) meta.append(el('span', '', 'owned x' + choice.primary.owned.toLocaleString('en-US')));
       for (const passive of choice.primary.passives || []) meta.append(el('span', '', passive));
@@ -2588,7 +2610,7 @@ function runJournalServer() {
       if (character !== 'all' && !CHARS.includes(character)) return send(res, 400, JSON.stringify({ error: 'unknown character' }));
       if (refreshing) return send(res, 409, JSON.stringify({ error: 'a journal refresh is already running' }));
       refreshing = true;
-      const child = spawn(process.execPath, [__filename, 'journal', character, '--record'], { cwd: __dirname, env: process.env, stdio: 'ignore' });
+      const child = spawn(process.execPath, [__filename, 'journal', character, '--record', ...(character === 'all' ? [] : ['--sim'])], { cwd: __dirname, env: process.env, stdio: 'ignore' });
       child.on('error', error => { refreshing = false; send(res, 500, JSON.stringify({ error: sanitizeIncident(error.message) })); });
       child.on('exit', code => { refreshing = false; send(res, code === 0 ? 200 : 500, JSON.stringify(code === 0 ? { ok: true } : { error: `journal refresh failed (exit ${code})` })); });
     });
@@ -2602,7 +2624,15 @@ function runJournalServer() {
 }
 
 async function collectJournal(name, save, includeSaveBackup = false) {
-  return withCharacterSource(name, save?.source, client => evalExpr(client, `(() => {
+  return withCharacterSource(name, save?.source, async client => {
+    const data = await evalExpr(client, journalScript(includeSaveBackup));
+    // --sim: replay the current target with each upgrade candidate in [Myth] Combat Simulator
+    if (simulate && data.report?.action === 'Combat' && data.upgradePlan?.slots) data.upgradeSim = await evalExpr(client, `mh.simUpgrades(${JSON.stringify(data.upgradePlan)})`, 240000);
+    return data;
+  }, simulate ? SIM_DEBUG : undefined);
+}
+
+const journalScript = includeSaveBackup => `(() => {
     const wanted = ${JSON.stringify(JOURNAL_WANTED)};
     const qty = n => { for (const [item, bi] of game.bank.items) if (item.name === n) return bi.quantity; return 0; };
     const skills = mh.skills();
@@ -2617,8 +2647,7 @@ async function collectJournal(name, save, includeSaveBackup = false) {
     const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])), equipmentSets, inventory, talents, upgradePlan: mh.upgradePlan(), completion: ${completionScript} };
     if (${JSON.stringify(includeSaveBackup)}) out.saveExport = mh.exportSaveString();
     return out;
-  })()`));
-}
+  })()`;
 
 async function collectSaveBackup(name, source) {
   return withCharacterSource(name, source?.source, client => evalExpr(client, 'mh.exportSaveString()', 60000));

@@ -29,11 +29,16 @@ recommendations, current-action plan, standard plan, abyssal plan, proposed acti
   (style, active damage type, requirements). The score weighs attack, strength and defence
   bonuses plus resistance for the realm being fought (normal or abyssal, x10); items whose
   passives slow attacks never count as upgrades. Other passives and game-mode restrictions
-  are not scored yet: read the passive chips before swapping. A Slayer task is refreshed when
-  its target changes.
+  are not scored by that formula: read the passive chips, or run `journal <character> --record --sim`.
+  With `--sim`, every candidate is replayed on the current target in [Myth] Combat Simulator
+  (all passives, prayers, potions and the Slayer task included): tiles show the XP/h change, kill
+  time and deaths, losers are dimmed and the bank lane is reordered by the simulated gain. It needs
+  the simulator mod on the account, adds about 30 s per character, and the dashboard Refresh button
+  uses it when one character is selected. A Slayer task is refreshed when its target changes.
 - `Plans`: for the lowest skills, the best-XP recipe with materials for 8 h or more, and for
   gathering skills (Woodcutting, Fishing, Mining, Thieving, Astrology, Harvesting) the best
-  unlocked action. The skill already being trained is skipped. During a Slayer task the plans
+  unlocked action; when the ETA mod is installed its XP/h (all modifiers) replaces the base rate,
+  marked (ETA). The skill already being trained is skipped. During a Slayer task the plans
   are listed as "After the Slayer task" and stay out of Next and To do.
 - `Level ETA`: projected time to next level, next 10-level milestone, and current cap when
   two journal snapshots have enough standard or abyssal XP gain to estimate a rate; abyssal
