@@ -1919,6 +1919,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .tab-switch button { width: auto; flex: 0 0 auto; display: flex; align-items: center; gap: .4rem; padding: .6rem .7rem; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); }
 .tab-switch button:hover { color: var(--ink); border-color: transparent; }
 .tab-switch button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-intro { margin: -.2rem 0 .7rem; color: var(--muted); font-size: .84rem; }
+.panel-grid > .tab-intro { margin-bottom: -.4rem; }
 .tab-switch .tab-link { margin-left: auto; flex: 0 0 auto; display: flex; align-items: center; gap: .4rem; padding: .6rem .7rem; color: var(--muted); }
 .tab-switch .tab-link:hover { color: var(--accent); text-decoration: none; }
 .tab-switch .tab-sep { flex: 0 0 1px; margin: .55rem .35rem; background: var(--line); }
@@ -2156,6 +2158,18 @@ const spanAll = node => { node?.classList.add('span-all'); return node; };
 const box = (title, nodes) => { nodes = nodes.filter(Boolean); if (!nodes.length) return null; const b = el('section', 'group'); const stack = el('div', 'stack'); stack.append(...nodes); b.append(el('h3', '', title), stack); return b; };
 const group = (title, items) => { if (!items.length) return null; const box = el('section', 'group'); box.append(el('h3', '', title), list(items)); return box; };
 // Icon-only tab switch: the label stays in title/aria-label. Static Lucide-style paths, no user data.
+// One line under the tab bar saying what the tab holds and how to read it.
+const TAB_INTRO = {
+  now: 'What this character is running right now: task, consumables, familiars and food, with how long each lasts.',
+  progress: 'XP gained since the previous scan and when the next levels land. Lows lists the skills furthest from their cap.',
+  completion: 'Completion Log progress (as in game) for the whole game, per expansion and per category, and how it moved over time.',
+  equipment: 'Gear worn in the current set and the saved sets, with the active style, damage type and accuracy.',
+  upgrades: 'Better gear for what this character is doing now: items to loot or craft, and owned items worth equipping.',
+  inventory: 'Everything in the bank, searchable and sortable by quantity or name.',
+  skills: 'Every skill with its level, abyssal level, XP to the next level and mastery pool.',
+  plans: 'Suggested next activities (lowest skills first, only with materials for 8 h or more) and open gear decisions.',
+  history: 'What changed between journal scans: activity, total level, maxed skills and GP.',
+};
 const TAB_GROUP = { now: 0, progress: 0, completion: 0, equipment: 1, upgrades: 1, inventory: 1, skills: 1, plans: 2, history: 2 };
 const TAB_LABELS = { now: 'Now', progress: 'Progress', equipment: 'Equipment', upgrades: 'Upgrades', completion: 'Completion', skills: 'Skills', inventory: 'Inventory', plans: 'Plans', history: 'History' };
 const TAB_ICONS = {
@@ -2405,7 +2419,7 @@ function render() {
       upgradeSheet(c),
       inventorySheet(c),
       skillsSheet(c),
-      panel('plans', [box('Standard plan', (c.analysis.standardPlan || []).map(line => detailRow(line))), box('Abyssal plan', (c.analysis.abyssalPlan || []).map(line => detailRow(line))), box('Decisions', actions.length || !hidden ? actions : [el('p', 'muted', 'No open decision (' + hidden + ' closed or stale hidden).')]), box('Risk notes', (c.analysis.riskNotes || []).map(line => detailRow(line, 'sev-warning')))]),
+      panel('plans', [box('Standard plan', (c.analysis.standardPlan || []).map(line => detailRow(line))), box('Abyssal plan', (c.analysis.abyssalPlan || []).map(line => detailRow(line))), (c.analysis.standardPlan || []).length || (c.analysis.abyssalPlan || []).length ? null : box('Next activities', [el('p', 'muted', 'Nothing to switch to: no low skill has materials for 8 h or more.')]), box('Decisions', actions.length || !hidden ? actions : [el('p', 'muted', 'No open decision (' + hidden + ' closed or stale hidden).')]), box('Risk notes', (c.analysis.riskNotes || []).map(line => detailRow(line, 'sev-warning')))]),
       history.children.length ? history : null,
     ].filter(Boolean);
     const tabs = el('div', 'tab-switch'); tabs.setAttribute('role', 'tablist');
@@ -2416,6 +2430,7 @@ function render() {
       if (TAB_ICONS[tabName]) btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + TAB_ICONS[tabName] + '</svg>';
       btn.append(el('span', 'tab-label', label));
       if (index && TAB_GROUP[tabName] !== TAB_GROUP[panels[index - 1].dataset.panel]) tabs.append(el('span', 'tab-sep'));
+      if (TAB_INTRO[tabName]) content.prepend(el('p', 'tab-intro span-all', TAB_INTRO[tabName]));
       content.hidden = index !== 0; tabs.append(btn); body.append(content);
     }
     body.prepend(tabs);
