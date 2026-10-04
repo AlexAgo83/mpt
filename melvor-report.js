@@ -81,6 +81,8 @@ const usage = `usage:
   ./melvor-report.js journal [all|character] [--record] [--save-backup] [--sim]
   ./melvor-report.js completion [all|character] [--record]
   ./melvor-report.js dungeon-guide "<dungeon name>"
+  ./melvor-report.js dungeon-check <character> "<dungeon name>"
+  ./melvor-report.js dungeon-optimize <character> "<dungeon name>" [--style melee|ranged|magic]
   ./melvor-report.js journal-serve [--port 8787]
   ./melvor-report.js journal-status [all|character]
   ./melvor-report.js journal-diff [all|character]
@@ -94,7 +96,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide', 'dungeon-check', 'dungeon-optimize'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -1358,6 +1360,7 @@ function buildCharacterJournal(name, data, save) {
     observed: {
       at: new Date().toISOString(),
       abyss: data.abyss ?? null,
+      createdAt: data.createdAt ?? null,
       skillRates: data.skillRates || {},
       action: report.action,
       mode: report.mode,
@@ -1776,6 +1779,7 @@ function buildLatest(chars, latest, previous, now) {
     generatedAt: now,
     goals: readGoals(),
     account: {
+      roster: CHARS, // save order, for the natural sort
       name: ACCOUNT,
       scannedNow: chars.length ? chars.map(c => c.name) : previous?.account?.scannedNow || [],
       // ponytail: riskNotes regex fallback covers pre-saveRisk snapshots; drop after the next full scan everywhere
@@ -1887,7 +1891,7 @@ ${DASHBOARD_CSS}
 <body>
 <header class="topbar"><div class="brand"><img src="/assets/mpt-crest.png" alt=""><h1>MelvorPT</h1></div>
 <div class="top-actions"><span id="scanTime" class="muted"></span>
-<div class="split" aria-label="Refresh journal"><select id="refreshCharacter" aria-label="Character to refresh"><option value="all">All</option></select><button id="refreshButton" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg><span>Refresh</span></button></div>
+<div class="split" aria-label="Refresh journal"><button id="refreshCharacter" type="button" class="split-pick" aria-haspopup="menu" aria-label="Character to refresh"><span>All</span><svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button><button id="refreshButton" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg><span>Refresh</span></button></div>
 <button id="todoButton" class="todo-pill" type="button" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><b id="todoCount">0</b><span class="tab-label">To do</span></button>
 <button id="setupButton" class="icon-button" type="button" title="Account setup" aria-label="Account setup"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div></header>
 <p id="refreshStatus" class="muted"></p>
@@ -1898,7 +1902,7 @@ ${DASHBOARD_CSS}
 <div class="toolbar">
   <input id="q" type="search" placeholder="Search character, activity or item" aria-label="Search">
   <div class="seg" id="quick" role="group" aria-label="Quick filter"><button type="button" data-quick="all" aria-pressed="true">All</button><button type="button" data-quick="attention" aria-pressed="false">Needs attention</button><button type="button" data-quick="combat" aria-pressed="false">Combat</button><button type="button" data-quick="skilling" aria-pressed="false">Skilling</button></div>
-  <select id="sort" aria-label="Sort characters"><option value="score">Sort: total level</option><option value="completion">Sort: completion</option><option value="name">Sort: name</option></select>
+  <select id="sort" aria-label="Sort characters"><option value="score">Sort: total level</option><option value="roster">Sort: save order</option><option value="age">Sort: oldest first</option><option value="completion">Sort: completion</option><option value="name">Sort: name</option></select>
   <details id="filterBox"><summary>Filters</summary><div id="filters">
   <select id="fAction"><option value="">all activities</option></select>
   <select id="fRisk"><option value="">all saves</option><option value="risk">save risk</option><option value="ok">save safe</option></select>
@@ -1944,6 +1948,27 @@ async function runDungeonGuide(name) {
   fs.writeFileSync(file, body);
   console.log(body);
   console.error(`saved ${path.relative(__dirname, file)}`);
+}
+
+// Verdict per fight: the best set's simulated death rate against the threshold (0% Hardcore, 1% otherwise).
+function dungeonVerdict(r, threshold = r.hardcore ? 0 : Number(process.env.MELVOR_DEATH_THRESHOLD ?? 0.01)) {
+  const best = {};
+  for (const s of r.sims) if (s.ok && (best[s.fight] === undefined || s.deathRate < best[s.fight].deathRate)) best[s.fight] = s;
+  const fights = r.fights.map(f => ({ ...f, best: best[f.key] || null, ready: best[f.key] ? best[f.key].deathRate <= threshold : false }));
+  const blockers = r.checks.filter(c => !c.ok).map(c => c.label);
+  return { threshold, fights, blockers, ready: r.simulated && !blockers.length && fights.every(f => f.ready) };
+}
+
+function printDungeonCheck(name, r) {
+  const v = dungeonVerdict(r);
+  console.log(`${name} | ${r.dungeon} | clears ${r.clears ?? '?'} | ${v.ready ? 'READY' : 'NOT READY'} (death threshold ${(v.threshold * 100).toFixed(0)}%)`);
+  for (const c of r.checks) console.log(`  ${c.ok ? 'ok ' : 'NO '} ${c.label}${c.detail ? ' (' + c.detail + ')' : ''}`);
+  if (!r.simulated) console.log('  simulator not available: fights not checked');
+  if (r.cape) console.log(`  simulated with ${r.cape} in the cape slot (required in every area)`);
+  for (const f of v.fights) {
+    const b = f.best;
+    console.log(`  ${f.ready ? 'ok ' : 'NO '} ${f.label}: ${b ? `best S${b.set} ${b.role} (${b.weapon?.split(':').pop() || '?'}) deaths ${(b.deathRate * 100).toFixed(1)}%${b.killTimeS ? `, kill ${b.killTimeS.toFixed(1)} s` : ''}` : 'no successful simulation'}`);
+  }
 }
 
 function runJournalServer() {
@@ -2050,7 +2075,7 @@ const journalScript = (includeSaveBackup, target) => `(() => {
     const inventory = [...game.bank.items].map(([item, entry]) => ({ name: item.name, quantity: entry.quantity, media: item.media || null, type: item.type || item.category || 'Other', kind: item.constructor?.name ?? null, slot: item.validSlots?.[0]?.localID ?? null, sell: item.sellsFor?.quantity ?? 0, currency: item.sellsFor?.currency?.id === 'melvorD:GP' ? 'GP' : item.sellsFor?.currency?.id === 'melvorItA:AbyssalPieces' ? 'AP' : null })).sort((a, b) => a.name.localeCompare(b.name));
     const values = value => value instanceof Map ? [...value.values()] : value instanceof Set ? [...value] : Array.isArray(value) ? value : value?.allObjects ?? [];
     const talents = game.skills.allObjects.flatMap(skill => values(skill.skillTrees).map(tree => ({ skill: skill.name, points: tree.points || 0, candidates: values(tree.nodes).filter(node => node.canUnlock && tree.canAffordNode(node) && !values(tree.unlockedNodes).includes(node)).map(node => ({ name: node.name, shortName: node.shortName })) }))).filter(tree => tree.points > 0);
-    const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])), equipmentSets, inventory, talents, abyss: mh.abyssOpen(), skillRates: mh.skillRates(), upgradePlan: mh.upgradePlan(), goals: mh.goalData(${JSON.stringify(target)}), completion: ${completionScript} };
+    const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])), equipmentSets, inventory, talents, createdAt: (() => { try { return game.stats.General.get(GeneralStats.AccountCreationDate) || null; } catch { return null; } })(), abyss: mh.abyssOpen(), skillRates: mh.skillRates(), upgradePlan: mh.upgradePlan(), goals: mh.goalData(${JSON.stringify(target)}), completion: ${completionScript} };
     if (${JSON.stringify(includeSaveBackup)}) out.saveExport = mh.exportSaveString();
     return out;
   })()`;
@@ -2186,7 +2211,7 @@ function lock(retry = true) {
   }
 }
 
-module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData, completionLine, verifiedSkillPlan, buildGoals };
+module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData, completionLine, verifiedSkillPlan, buildGoals, dungeonVerdict };
 if (require.main === module) (async () => {
   if (cmd === 'journal-serve') return runJournalServer();
   if (cmd === 'dungeon-guide') return runDungeonGuide(who);
@@ -2229,6 +2254,57 @@ if (require.main === module) (async () => {
         console.log(completionLine(row, lastCompletion(name)));
         if (record) fs.appendFileSync(COMPLETION_LOG, JSON.stringify(row) + '\n');
       }
+      return;
+    }
+
+    if (cmd === 'dungeon-optimize') {
+      // optimize the hardest fight of the last dungeon-check for each style (or --style): Bane IoF for Impending Darkness
+      if (who === 'all' || !arg3) throw Error('usage: ./melvor-report.js dungeon-optimize <character> "<dungeon name>" [--style melee|ranged|magic]');
+      const checkFile = path.join(JOURNAL_DIR, 'dungeons', `${safeFilePart(who)}-${safeFilePart(arg3)}.json`);
+      if (!fs.existsSync(checkFile)) throw Error(`run dungeon-check ${who} "${arg3}" first`);
+      const check = JSON.parse(fs.readFileSync(checkFile, 'utf8'));
+      const roles = (process.env.MELVOR_SET_ROLES || 'melee,ranged,magic,skill,melee,ranged,magic').split(',').map(x => x.trim());
+      const styles = gearStyle ? [gearStyle] : ['melee', 'ranged', 'magic'];
+      const verdict = dungeonVerdict(check);
+      const targets = styles.map(style => {
+        const styled = verdict.fights.filter(f => f.style === style);
+        const fight = (styled.length ? styled : verdict.fights).sort((a, b) => (b.best?.deathRate ?? 1) - (a.best?.deathRate ?? 1))[0];
+        const sim = check.sims.find(x => x.fight === fight.key && x.role === style) || fight.best;
+        const setIndex = roles.findIndex((r, i) => r === style && (i >= 4) === Boolean(check.abyssal)) + 1;
+        const monsterId = check.id === 'melvorF:Impending_Darkness' ? `melvorF:${fight.key.startsWith('Bane IoF') ? 'BaneInstrumentOfFear' : 'Bane'}_${style}` : null;
+        return { style, fight: fight.key, label: fight.label, setIndex, monsterId, entityId: check.id, before: sim?.deathRate ?? null };
+      }).filter(t => t.setIndex > 0);
+      const { sources } = await readSourcesByName();
+      const capeId = check.cape ? `(() => game.items.allObjects.find(i => i.name === ${JSON.stringify(check.cape)})?.id)()` : 'null';
+      const results = await withCharacterSource(who, sources[who]?.source, async client => {
+        const out = [];
+        for (const t of targets) {
+          const monsterExpr = t.monsterId ? JSON.stringify(t.monsterId) : `(() => { const a = [...game.dungeons.allObjects, ...game.abyssDepths.allObjects, ...game.strongholds.allObjects].find(x => x.id === ${JSON.stringify(t.entityId)}); return [...a.monsters].sort((x, y) => (y.combatLevel ?? 0) - (x.combatLevel ?? 0))[0].id; })()`;
+          out.push({ ...t, ...(await evalExpr(client, `mh.optimizeFight({ monsterId: ${monsterExpr}, entityId: ${JSON.stringify(t.entityId)}, setIndex: ${t.setIndex}, style: ${JSON.stringify(t.style)}, cape: ${capeId} })`, 900000)) });
+        }
+        return out;
+      }, SIM_DEBUG);
+      for (const r of results) {
+        if (r.error) { console.log(`${r.style}: ${r.error}`); continue; }
+        console.log(`${who} | ${check.dungeon} | ${r.label} | S${r.setIndex} ${r.style}: deaths ${(r.start.death * 100).toFixed(1)}% -> ${(r.best.death * 100).toFixed(1)}%, kill ${r.start.kill.toFixed(1)} -> ${r.best.kill.toFixed(1)} s (${r.sims} sims)`);
+        // keep the final choice per slot (the greedy search may improve a slot twice); "from" is the original item
+        const finalBySlot = new Map(); for (const c of r.changes) finalBySlot.set(c.slot, { ...c, from: finalBySlot.get(c.slot)?.from ?? c.from });
+        for (const c of finalBySlot.values()) console.log(`  ${c.slot}: ${c.from ? c.from + ' -> ' : ''}${c.to}`);
+        if (!r.changes.length) console.log('  no owned change improves this fight');
+      }
+      fs.writeFileSync(path.join(JOURNAL_DIR, 'dungeons', `${safeFilePart(who)}-${safeFilePart(check.dungeon)}-plan.json`), JSON.stringify({ at: new Date().toISOString(), character: who, dungeon: check.dungeon, results }, null, 2));
+      return;
+    }
+
+    if (cmd === 'dungeon-check') {
+      if (who === 'all' || !arg3) throw Error('usage: ./melvor-report.js dungeon-check <character> "<dungeon name>"');
+      const { sources } = await readSourcesByName();
+      const roles = (process.env.MELVOR_SET_ROLES || 'melee,ranged,magic,skill,melee,ranged,magic').split(',').map(x => x.trim());
+      const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, `mh.dungeonCheck(${JSON.stringify(arg3)}, ${JSON.stringify(roles)})`, 600000), SIM_DEBUG);
+      if (r.error) throw Error(r.error);
+      printDungeonCheck(who, r);
+      const dir = path.join(JOURNAL_DIR, 'dungeons'); fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, `${safeFilePart(who)}-${safeFilePart(r.dungeon)}.json`), JSON.stringify({ at: new Date().toISOString(), character: who, ...r }, null, 2));
       return;
     }
 

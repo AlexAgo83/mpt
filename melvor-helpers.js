@@ -460,6 +460,129 @@
     return out;
   };
 
+  // Read-only readiness check for one dungeon: requirements, special prerequisites of event dungeons, and a simulation
+  // of the hardest fights with each style's equipment set (set roles: S1 melee, S2 ranged, S3 magic, S5-S7 abyssal).
+  mh.dungeonCheck = async (dungeonName, roles = ['melee', 'ranged', 'magic', 'skill', 'melee', 'ranged', 'magic']) => {
+    const values = v => v instanceof Map || v instanceof Set ? [...v.values()] : Array.isArray(v) ? v : v?.allObjects ?? [];
+    const lower = String(dungeonName).toLowerCase();
+    const area = [...values(game.dungeons), ...values(game.abyssDepths), ...values(game.strongholds)].find(a => a.name.toLowerCase() === lower);
+    if (!area) return { error: 'unknown dungeon: ' + dungeonName };
+    const met = reqs => { try { return game.checkRequirements(reqs || [], false); } catch { return false; } };
+    const owned = item => item ? (game.bank.items.get(item)?.quantity ?? 0) > 0 || game.combat.player.equipmentSets.some(set => set.equipment.equippedArray.some(s => s.item === item)) : false;
+    const itemNamed = name => values(game.items).find(i => i.name === name);
+    const purchased = name => { const p = values(game.shop.purchases).find(x => x.name === name); try { return p ? game.shop.isUpgradePurchased(p) || game.shop.getPurchaseCount?.(p) > 0 : null; } catch { return null; } };
+    const clears = a => { for (const f of ['getDungeonCompleteCount', 'getAbyssDepthCompleteCount', 'getStrongholdCompleteCount']) { try { const n = game.combat[f]?.(a); if (Number.isFinite(n)) return n; } catch {} } return null; };
+    const abyssal = /^melvorItA:/.test(area.id);
+    const checks = [];
+    const check = (label, ok, detail) => checks.push({ label, ok, detail: detail || null });
+    check('Entry requirements met', met(area.entryRequirements));
+    // event dungeons: what the wiki guide makes mandatory
+    const fights = []; // { key, label, monster, entityId, style (forced or null) }
+    let forcedCape = null;
+    if (area.id === 'melvorF:Impending_Darkness') {
+      check('Into the Mist cleared', (clears(game.dungeons.getObjectByID('melvorF:Into_the_Mist')) ?? 0) > 0);
+      const capes = ['Slayer Skillcape', 'Superior Slayer Skillcape', 'Maximum Skillcape', 'Superior Max Skillcape', 'Cape of Completion', 'Superior Cape Of Completion'];
+      check('Slayer Skillcape (or a max cape) owned', capes.some(n => owned(itemNamed(n))), capes.filter(n => owned(itemNamed(n))).join(', ') || 'none owned');
+      // the guide makes the cape mandatory in every area: simulate with the best owned one in the cape slot
+      forcedCape = [...capes].reverse().map(itemNamed).find(owned) || null;
+      check('Map to the Unhallowed Wasteland bought', purchased('Map to the Unhallowed Wasteland') === true);
+      for (const name of ['Unhallowed Wasteland', 'Dark Waters', 'Shrouded Badlands', 'Perilous Peaks']) {
+        const sa = values(game.slayerAreas).find(a => a.name === name); if (!sa) continue;
+        const hardest = values(sa.monsters).sort((a, b) => (b.combatLevel ?? 0) - (a.combatLevel ?? 0))[0];
+        if (hardest) fights.push({ key: name, label: name + ' (hardest: ' + hardest.name + ')', monster: hardest, entityId: undefined });
+      }
+      // the simulator registers style-locked copies of Bane (<id>_melee/_ranged/_magic) inside this dungeon; the plain
+      // monster rolls a random style, so 2 trials in 3 face a style the set cannot damage
+      for (const style of ['melee', 'ranged', 'magic']) {
+        fights.push({ key: 'Bane ' + style, label: 'Bane (rounds 1-4, ' + style + ')', monsterId: 'melvorF:Bane_' + style, entityId: area.id, style });
+        fights.push({ key: 'Bane IoF ' + style, label: 'Bane, Instrument of Fear (' + style + ')', monsterId: 'melvorF:BaneInstrumentOfFear_' + style, entityId: area.id, style });
+      }
+    } else {
+      if (area.id === 'melvorF:Into_the_Mist') check('Dungeon Equipment Swapping bought', purchased('Dungeon Equipment Swapping') === true);
+      const seen = new Set();
+      for (const m of values(area.monsters)) { if (seen.has(m.id)) continue; seen.add(m.id); fights.push({ key: m.name, label: m.name, monster: m, entityId: area.id }); }
+      fights.sort((a, b) => (b.monster.combatLevel ?? 0) - (a.monster.combatLevel ?? 0)); fights.splice(6);
+    }
+    // simulations: each fight against each combat set of the right realm
+    const G = self.mcs?.global, api = typeof mod !== 'undefined' ? mod.api?.mythCombatSimulator : null;
+    const sims = [];
+    if (G?.simulation && api) {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const buttons = [...document.querySelectorAll('mcs-equipment-page button.mcs-button')].filter(b => /^[0-9]+$/.test(b.textContent.trim()));
+      const sets = roles.map((role, i) => ({ index: i + 1, role, abyssal: i >= 4 })).filter(x => x.role !== 'skill' && x.abyssal === abyssal && buttons[x.index - 1]);
+      for (const set of sets) {
+        buttons[set.index - 1].click(); await sleep(300);
+        let exported = api.export();
+        if (forcedCape) { const equipment = new Map(exported.equipment); equipment.set([...equipment.keys()].find(k => k.endsWith(':Cape')) || 'melvorD:Cape', forcedCape.id); exported = { ...exported, equipment }; api.import(exported); await sleep(100); }
+        const weapon = [...exported.equipment].find(([k]) => k.endsWith(':Weapon'))?.[1] ?? null;
+        for (const f of fights) {
+          if (f.style && f.style !== set.role) continue; // style-locked fight (Bane): only the matching set can hurt him
+          let r; try { r = (await G.simulation.simulate({ monsterId: f.monsterId ?? f.monster.id, entityId: f.entityId, saveString: G.game.generateSaveStringSimple(), trials: G.stores.simulator.state.trials, maxTicks: G.stores.simulator.state.ticks })).result; } catch (e) { r = { simSuccess: false, reason: String(e.message || e) }; }
+          sims.push({ fight: f.key, label: f.label, set: set.index, role: set.role, weapon, ok: r.simSuccess, reason: r.simSuccess ? null : r.reason, deathRate: r.deathRate ?? null, killTimeS: Number.isFinite(r.killTimeS) ? r.killTimeS : null });
+        }
+      }
+    }
+    return { cape: forcedCape?.name ?? null, dungeon: area.name, id: area.id, abyssal, mode: game.currentGamemode?.id, hardcore: /Hardcore/i.test(game.currentGamemode?.name || ''), clears: clears(area), checks, fights: fights.map(f => ({ key: f.key, label: f.label, style: f.style || null })), sims, simulated: Boolean(G?.simulation && api) };
+  };
+
+  // Greedy search, by simulation, of the set that survives one fight best: owned gear slot by slot, then the combat
+  // potion and prayers. Read-only: everything happens in the simulator's copy. Returns the changes to apply.
+  mh.optimizeFight = async ({ monsterId, entityId, setIndex, style, cape = null, maxSims = 70 }) => {
+    const G = self.mcs?.global, api = typeof mod !== 'undefined' ? mod.api?.mythCombatSimulator : null;
+    if (!G?.simulation || !api) return { error: 'combat simulator not available' };
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const button = [...document.querySelectorAll('mcs-equipment-page button.mcs-button')].filter(b => /^[0-9]+$/.test(b.textContent.trim()))[setIndex - 1];
+    if (!button) return { error: 'no equipment set ' + setIndex };
+    button.click(); await sleep(300);
+    let base = api.export();
+    const keyOf = slot => [...base.equipment.keys()].find(k => k.endsWith(':' + slot)) || 'melvorD:' + slot;
+    if (cape) { const equipment = new Map(base.equipment); equipment.set(keyOf('Cape'), cape); base = { ...base, equipment }; }
+    let sims = 0;
+    const run = async settings => {
+      sims++; api.import(settings); await sleep(40);
+      const r = (await G.simulation.simulate({ monsterId, entityId, saveString: G.game.generateSaveStringSimple(), trials: G.stores.simulator.state.trials, maxTicks: G.stores.simulator.state.ticks })).result;
+      return r.simSuccess ? { death: r.deathRate ?? 1, kill: Number.isFinite(r.killTimeS) ? r.killTimeS : 1e9 } : { death: 1, kill: 1e9, failed: r.reason };
+    };
+    const better = (a, b) => a.death < b.death - 1e-9 || (Math.abs(a.death - b.death) <= 1e-9 && a.kill < b.kill - 0.05);
+    const start = await run(base); let best = start, current = base;
+    const abyss = mh.abyssOpen();
+    const meets = item => { try { return game.checkRequirements(item.equipRequirements || [], false); } catch { return false; } };
+    const defensive = item => Object.entries(statsOf(item)).reduce((sum, [k, v]) => sum + (/Defence|resistance|damageReduction/i.test(k) ? v * (/resistance|damageReduction/i.test(k) ? 10 : 1) : /Attack|Strength|Damage/i.test(k) ? v / 2 : 0), 0);
+    const bank = [...game.bank.items.keys()].filter(item => item.validSlots?.length && meets(item) && (abyss || !/^melvorItA:/.test(item.id)) && (!item.attackType || item.attackType === style));
+    const changes = [];
+    for (const slot of ['Weapon', 'Shield', 'Helmet', 'Platebody', 'Platelegs', 'Boots', 'Gloves', 'Amulet', 'Ring', 'Passive', 'Gem', 'Quiver', 'Consumable', 'Summon1', 'Summon2']) {
+      if (sims >= maxSims) break;
+      const key = keyOf(slot); const now = current.equipment.get(key);
+      const candidates = bank.filter(item => item.validSlots.some(v => v.localID === slot) && item.id !== now).sort((a, b) => defensive(b) - defensive(a)).slice(0, slot === 'Weapon' ? 4 : 3);
+      for (const item of candidates) {
+        if (sims >= maxSims) break;
+        const equipment = new Map(current.equipment); equipment.set(key, item.id);
+        const trial = { ...current, equipment }; const r = await run(trial);
+        if (better(r, best)) { best = r; current = trial; changes.push({ slot, from: game.items.getObjectByID(now)?.name ?? 'empty', to: item.name, death: r.death, kill: r.kill }); }
+      }
+    }
+    // combat potions owned
+    const potions = [...game.bank.items.keys()].filter(item => item.action?.localID === 'Combat' && item.constructor?.name === 'PotionItem');
+    for (const potion of potions.slice(0, 8)) {
+      if (sims >= maxSims || current.potionID === potion.id) continue;
+      const trial = { ...current, potionID: potion.id }; const r = await run(trial);
+      if (better(r, best)) { best = r; current = trial; changes.push({ slot: 'Potion', from: '', to: potion.name, death: r.death, kill: r.kill }); }
+    }
+    // prayers: protect from the fight's style, alone or with the strongest general prayer the character can use
+    const protect = { melee: 'Protect from Melee', ranged: 'Protect from Ranged', magic: 'Protect from Magic' }[style];
+    const usable = p => (p.level ?? 0) <= (game.prayer?.level ?? 0) && (p.abyssalLevel ?? 0) <= (game.prayer?.abyssalLevel ?? 0) && (abyss || !/^melvorItA:/.test(p.id));
+    const prayer = name => game.prayers.allObjects.find(p => p.name === name && usable(p));
+    const combos = [[protect], [protect, 'Battleborn'], [protect, 'Battleheart'], [protect, { melee: 'Valor', ranged: 'Avidity', magic: 'Divination' }[style]], [protect, { melee: 'Piety', ranged: 'Rigour', magic: 'Augury' }[style]]]
+      .map(c => c.map(prayer)).filter(c => c.every(Boolean)).map(c => c.map(p => p.id));
+    for (const ids of combos) {
+      if (sims >= maxSims) break;
+      const trial = { ...current, prayerSelected: ids }; const r = await run(trial);
+      if (better(r, best)) { best = r; current = trial; changes.push({ slot: 'Prayers', from: '', to: ids.map(id => game.prayers.getObjectByID(id)?.name).join(' + '), death: r.death, kill: r.kill }); }
+    }
+    api.import(base);
+    return { setIndex, style, monsterId, start, best, changes, sims, equipment: [...current.equipment].map(([k, v]) => [k.split(':').pop(), game.items.getObjectByID(v)?.name ?? null]), potion: game.items.getObjectByID(current.potionID)?.name ?? null, prayers: (current.prayerSelected || []).map(id => game.prayers.getObjectByID(id)?.name) };
+  };
+
   mh.simUpgrades = async (plan, maxSims = 30) => {
     const session = await simSession(); if (session.error) return { error: session.error };
     const monster = game.combat.enemy?.monster ?? game.combat.selectedMonster;

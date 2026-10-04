@@ -100,8 +100,27 @@ const fmtEta = seconds => seconds < 3600 ? Math.round(seconds / 60) + ' min' : s
 const relative = value => { const min = Math.max(0, Math.round((Date.now() - Date.parse(value)) / 60000)); return min < 1 ? 'just now' : min < 60 ? min + ' min ago' : min < 1440 ? Math.round(min / 60) + ' h ago' : Math.round(min / 1440) + ' d ago'; };
 const scanTime = document.getElementById('scanTime'); scanTime.textContent = 'Scanned ' + relative(snap.generatedAt); scanTime.title = new Date(snap.generatedAt).toLocaleString('en-GB');
 document.getElementById('setupButton').addEventListener('click', () => document.getElementById('setup').showModal());
+// character to refresh: same popover as the goal picker (All, then the roster in save order)
 const refreshCharacter = document.getElementById('refreshCharacter');
-for (const name of Object.keys(snap.characters).sort()) refreshCharacter.append(new Option(name, name));
+let refreshTarget = 'all';
+const rosterOrder = () => { const roster = snap.account.roster || []; return Object.keys(snap.characters).sort((a, b) => (roster.indexOf(a) + 1 || 999) - (roster.indexOf(b) + 1 || 999) || a.localeCompare(b)); };
+refreshCharacter.addEventListener('click', e => {
+  e.stopPropagation(); document.querySelector('.goal-pop')?.remove();
+  const pop = el('div', 'goal-pop pick-pop'); pop.setAttribute('role', 'menu');
+  for (const name of ['all', ...rosterOrder()]) {
+    const c = snap.characters[name];
+    const b = el('button', 'goal-opt'); b.type = 'button'; b.setAttribute('role', 'menuitemradio'); b.setAttribute('aria-checked', String(name === refreshTarget));
+    b.append(el('b', '', name === 'all' ? 'All characters' : name), el('small', '', name === 'all' ? 'Refresh every character (no simulation)' : (c?.observed.mode || '') + ' · refresh with simulation'));
+    b.addEventListener('click', () => { refreshTarget = name; refreshCharacter.firstChild.textContent = name === 'all' ? 'All' : name; pop.remove(); });
+    pop.append(b);
+  }
+  document.body.append(pop);
+  const r = refreshCharacter.getBoundingClientRect();
+  pop.style.top = (window.scrollY + r.bottom + 6) + 'px';
+  pop.style.left = Math.max(8, window.scrollX + r.right - pop.offsetWidth) + 'px';
+  const close = ev => { if (ev.type === 'keydown' ? ev.key === 'Escape' : !pop.contains(ev.target)) { pop.remove(); document.removeEventListener('click', close, true); document.removeEventListener('keydown', close); } };
+  setTimeout(() => { document.addEventListener('click', close, true); document.addEventListener('keydown', close); });
+});
 const refreshButton = document.getElementById('refreshButton');
 const refreshStatus = document.getElementById('refreshStatus');
 if (location.protocol !== 'http:' && location.protocol !== 'https:') {
@@ -117,7 +136,7 @@ refreshButton.addEventListener('click', async () => {
   refreshButton.disabled = true;
   refreshStatus.textContent = 'Refreshing…';
   try {
-    const response = await fetch('/refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ character: refreshCharacter.value }) });
+    const response = await fetch('/refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ character: refreshTarget }) });
     const result = await response.json();
     if (!response.ok) throw Error(result.error || 'refresh failed');
     location.reload();
@@ -546,7 +565,8 @@ function render() {
   cards.replaceChildren();
   const sortBy = document.getElementById('sort').value;
   const done = c => c.observed.completion?.total ?? -1;
-  const entries = Object.entries(snap.characters).sort((a, b) => sortBy === 'name' ? a[0].localeCompare(b[0]) : sortBy === 'completion' ? done(b[1]) - done(a[1]) : score(b[1]) - score(a[1]) || RANK[priority(a[1])] - RANK[priority(b[1])] || a[0].localeCompare(b[0]));
+  const roster = snap.account.roster || []; const born = c => c.observed.createdAt || Infinity;
+  const entries = Object.entries(snap.characters).sort((a, b) => sortBy === 'roster' ? (roster.indexOf(a[0]) + 1 || 999) - (roster.indexOf(b[0]) + 1 || 999) : sortBy === 'age' ? born(a[1]) - born(b[1]) || a[0].localeCompare(b[0]) : sortBy === 'name' ? a[0].localeCompare(b[0]) : sortBy === 'completion' ? done(b[1]) - done(a[1]) : score(b[1]) - score(a[1]) || RANK[priority(a[1])] - RANK[priority(b[1])] || a[0].localeCompare(b[0]));
   for (const [name, c] of entries) {
     const action = c.observed.action || 'idle';
     const haystack = (name + ' ' + action + ' ' + JSON.stringify(insights(c)) + ' ' + JSON.stringify(c.observed.equipment || {}) + ' ' + JSON.stringify(c.decisions)).toLowerCase();
@@ -573,7 +593,7 @@ function render() {
     const head = el('summary', 'character-head');
     const identity = el('div', 'identity');
     const identityTitle = el('div', 'identity-title');
-    identityTitle.append(el('strong', '', name), el('span', 'badge info', 'total lvl ' + score(c).toLocaleString('en-US')));
+    identityTitle.append(el('strong', '', name), el('span', 'lvl-tag', 'lvl ' + score(c).toLocaleString('en-US')));
     if (p === 'critical') identityTitle.append(el('span', 'badge danger', p));
     const lagging = Math.abs(Date.parse(snap.generatedAt) - Date.parse(c.observed.at)) > 30 * 60000;
     identity.append(identityTitle, el('small', '', (c.observed.mode || '') + (lagging ? ' · scanned ' + relative(c.observed.at) : '')));

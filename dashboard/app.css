@@ -16,8 +16,11 @@ h1 { margin: 0; color: var(--accent); font-size: 1.55rem; letter-spacing: 0; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .9rem; }
 .top-actions { display: flex; align-items: center; gap: .6rem; }
 .split { display: flex; align-items: stretch; height: 2.25rem; border: 1px solid #6b5a33; border-radius: 999px; background: #1d1a13; overflow: hidden; }
-.split select { width: auto; border: 0; border-radius: 0; background: transparent; color: var(--muted); padding: 0 .3rem 0 .9rem; font-size: .85rem; cursor: pointer; }
-.split select:hover { color: var(--ink); }
+.split .split-pick { width: auto; margin: 0; font-weight: 400; display: inline-flex; align-items: center; gap: .3rem; border: 0; border-radius: 0; background: transparent; color: var(--muted); padding: 0 .4rem 0 .9rem; font-size: .85rem; cursor: pointer; }
+.split .split-pick:hover { color: var(--ink); filter: none; }
+.split-pick .caret { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; }
+.pick-pop { width: min(18rem, calc(100vw - 16px)); grid-template-columns: minmax(0, 1fr); }
+.lvl-tag { color: var(--muted); font-size: .72rem; font-weight: 500; font-variant-numeric: tabular-nums; }
 .split button { width: auto; display: flex; align-items: center; gap: .4rem; margin: 3px; padding: 0 .85rem; border: 0; border-radius: 999px; color: #101413; background: var(--accent); font-weight: 650; font-size: .85rem; }
 .split button:hover { filter: brightness(1.08); }
 .split button:disabled { opacity: .6; }
