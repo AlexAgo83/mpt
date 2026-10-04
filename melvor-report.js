@@ -2124,8 +2124,9 @@ a:hover { text-decoration: underline; }
 .controls { display: flex; gap: .5rem; }
 .skills-table { display: grid; gap: .3rem; }
 .st-filters { flex-wrap: wrap; margin-bottom: .3rem; width: fit-content; }
-.st-row { display: grid; grid-template-columns: minmax(9rem, 1.2fr) minmax(7rem, 1fr) minmax(9rem, 1.3fr) minmax(9rem, 1.3fr) 6rem; align-items: center; gap: .8rem; padding: .35rem .6rem; border-left: 3px solid var(--skill-color, var(--line)); border-radius: 0 8px 8px 0; background: #111614; }
-.no-abyss .st-row { grid-template-columns: minmax(9rem, 1.2fr) minmax(7rem, 1fr) minmax(9rem, 1.3fr) 6rem; }
+.st-row { display: grid; grid-template-columns: minmax(9rem, 1.2fr) minmax(7rem, 1fr) minmax(9rem, 1.3fr) minmax(9rem, 1.3fr) 8.5rem; align-items: center; gap: .8rem; padding: .35rem .6rem; border-left: 3px solid var(--skill-color, var(--line)); border-radius: 0 8px 8px 0; background: #111614; }
+.no-abyss .st-row { grid-template-columns: minmax(9rem, 1.2fr) minmax(7rem, 1fr) minmax(9rem, 1.3fr) 8.5rem; }
+.st-pending { margin: 0; font-size: .82rem; }
 .st-head { background: transparent; border-left-color: transparent; padding-top: 0; padding-bottom: 0; }
 .st-head button { width: auto; padding: .2rem 0; border: 0; background: transparent; color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; text-align: left; }
 .st-head button.sorted { color: var(--accent); }
@@ -2431,11 +2432,11 @@ const TAB_INTRO = {
   equipment: 'Gear worn in the current set and the saved sets, with the active style, damage type and accuracy.',
   upgrades: 'Better gear for what this character is doing now: items to loot or craft, and owned items worth equipping.',
   inventory: 'Everything in the bank, grouped by kind and worth (sell price). In use shows what the current activity consumes.',
-  skills: 'What is left first: level, abyssal level and mastery pool per skill; maxed skills are folded at the bottom. Click a column to sort.',
+  skills: 'What is left first: levels, mastery pools, XP/h and next-level time per skill; maxed skills fold at the bottom. Click a column to sort.',
   plans: 'The plan for the chosen goal; the Next column and To do follow it.',
   history: 'What changed between journal scans: activity, total level, maxed skills and GP.',
 };
-const TAB_GROUP = { now: 0, progress: 0, completion: 0, equipment: 1, upgrades: 1, inventory: 1, skills: 1, plans: 2, history: 2 };
+const TAB_GROUP = { now: 0, skills: 0, completion: 0, equipment: 1, upgrades: 1, inventory: 1, plans: 2, history: 2 };
 const TAB_LABELS = { now: 'Now', progress: 'Progress', equipment: 'Equipment', upgrades: 'Upgrades', completion: 'Completion', skills: 'Skills', inventory: 'Inventory', plans: 'Plans', history: 'History' };
 const TAB_ICONS = {
   now: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
@@ -2613,6 +2614,9 @@ function skillsSheet(c, charName) {
   const gap = s => (abyssOpen(s) ? (s.abyssalCap - (s.abyssalLevel ?? 0)) / s.abyssalCap : 0) * 1000 + ((s.levelCap ?? 120) - s.level) / (s.levelCap ?? 120) * 100;
   // next-level ETA from the Progress lines ("Skill: ...; next level ETA 9 h" or "abyssal next level ETA ...")
   const etaOf = name => { for (const line of c.analysis.progressEtas || []) { if (!line.startsWith(name + ':')) continue; const p = line.split('; ').find(x => x.includes('next level ETA')); if (p) return p.split('ETA ')[1]; } return null; };
+  // XP per hour measured between the last two scans (Progress lines: "Skill: 2,352,928 abyssal XP gained (6.8M/h); ...")
+  const rateOf = name => { for (const line of c.analysis.progressEtas || []) { if (!line.startsWith(name + ':')) continue; const m = line.split('; ')[0].split('(')[1]; if (m) return m.replace(')', ''); } return null; };
+  const pending = (c.analysis.progressEtas || []).find(line => line.startsWith('ETA pending'));
   const planned = (() => { const goal = goalOf(charName, c); const line = goalLines(c, goal)?.[0] || (c.analysis.standardPlan || [])[0] || (c.analysis.afterTaskPlan || [])[0] || ''; return line.replace(/^(Switch to |abyssal )+/, '').split(':')[0]; })();
   const kinds = ['All', 'Not maxed', 'Combat', 'Gathering', 'Artisan', 'Support'];
   let kind = 'All', sortBy = 'gap', desc = true;
@@ -2638,12 +2642,12 @@ function skillsSheet(c, charName) {
     else if (s.name === planned) name.append(el('span', 'st-tag plan', 'plan'));
     r.append(name, levelCell(s));
     if (abyss) r.append(abyssCell(s));
-    r.append(poolCell(s), el('span', 'st-next muted', etaOf(s.name) ? 'next ' + etaOf(s.name) : ''));
+    r.append(poolCell(s), el('span', 'st-next muted', [rateOf(s.name), etaOf(s.name) ? 'next ' + etaOf(s.name) : null].filter(Boolean).join(' · ')));
     return r;
   };
   const filters = el('div', 'seg st-filters');
   const head = el('div', 'st-row st-head');
-  const cols = [['name', 'Skill'], ['level', 'Level'], ...(abyss ? [['abyssal', 'Abyssal']] : []), ['pool', 'Mastery pool'], ['eta', 'Next level']];
+  const cols = [['name', 'Skill'], ['level', 'Level'], ...(abyss ? [['abyssal', 'Abyssal']] : []), ['pool', 'Mastery pool'], ['eta', 'XP/h · next level']];
   for (const [key, label] of cols) { const b = el('button', '', label); b.type = 'button'; b.dataset.sort = key; b.addEventListener('click', () => { desc = sortBy === key ? !desc : key !== 'name'; sortBy = key; draw(); }); head.append(b); }
   const list = el('div', 'st-list'); const folded = el('details', 'st-maxed');
   const order = { gap, eta: s => -(etaOf(s.name) ? 1 : 0), name: s => s.name, level: s => s.level + pct(s.xp, s.xpLevelStart, s.xpNextLevel) / 100, abyssal: s => (s.abyssalLevel ?? 0) / (s.abyssalCap || 1), pool: s => Math.min(...(s.masteryPools || []).map(p => p.cap ? p.xp / p.cap : 2), 2) };
@@ -2661,7 +2665,9 @@ function skillsSheet(c, charName) {
   };
   for (const k of kinds) { const n = skills.filter(s => k === 'All' || (k === 'Not maxed' ? !maxed(s) : SKILL_KIND[s.name] === k)).length; if (!n) continue; const b = el('button', '', k + ' · ' + n); b.type = 'button'; b.addEventListener('click', () => { kind = k; draw(); }); filters.append(b); }
   panel.classList.toggle('no-abyss', !abyss);
-  panel.append(filters, head, list, folded); draw();
+  panel.append(filters);
+  if (pending) panel.append(el('p', 'muted st-pending', pending.replace('ETA pending: ', 'XP/h and next-level times: ')));
+  panel.append(head, list, folded); draw();
   return panel;
 }
 // Bank view in the game's style: icon tiles grouped by item type, "In use" first, value from the sell price.
@@ -2826,16 +2832,11 @@ function render() {
     const actions = STATUSES.filter(s => !['stale', 'done', 'dismissed'].includes(s)).flatMap(s => (c.decisions[s] || []).map(a => decisionRow(a, s)));
     const panels = [
       insightPanel(insights(c).filter(i => i.source !== 'progress_eta' && i.type !== 'status' && !planLine(i.label))),
-      panel('progress', [
-        spanAll(box('Level ETA', (c.analysis.progressEtas || []).map(line => detailRow(line)))),
-        box('Standard lows', (c.observed.standard?.lowest || []).slice(0, 6).map(s => meterRow(s.name, s.level, s.cap, s.level + '/' + s.cap, true))),
-        box('Abyssal lows', (c.observed.abyssal?.lowest || []).slice(0, 6).map(s => meterRow(s.name, s.abyssalLevel, s.abyssalCap, s.abyssalLevel + '/' + s.abyssalCap, true))),
-      ]),
+      skillsSheet(c, name),
       completionSheet(c),
       equipment,
       upgradeSheet(c),
       inventorySheet(c),
-      skillsSheet(c, name),
       plansPanel(name, c, actions, hidden),
       history.children.length ? history : null,
     ].filter(Boolean);

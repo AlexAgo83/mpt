@@ -210,7 +210,7 @@ const html = renderDashboard(buildLatest([evil], first.latest, null, now));
 assert.ok(!/<script>alert/.test(html), 'embedded JSON escapes <');
 assert.ok(!/https?:\/\/(?!melvoridle|wiki\.melvoridle\.com)/.test(html), 'no untrusted external assets');
 assert.ok(html.includes('save risk') && html.includes('needs attention'), 'risk and attention controls present');
-assert.ok(html.includes('To do') && html.includes("cell('Next'") && html.includes("panel('progress'") && html.includes("dataset.panel = 'plans'"), 'cockpit focus and detail tabs present');
+assert.ok(html.includes('To do') && html.includes("cell('Next'") && html.includes("dataset.panel = 'skills'") && html.includes("dataset.panel = 'plans'"), 'cockpit focus and detail tabs present');
 assert.ok(!/Users\/|password|9223|chrome-profile/i.test(html), 'dashboard is sanitized');
 assert.match(html, /journal-serve/, 'offline dashboard explains how to enable refresh controls');
 assert.match(html, /\/refresh/, 'served dashboard can trigger a journal refresh');
