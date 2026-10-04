@@ -207,7 +207,7 @@ const evil = buildCharacterJournal('TestChar', {
   ...data, skilling: { notes: ['<script>alert(1)</script>'] },
 }, save);
 const html = renderDashboard(buildLatest([evil], first.latest, null, now));
-assert.ok(!/<script>alert/.test(html), 'embedded JSON escapes <');
+assert.ok(!html.toLowerCase().includes('<script>alert'), 'embedded JSON escapes <');
 assert.ok(!/https?:\/\/(?!melvoridle|wiki\.melvoridle\.com)/.test(html), 'no untrusted external assets');
 assert.ok(html.includes('save risk') && html.includes('needs attention'), 'risk and attention controls present');
 assert.ok(html.includes('To do') && html.includes("cell('Next'") && html.includes("dataset.panel = 'skills'") && html.includes("dataset.panel = 'plans'"), 'cockpit focus and detail tabs present');
@@ -293,7 +293,10 @@ console.log('journal self-check ok');
 {
   // the dashboard script lives in a template literal: a bad escape (e.g. "\/" in a regex) breaks the whole page
   const html = renderDashboard(buildLatest([], new Map(), null, new Date().toISOString()));
-  for (const [, code] of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) assert.doesNotThrow(() => new Function(code), 'dashboard script parses');
+  // plain string split, not a regex: we only read our own generated page (CodeQL js/bad-tag-filter)
+  const scripts = html.split('<script>').slice(1).map(part => part.split('</script>')[0]);
+  assert.ok(scripts.length > 0, 'dashboard has an inline script');
+  for (const code of scripts) assert.doesNotThrow(() => new Function(code), 'dashboard script parses');
 }
 
 {
