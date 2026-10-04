@@ -1902,14 +1902,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .tab-switch .tab-sep { flex: 0 0 1px; margin: .55rem .35rem; background: var(--line); }
 .tab-switch svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .insight-list { display: grid; gap: .35rem; }
-.insight { display: grid; gap: .3rem; padding: .45rem .6rem; border-left: 3px solid var(--line); border-radius: 0 4px 4px 0; background: #111614; }
+.tabs.equipment-sets { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; }
+.tabs.equipment-sets button { border: 0; border-radius: 6px; background: transparent; color: var(--muted); }
+.tabs.equipment-sets button[aria-selected="true"] { color: #101413; background: var(--accent); }
+.insight { display: grid; gap: .3rem; padding: .5rem .7rem; border-left: 3px solid var(--line); border-radius: 0 8px 8px 0; background: #111614; }
 .insight.p-critical { border-left-color: var(--danger); }
 .insight.p-high { border-left-color: var(--accent); }
 .insight.sev-warning { border-left-color: var(--warning); }
 .insight-chips { display: flex; flex-wrap: wrap; gap: .3rem; }
-.insight-chips span { border: 1px solid var(--line); border-radius: 999px; padding: .05rem .5rem; color: var(--muted); font-size: .76rem; }
-.insight-meter { display: flex; align-items: center; gap: .45rem; color: var(--muted); font-size: .76rem; font-variant-numeric: tabular-nums; }
-.insight-meter progress { width: 8rem; height: .35rem; accent-color: var(--teal); }
+.insight-chips > span { border: 1px solid var(--line); border-radius: 999px; padding: .05rem .5rem; color: var(--muted); font-size: .76rem; }
 .panel[hidden] { display: none; }
 .panel-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .group { min-width: 0; }
@@ -1921,7 +1922,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .equipment-summary span { border: 1px solid var(--line); border-radius: 999px; padding: .2rem .45rem; color: var(--muted); font-size: .78rem; }
 .equipment-summary strong { color: var(--teal); }
 .equipment-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; }
-.equipment-slot { min-width: 0; min-height: 4.25rem; padding: .45rem .5rem; border: 1px solid var(--line); border-radius: 5px; background: #111614; overflow-wrap: anywhere; }
+.equipment-slot { min-width: 0; min-height: 4.25rem; padding: .5rem .6rem; border: 1px solid var(--line); border-radius: 8px; background: #111614; overflow-wrap: anywhere; }
 .equipment-slot small { display: block; margin-bottom: .18rem; color: var(--muted); font-size: .7rem; text-transform: uppercase; }
 .wiki-icon { display: inline-block; width: 1.1em; height: 1.1em; margin: 0 .3em 0 0; vertical-align: -0.2em; object-fit: contain; }
 .equipment-slot::after { content: ""; display: block; clear: both; }
@@ -1929,7 +1930,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .skills-grid, .inventory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: .45rem; }
 .skills-grid { grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: .65rem; }
 .inventory-grid { margin-top: .6rem; }
-.skill-card, .inventory-item { min-width: 0; min-height: 4.2rem; padding: .45rem; border: 1px solid var(--line); border-radius: 5px; background: #111614; overflow-wrap: anywhere; }
+.skill-card, .inventory-item { min-width: 0; min-height: 4.2rem; padding: .5rem .6rem; border: 1px solid var(--line); border-radius: 8px; background: #111614; overflow-wrap: anywhere; }
 .skill-card { padding: .7rem; border-left: 3px solid var(--skill-color, var(--accent)); }
 .skill-card strong { display: flex; align-items: center; gap: .35rem; color: var(--skill-color, var(--accent)); }
 .skill-card small, .inventory-item small { display: block; color: var(--muted); }
@@ -1945,11 +1946,36 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .inventory-qty { position: absolute; right: .35rem; bottom: .3rem; color: var(--accent); font-weight: 700; }
 .equipment-slot.weapon, .equipment-slot.offhand { border-color: #706039; }
 .equipment-slot.passive, .equipment-slot.consumable { border-color: #2d6255; }
-.history-entry { padding: .45rem 0; border-bottom: 1px solid var(--line); }
-.history-entry:last-child { border-bottom: 0; }
 .history-entry time { color: var(--muted); font-size: .8rem; }
 .muted { color: var(--muted); }
-a { color: var(--accent); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.stack { display: grid; gap: .35rem; }
+.span-all { grid-column: 1 / -1; }
+.meter-row { display: grid; grid-template-columns: minmax(7rem, 11rem) 1fr auto; align-items: center; gap: .6rem; font-size: .84rem; }
+.meter-row progress { width: 100%; height: .4rem; accent-color: var(--teal); }
+.meter-value { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.insight .meter-row { grid-template-columns: auto 8rem auto; justify-content: start; color: var(--muted); font-size: .76rem; }
+.hero-stat { display: grid; gap: .3rem; padding: .7rem .8rem; border-radius: 8px; background: #111614; border: 1px solid var(--line); }
+.hero-stat b { color: var(--accent); font-size: 1.8rem; font-variant-numeric: tabular-nums; }
+.hero-stat span { color: var(--muted); font-size: .8rem; }
+.hero-stat progress { width: 100%; height: .5rem; accent-color: var(--accent); }
+.tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: .5rem; }
+.tile { display: grid; gap: .3rem; align-content: start; min-width: 0; padding: .6rem .7rem; border: 1px solid var(--line); border-radius: 8px; background: #111614; overflow-wrap: anywhere; }
+.tile small { color: var(--muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .03em; }
+.tile-title { font-weight: 600; }
+.tile-alt { color: var(--muted); font-size: .78rem; }
+.tile.blocked { border-style: dashed; }
+.insight-chips .chip-warn { color: #ffe5b8; border-color: var(--warning); }
+.insight.compact { padding: .3rem .55rem; font-size: .86rem; }
+.insight.compact .insight-chips, .insight.compact .meter-row { display: none; }
+.insight.status-stale { opacity: .75; }
+.controls { display: flex; gap: .5rem; }
+.controls input { flex: 1; }
+.controls select { width: auto; }
+.history { display: grid; gap: .8rem; }
+.history-entry { padding: 0; border: 0; }
+.history-entry time { display: block; margin-bottom: .3rem; }
 @media (max-width: 900px) {
   #summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   #filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -2084,6 +2110,7 @@ const wikiText = text => {
   fragment.append(document.createTextNode(value.slice(last))); return fragment;
 };
 const list = items => { const ul = el('ul', 'plain-list'); for (const item of [...new Set(items)].filter(Boolean)) { const row = el('li'); row.append(wikiText(item)); ul.append(row); } return ul; };
+const box = (title, nodes) => { nodes = nodes.filter(Boolean); if (!nodes.length) return null; const b = el('section', 'group'); const stack = el('div', 'stack'); stack.append(...nodes); b.append(el('h3', '', title), stack); return b; };
 const group = (title, items) => { if (!items.length) return null; const box = el('section', 'group'); box.append(el('h3', '', title), list(items)); return box; };
 // Icon-only tab switch: the label stays in title/aria-label. Static Lucide-style paths, no user data.
 const TAB_GROUP = { now: 0, progress: 0, completion: 0, equipment: 1, upgrades: 1, inventory: 1, skills: 1, plans: 2, history: 2 };
@@ -2102,34 +2129,42 @@ const TAB_ICONS = {
 const completionSheet = c => {
   const now = c.observed.completion, prev = c.analysis.completionPrevious;
   if (!now) return null;
-  const pct = (label, v, p) => label + ' ' + v.toFixed(1) + '%' + (p == null || v === p ? '' : ' (' + (v > p ? '+' : '') + (v - p).toFixed(2) + ')');
+  const delta = (v, p) => p == null || v === p ? '' : ' ' + (v > p ? '+' : '') + (v - p).toFixed(2);
   const names = { base: 'Base game', toth: 'Throne of the Herald', aod: 'Atlas of Discovery', ita: 'Into the Abyss', skills: 'Skills', mastery: 'Mastery', items: 'Items', monsters: 'Monsters', pets: 'Pets' };
-  const rows = (key) => Object.entries(now[key] || {}).map(([k, v]) => pct(names[k] || k, v, prev?.[key]?.[k]));
+  const rows = key => Object.entries(now[key] || {}).map(([k, v]) => meterRow(names[k] || k, v, 100, v.toFixed(1) + '%' + delta(v, prev?.[key]?.[k]), key === 'expansions' && k !== 'base'));
+  const total = el('div', 'hero-stat'); total.append(el('b', '', now.total.toFixed(2) + '%'), el('span', '', 'Completion Log' + (prev ? delta(now.total, prev.total) + ' since ' + new Date(prev.at).toLocaleString() : '')));
+  const bar = el('progress'); bar.max = 100; bar.value = now.total; total.append(bar);
   return panel('completion', [
-    group('Completion Log', [pct('Total', now.total, prev?.total)].concat(prev ? ['since ' + new Date(prev.at).toLocaleString()] : [])),
-    group('Expansions', rows('expansions')),
-    group('Categories', rows('categories')),
-    group('History', (c.analysis.completionHistory || []).slice().reverse().map(h => new Date(h.at).toLocaleString() + ' · ' + h.total.toFixed(2) + '%')),
+    box('Total', [total]),
+    box('Expansions', rows('expansions')),
+    box('Categories', rows('categories')),
+    box('History', (c.analysis.completionHistory || []).slice().reverse().map(h => meterRow(new Date(h.at).toLocaleString(), h.total, 100, h.total.toFixed(2) + '%'))),
   ]);
 };
 const panel = (name, groups) => { const body = el('div', 'panel panel-grid'); body.dataset.panel = name; for (const item of groups.filter(Boolean)) body.append(item); return body.children.length ? body : null; };
+// "Skill: headline; detail; detail" -> headline + level meter + detail chips. Shared by Now, Progress and History.
+const detailRow = (label, cls) => {
+  const [headline, ...details] = label.split('; ');
+  const row = el('div', 'insight ' + (cls || ''));
+  const head = el('div'); head.append(wikiText(headline)); row.append(head);
+  const chips = el('div', 'insight-chips');
+  for (const detail of details) {
+    const level = /^(abyssal )?level (\\d+)\\/(\\d+)$/.exec(detail);
+    if (level) row.append(meterRow((level[1] ? 'abyssal ' : '') + 'level', +level[2], +level[3], level[2] + '/' + level[3]));
+    else chips.append(el('span', '', detail.replace(/ ETA /, ' · ')));
+  }
+  if (chips.children.length) row.append(chips);
+  return row;
+};
+const meterRow = (label, value, max, text, linkLabel) => {
+  const row = el('div', 'meter-row'); const bar = el('progress'); bar.max = max; bar.value = Math.min(value, max);
+  const name = el('span', 'meter-name'); if (linkLabel) name.append(wiki(label)); else name.textContent = label;
+  row.append(name, bar, el('span', 'meter-value', text)); return row;
+};
 const insightPanel = items => {
   if (!items.length) return null;
-  const body = el('div', 'panel insight-list'); body.dataset.panel = 'now';
-  for (const item of items.slice(0, 10)) {
-    // "Skill: headline; detail; detail" -> headline + level meter + detail chips
-    const [headline, ...details] = item.label.split('; ');
-    const row = el('div', 'insight p-' + item.priority + ' sev-' + item.severity); row.title = item.priority + ' priority';
-    const head = el('div'); head.append(wikiText(headline)); row.append(head);
-    const chips = el('div', 'insight-chips');
-    for (const detail of details) {
-      const level = /^(abyssal )?level (\\d+)\\/(\\d+)$/.exec(detail);
-      if (level) { const meter = el('div', 'insight-meter'); const bar = el('progress'); bar.max = +level[3]; bar.value = +level[2]; meter.append(bar, el('span', '', (level[1] ? 'abyssal ' : '') + level[2] + '/' + level[3])); row.append(meter); }
-      else chips.append(el('span', '', detail.replace(/ ETA /, ' · ')));
-    }
-    if (chips.children.length) row.append(chips);
-    body.append(row);
-  }
+  const body = el('div', 'panel stack'); body.dataset.panel = 'now';
+  for (const item of items.slice(0, 10)) { const row = detailRow(item.label, 'p-' + item.priority + ' sev-' + item.severity); row.title = item.priority + ' priority'; body.append(row); }
   return body;
 };
 const equipmentSlots = [['Helmet', 'head'], ['Cape', 'cape'], ['Amulet', 'amulet'], ['Weapon', 'weapon'], ['Shield', 'off-hand'], ['Platebody', 'body'], ['Gloves', 'hands'], ['Platelegs', 'legs'], ['Boots', 'feet'], ['Ring', 'ring'], ['Quiver', 'ammo'], ['Passive', 'passive'], ['Consumable', 'consumable'], ['Gem', 'gem'], ['Enhancement1', 'enhancement I'], ['Enhancement2', 'enhancement II'], ['Enhancement3', 'enhancement III']];
@@ -2157,12 +2192,24 @@ function upgradeSheet(c) {
   const context = plan.context || {};
   const contextRow = el('section', 'group'); contextRow.append(el('h3', '', 'Context'));
   const contextText = context.kind === 'non_combat_skill' ? ['Non-combat skill: ', wiki(context.target || 'unknown'), document.createTextNode('; combat upgrades deferred until it stops')] : context.kind === 'slayer_task' ? ['Slayer task: ', wiki(context.target || 'unknown'), document.createTextNode('; ' + (context.remaining ?? '?') + ' left; ' + context.refresh)] : context.kind === 'dungeon' ? ['Dungeon: ', wiki(context.target || 'unknown'), document.createTextNode('; strategy guide: '), wiki(context.target || 'unknown')] : ['Activity: ' + (context.target || 'unknown')];
-  const contextLine = el('p'); contextLine.append(...contextText); contextRow.append(contextLine, el('p', '', 'Build: ' + (plan.attackType || 'unknown') + (plan.damageType ? ' / ' + plan.damageType : ''))); body.append(contextRow);
+  const contextLine = el('div'); contextLine.append(...contextText); const build = el('div', 'insight-chips'); build.append(el('span', '', 'build: ' + (plan.attackType || 'unknown') + (plan.damageType ? ' / ' + plan.damageType : ''))); const ctx = el('div', 'insight'); ctx.append(contextLine, build); contextRow.append(ctx); contextRow.classList.add('span-all'); body.append(contextRow);
   const source = item => item.loot ? [document.createTextNode('loot: '), wiki(item.loot)] : item.craft ? [document.createTextNode('craft: ' + item.craft.skill + ' / '), wiki(item.craft.recipe)] : [document.createTextNode(item.source || 'source unknown')];
-  const section = (title, kind) => { const box = el('section', 'group'); box.append(el('h3', '', title)); for (const [slot, entry] of Object.entries(plan.slots || {})) { const choice = entry[kind]; if (!choice) continue; const line = el('p'); line.append(document.createTextNode(slot + ': '), wiki(choice.primary.name), document.createTextNode(' ('), ...source(choice.primary), document.createTextNode(')' + (choice.primary.blocked?.length ? ' — blocked: ' + choice.primary.blocked.join(', ') : ''))); if (choice.alternatives?.length) { line.append(document.createTextNode(' | alternatives: ')); choice.alternatives.forEach((item, index) => { if (index) line.append(document.createTextNode(', ')); line.append(wiki(item.name)); }); } box.append(line); } return box.children.length > 1 ? box : null; };
+  const section = (title, kind) => {
+    const tiles = Object.entries(plan.slots || {}).filter(([, entry]) => entry[kind]).map(([slot, entry]) => {
+      const choice = entry[kind]; const tile = el('div', 'tile' + (choice.primary.blocked?.length ? ' blocked' : ''));
+      const name = el('div', 'tile-title'); name.append(wiki(choice.primary.name));
+      const meta = el('div', 'insight-chips'); const src = el('span'); src.append(...source(choice.primary)); meta.append(src);
+      if (choice.primary.blocked?.length) meta.append(el('span', 'chip-warn', 'blocked: ' + choice.primary.blocked.join(', ')));
+      tile.append(el('small', '', slot), name, meta);
+      if (choice.alternatives?.length) { const alt = el('div', 'tile-alt'); alt.append(document.createTextNode('or ')); choice.alternatives.forEach((item, i) => { if (i) alt.append(document.createTextNode(', ')); alt.append(wiki(item.name)); }); tile.append(alt); }
+      return tile;
+    });
+    if (!tiles.length) return null;
+    const b = el('section', 'group span-all'); const grid = el('div', 'tile-grid'); grid.append(...tiles); b.append(el('h3', '', title), grid); return b;
+  };
   const skilling = Object.keys(plan.skilling || {}).length ? group('Skilling equipment upgrades', Object.entries(plan.skilling).map(([slot, entry]) => slot + ': ' + entry.current + ' → ' + entry.candidates.map(item => item.name + ' (owned x' + item.available + '; ' + item.passives.join('; ') + ')').join(' | '))) : null;
   const activity = plan.activity?.length ? group('Current activity upgrades', plan.activity.map(a => a.slot + ': ' + a.current + ' → ' + a.item + ' (owned x' + a.available + '; ' + a.reason + ')')) : null;
-  body.append(skilling, activity, section('Next loot', 'loot'), section('Next craft', 'craft'));
+  body.append(...[skilling, activity, section('Next loot', 'loot'), section('Next craft', 'craft')].filter(Boolean));
   return body;
 }
 function skillsSheet(c) {
@@ -2201,11 +2248,12 @@ function inventorySheet(c) {
   const filter = document.createElement('input'); filter.type = 'search'; filter.placeholder = 'Filter inventory…'; filter.setAttribute('aria-label', 'Filter inventory');
   const sort = document.createElement('select'); sort.setAttribute('aria-label', 'Sort inventory'); sort.append(new Option('Quantity', 'quantity'), new Option('Name', 'name'));
   const grid = el('div', 'inventory-grid');
-  const show = () => { grid.replaceChildren(); for (const item of [...inventory].sort(sort.value === 'name' ? (a, b) => a.name.localeCompare(b.name) : (a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name))) { const cell = el('div', 'inventory-item'); cell.dataset.inventoryName = item.name.toLowerCase(); const name = el('small'); name.append(wiki(item.name)); cell.append(name, el('span', 'inventory-qty', '×' + item.quantity)); grid.append(cell); } loadWikiIcons(); };
+  const show = () => { grid.replaceChildren(); for (const item of [...inventory].sort(sort.value === 'name' ? (a, b) => a.name.localeCompare(b.name) : (a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name))) { const cell = el('div', 'inventory-item'); cell.dataset.inventoryName = item.name.toLowerCase(); const name = el('small'); name.append(wiki(item.name)); cell.append(name, el('span', 'inventory-qty', '×' + item.quantity.toLocaleString('en-US'))); grid.append(cell); } loadWikiIcons(); };
   show();
   filter.addEventListener('input', () => { const query = filter.value.toLowerCase(); for (const cell of grid.children) cell.hidden = query && !cell.dataset.inventoryName.includes(query); });
   sort.addEventListener('change', show);
-  panel.append(filter, sort, grid);
+  const controls = el('div', 'controls'); controls.append(filter, sort);
+  panel.append(controls, grid);
   return panel;
 }
 function render() {
@@ -2249,22 +2297,26 @@ function render() {
 
     const body = el('div', 'character-body');
     const equipment = equipmentSheet(c);
-    const history = el('div', 'panel'); history.dataset.panel = 'history';
+    const history = el('div', 'panel history'); history.dataset.panel = 'history';
     for (const h of c.history || []) {
       const row = el('div', 'history-entry'); row.append(el('time', '', new Date(h.at).toLocaleString()));
       const lines = [...new Set([...(h.currentActionPlan || []), ...(h.progressEtas || []), ...(h.recommendations || [])])].slice(0, 5);
-      if (lines.length) row.append(list(lines)); history.append(row);
+      const stack = el('div', 'stack'); stack.append(...lines.map(line => detailRow(line, 'compact'))); row.append(stack); history.append(row);
     }
-    const actions = STATUSES.flatMap(s => (c.decisions[s] || []).map(a => s + ': ' + a.item + ' in ' + a.slot + ' - ' + a.reason));
+    const actions = STATUSES.flatMap(s => (c.decisions[s] || []).map(a => { const row = el('div', 'insight status-' + s); const head = el('div'); head.append(el('span', 'badge ' + (s === 'stale' ? 'stale' : s === 'blocked' ? 'danger' : 'info'), s), wiki(a.item), document.createTextNode(' in ' + a.slot)); row.append(head, el('div', 'muted', a.reason)); return row; }));
     const panels = [
       insightPanel(insights(c)),
-      panel('progress', [group('Level ETA', c.analysis.progressEtas || []), group('Standard lows', (c.observed.standard?.lowest || []).slice(0, 6).map(s => s.name + ' ' + s.level + '/' + s.cap)), group('Abyssal lows', (c.observed.abyssal?.lowest || []).slice(0, 6).map(s => s.name + ' ' + s.abyssalLevel + '/' + s.abyssalCap))]),
+      panel('progress', [
+        box('Level ETA', (c.analysis.progressEtas || []).map(line => detailRow(line))),
+        box('Standard lows', (c.observed.standard?.lowest || []).slice(0, 6).map(s => meterRow(s.name, s.level, s.cap, s.level + '/' + s.cap, true))),
+        box('Abyssal lows', (c.observed.abyssal?.lowest || []).slice(0, 6).map(s => meterRow(s.name, s.abyssalLevel, s.abyssalCap, s.abyssalLevel + '/' + s.abyssalCap, true))),
+      ]),
       completionSheet(c),
       equipment,
       upgradeSheet(c),
       inventorySheet(c),
       skillsSheet(c),
-      panel('plans', [group('Standard plan', c.analysis.standardPlan || []), group('Abyssal plan', c.analysis.abyssalPlan || []), group('Decisions', actions), group('Risk notes', c.analysis.riskNotes || [])]),
+      panel('plans', [box('Standard plan', (c.analysis.standardPlan || []).map(line => detailRow(line))), box('Abyssal plan', (c.analysis.abyssalPlan || []).map(line => detailRow(line))), box('Decisions', actions), box('Risk notes', (c.analysis.riskNotes || []).map(line => detailRow(line, 'sev-warning')))]),
       history.children.length ? history : null,
     ].filter(Boolean);
     const tabs = el('div', 'tab-switch'); tabs.setAttribute('role', 'tablist');
