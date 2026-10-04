@@ -1,12 +1,12 @@
 ## run_011_prepare_and_accompany_a_dungeon_run - Prepare a character for a dungeon and accompany the run
 > Status: Draft
 > Category: support
-> Verified: (not yet verified). Written 2026-10-04 from the wiki guides and the simulator probes; no live dungeon run yet.
+> Verified: 2026-10-04, live: check -> optimize -> setup -> run on Chap and Kang (Frozen Cove), Opa (Underground Lava Lake with the S2 plan) and Dash (Bandit Base). One clear end to end: run_014 (dungeon-clear).
 > Related request: (none yet)
 > Related backlog: (none yet)
 > Related task: (none yet)
 > Reminder: Update status, category, verification, and linked refs when you edit this doc.
-> Indicators reviewed: 2026-10-04 15:57:28
+> Indicators reviewed: 2026-10-04 17:39:57
 
 # Trigger
 - The operator wants a character to clear a dungeon, Abyss depth or stronghold (Plans goal "Dungeon path", or a named target).

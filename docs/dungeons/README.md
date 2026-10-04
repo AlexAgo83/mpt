@@ -30,4 +30,4 @@ Event dungeons do not behave like a monster list and get their own notes here:
 - [Impending Darkness Event](impending-darkness.md): 5 rounds of 4 Slayer areas, a modifier pick each round,
   Bane in a random style (reroll by fleeing), and the final Bane, Instrument of Fear.
 
-Runbooks: `logics/runbook/run_011` (any dungeon), `run_012` (Impending Darkness), `run_013` (Into the Mist).
+Runbooks: `logics/runbook/run_011` (any dungeon), `run_012` (Impending Darkness), `run_013` (Into the Mist), `run_014` (dungeon-clear).
