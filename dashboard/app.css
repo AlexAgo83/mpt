@@ -82,6 +82,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .identity-title .badge { margin: 0; }
 .cell-value { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .cell.idle .cell-value { color: var(--muted); }
+.cell[data-goto="plans"] .cell-value { font-size: .84rem; line-height: 1.35; }
 .completion-cell .cell-value { display: grid; gap: .2rem; font-variant-numeric: tabular-nums; }
 .completion-cell progress { width: 100%; height: .35rem; accent-color: var(--accent); }
 .cell-label { display: none; }
