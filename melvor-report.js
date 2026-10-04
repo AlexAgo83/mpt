@@ -664,7 +664,7 @@ function printCombatPlan(r, options = {}) {
 
 function printCombatRun(r) {
   console.log(`${r.name} | combat-run | ${r.dungeon} | ${r.status}`);
-  console.log(`  set ${r.set?.index ?? '?'} ${r.set?.attackType || 'unknown'}: ${r.set?.weapon || 'no weapon'} / ${r.set?.cape || 'no cape'}`);
+  console.log(`  set S${r.set ? r.set.index + 1 : '?'} ${r.set?.attackType || 'unknown'}: ${r.set?.weapon || 'no weapon'} / ${r.set?.cape || 'no cape'}`);
   for (const s of r.samples) {
     console.log(`  ${s.t} progress ${s.progress} | completed ${s.completed} | ${s.monster || 'none'} hp ${s.enemyHP ?? '-'} | player ${s.hp}/${s.maxHP} | fight ${s.fight}`);
   }
@@ -693,14 +693,15 @@ function printCombatSetup(r) {
   console.log(`  saved: ${r.saved}`);
 }
 
-const visibleRewardOptions = `(() => [...document.querySelectorAll('button')]
+// only buttons on screen: every skill page keeps hidden 'Increase Level Cap' buttons in the DOM
+const visibleRewardOptions = `(() => [...document.querySelectorAll('button')].filter(b => b.offsetParent !== null)
   .map(b => ({ label: b.innerText.trim(), context: (b.closest('.swal2-popup,.modal,.block,.content')?.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 220) }))
   .filter(o => /^Claim$|^Increase .*Level Cap$/.test(o.label))
 )()`;
 
 const potionItemName = s => String(s || '').split(/\s+(?:for|if)\s+/i)[0].trim();
 
-const combatRunScript = (dungeonRef, timeoutMs) => `(async () => {
+const combatRunScript = (dungeonRef, timeoutMs, setNumber = null) => `(async () => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const beats = { melee: 'magic', ranged: 'melee', magic: 'ranged' };
   const allDungeons = game.dungeons.allObjects;
@@ -719,8 +720,11 @@ const combatRunScript = (dungeonRef, timeoutMs) => `(async () => {
     return { index, attackType: item('Weapon')?.attackType ?? null, weapon: item('Weapon')?.name ?? null, cape: item('Cape')?.name ?? null };
   };
   const sets = p.equipmentSets.map(setInfo);
-  const set = sets.find(s => style && s.attackType === style) || sets.find(s => s.attackType);
+  // --slot: the set dungeon-check measured; otherwise the style that beats the boss
+  const set = ${setNumber ? `sets[${Number(setNumber) - 1}]` : 'null'} || sets.find(s => style && s.attackType === style) || sets.find(s => s.attackType);
   if (!set) return { status: 'error', dungeon: dungeon.name, error: 'no combat set found' };
+  // never start a run that could not flee on low HP
+  if (typeof game.combat.stop !== 'function' || !('isActive' in game.combat)) return { status: 'error', dungeon: dungeon.name, error: 'cannot flee (game.combat.stop/isActive missing): not starting' };
   const beforeCompleted = game.combat.getDungeonCompleteCount(dungeon);
   p.changeEquipmentSet(set.index);
   if (game.activeAction?.name !== 'Combat' || game.combat.selectedArea?.id !== dungeon.id)
@@ -742,7 +746,8 @@ const combatRunScript = (dungeonRef, timeoutMs) => `(async () => {
     };
     samples.push(sample);
     if (sample.completed > beforeCompleted) { status = 'completed'; break; }
-    if (sample.hp < sample.maxHP * 0.35) { status = 'low-hp'; break; }
+    // leaving the loop is not enough: the fight goes on unwatched and a Standard death loses an item, so flee
+    if (sample.hp < sample.maxHP * 0.35) { status = 'low-hp'; game.combat.stop(); await sleep(1000); sample.stoppedCombat = !game.combat.isActive; break; }
     await sleep(10000);
   }
   const rewardOptions = ${visibleRewardOptions};
@@ -2388,9 +2393,9 @@ if (require.main === module) (async () => {
     }
 
     if (cmd === 'combat-run') {
-      if (who === 'all' || !arg3) throw Error('usage: ./melvor-report.js combat-run <character> <dungeon name|id>');
+      if (who === 'all' || !arg3) throw Error('usage: ./melvor-report.js combat-run <character> <dungeon name|id> [--slot N]');
       const data = await withCharacterWrite(who, client =>
-        evalExpr(client, combatRunScript(arg3, process.env.MELVOR_COMBAT_RUN_TIMEOUT_MS || 10 * 60 * 1000), Number(process.env.MELVOR_COMBAT_RUN_TIMEOUT_MS || 10 * 60 * 1000) + 60000));
+        evalExpr(client, combatRunScript(arg3, process.env.MELVOR_COMBAT_RUN_TIMEOUT_MS || 10 * 60 * 1000, slotIndex >= 0 ? requestedSlot : null), Number(process.env.MELVOR_COMBAT_RUN_TIMEOUT_MS || 10 * 60 * 1000) + 60000));
       if (data.status === 'error') throw Error(data.error);
       printCombatRun(data);
       recordCombatRewardOptions(data);
