@@ -87,6 +87,7 @@ const usage = `usage:
   ./melvor-report.js dungeon-check <character> "<dungeon name>"
   ./melvor-report.js dungeon-optimize <character> "<dungeon name>" [--style melee|ranged|magic] [--cape "<cape name>"]
   ./melvor-report.js dungeon-setup <character> "<dungeon name>" [--style melee,ranged] [--apply] [--restore --apply]
+  ./melvor-report.js dungeon-clear <character> "<dungeon name>"   (one clear, then back to the previous activity)
   ./melvor-report.js journal-serve [--port 8787]
   ./melvor-report.js journal-status [all|character]
   ./melvor-report.js journal-diff [all|character]
@@ -100,7 +101,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide', 'dungeon-check', 'dungeon-optimize', 'dungeon-setup'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide', 'dungeon-check', 'dungeon-optimize', 'dungeon-setup', 'dungeon-clear'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -668,7 +669,7 @@ function printCombatRun(r) {
   console.log(`${r.name} | combat-run | ${r.dungeon} | ${r.status}`);
   console.log(`  set S${r.set ? r.set.index + 1 : '?'} ${r.set?.attackType || 'unknown'}: ${r.set?.weapon || 'no weapon'} / ${r.set?.cape || 'no cape'}`);
   for (const s of r.samples) {
-    console.log(`  ${s.t} progress ${s.progress} | completed ${s.completed} | ${s.monster || 'none'} hp ${s.enemyHP ?? '-'} | player ${s.hp}/${s.maxHP} | fight ${s.fight}`);
+    console.log(`  ${s.t} progress ${s.progress} | completed ${s.completed} | ${s.monster || 'none'} hp ${s.enemyHP ?? '-'} | player ${s.hp}/${s.maxHP} | food ${s.food ?? '?'}${s.stoppedCombat !== undefined ? ' | fled ' + s.stoppedCombat : ''}`);
   }
   for (const o of r.rewardOptions || []) console.log(`  pending option: ${o.label}${o.context ? ` | ${o.context}` : ''}`);
   console.log(`  saved: ${r.saved} | source ${r.sourceBefore} -> ${r.sourceAfter}`);
@@ -740,7 +741,10 @@ const combatRunScript = (dungeonRef, timeoutMs, setNumber = null) => `(async () 
   const samples = [];
   const started = Date.now();
   let status = 'timeout';
-  while (Date.now() - started < ${Number(timeoutMs)}) {
+  // checked every second (a big hit lands between two 10 s checks); one sample in ten is kept for the report
+  const hpFloor = /Hardcore/i.test(game.currentGamemode?.name || '') ? 0.5 : 0.35;
+  const foodLeft = () => { try { return p.food.slots.reduce((n, s) => n + (s.item !== game.emptyFoodItem ? s.quantity : 0), 0); } catch { return null; } };
+  for (let tick = 0; Date.now() - started < ${Number(timeoutMs)}; tick++) {
     const sample = {
       t: new Date().toISOString(),
       progress: game.combat.areaProgress,
@@ -750,12 +754,14 @@ const combatRunScript = (dungeonRef, timeoutMs, setNumber = null) => `(async () 
       fight: game.combat.fightInProgress,
       hp: p.hitpoints,
       maxHP: p.stats.maxHitpoints,
+      food: foodLeft(),
     };
-    samples.push(sample);
-    if (sample.completed > beforeCompleted) { status = 'completed'; break; }
+    if (tick % 10 === 0) samples.push(sample);
+    if (sample.completed > beforeCompleted) { samples.push(sample); status = 'completed'; break; }
+    if (sample.food !== null && sample.food < 10) { status = 'low-food'; game.combat.stop(); await sleep(1000); sample.stoppedCombat = !game.combat.isActive; samples.push(sample); break; }
     // leaving the loop is not enough: the fight goes on unwatched and a Standard death loses an item, so flee
-    if (sample.hp < sample.maxHP * 0.35) { status = 'low-hp'; game.combat.stop(); await sleep(1000); sample.stoppedCombat = !game.combat.isActive; break; }
-    await sleep(10000);
+    if (sample.hp < sample.maxHP * hpFloor) { status = 'low-hp'; game.combat.stop(); await sleep(1000); sample.stoppedCombat = !game.combat.isActive; samples.push(sample); break; }
+    await sleep(1000);
   }
   const rewardOptions = ${visibleRewardOptions};
   return { name: game.characterName, dungeon: dungeon.name, status, set, samples, rewardOptions };
@@ -2292,6 +2298,77 @@ if (require.main === module) (async () => {
         console.log(completionLine(row, lastCompletion(name)));
         if (record) fs.appendFileSync(COMPLETION_LOG, JSON.stringify(row) + '\n');
       }
+      return;
+    }
+
+    if (cmd === 'dungeon-clear') {
+      // one clear for the completion, then back to what the character was doing: check verdict -> plan (if needed)
+      // -> potion -> run -> gear and potion back -> previous activity, in one game session saved at the end
+      if (who === 'all' || !arg3) throw Error('usage: ./melvor-report.js dungeon-clear <character> "<dungeon name>"');
+      const dir = path.join(JOURNAL_DIR, 'dungeons');
+      const checkFile = path.join(dir, `${safeFilePart(who)}-${safeFilePart(arg3)}.json`);
+      if (!fs.existsSync(checkFile)) throw Error(`run dungeon-check ${who} "${arg3}" first`);
+      const check = JSON.parse(fs.readFileSync(checkFile, 'utf8'));
+      if (check.hardcore) throw Error('Hardcore character: not run automatically until the simulations are made stronger');
+      const verdict = dungeonVerdict(check);
+      let setNumber, plans = [], potion = null;
+      if (verdict.ready) {
+        // the set whose worst fight is the safest
+        const worst = set => Math.max(...verdict.fights.map(f => check.sims.find(s => s.fight === f.key && s.set === set && s.ok)?.deathRate ?? 1));
+        setNumber = [...new Set(check.sims.map(s => s.set))].sort((a, b) => worst(a) - worst(b))[0];
+      } else {
+        const planFile = path.join(dir, `${safeFilePart(who)}-${safeFilePart(arg3)}-plan.json`);
+        const best = fs.existsSync(planFile) ? JSON.parse(fs.readFileSync(planFile, 'utf8')).results.filter(r => r.best.death <= verdict.threshold).sort((a, b) => a.best.death - b.best.death || a.best.kill - b.best.kill)[0] : null;
+        if (!best) throw Error(`${who} is not ready for ${check.dungeon}, with or without a plan: nothing was changed`);
+        setNumber = best.setIndex; potion = best.potion;
+        plans = [{ setIndex: best.setIndex, style: best.style, equipment: best.equipment, prayers: best.prayers, best: best.best }];
+      }
+      const timeout = Number(process.env.MELVOR_COMBAT_RUN_TIMEOUT_MS || 20 * 60 * 1000);
+      const r = await withCharacterWrite(who, async client => {
+        const out = {};
+        out.prev = await evalExpr(client, `(() => {
+          const p = game.combat.player, a = game.activeAction, task = game.combat.slayerTask;
+          const active = [...game.potions.activePotions].find(([action]) => action === game.combat || action?.name === 'Combat')?.[1]?.item?.name ?? null;
+          self.__mptPrev = { action: a, name: a?.name ?? null, set: p.selectedEquipmentSet, onTask: a === game.combat && task?.active && game.combat.selectedMonster === task.monster,
+            monster: game.combat.selectedMonster, area: game.combat.selectedArea, potion: active, trees: a === game.woodcutting ? [...game.woodcutting.activeTrees] : null };
+          return { name: self.__mptPrev.name, set: p.selectedEquipmentSet + 1, onTask: self.__mptPrev.onTask, potion: active, trees: self.__mptPrev.trees?.map(t => t.name) ?? null };
+        })()`);
+        try {
+          if (plans.length) {
+            out.setup = await evalExpr(client, `mh.dungeonSetupApply(${JSON.stringify(plans)})`, 120000);
+            if (out.setup.error) { out.status = 'setup failed: ' + out.setup.error; return out; }
+          }
+          if (potion && potion !== out.prev.potion) out.potion = await evalExpr(client, configSetScript('potion', potion, true), 60000);
+          out.run = await evalExpr(client, combatRunScript(arg3, timeout, setNumber), timeout + 60000);
+          out.status = out.run.status;
+        } finally {
+          if (out.setup?.before) out.restore = await evalExpr(client, `mh.dungeonSetupApply(${JSON.stringify(out.setup.before.map(b => ({ ...b, best: { death: 0 } })))})`, 120000);
+          if (out.potion && out.prev.potion) out.potionBack = await evalExpr(client, configSetScript('potion', out.prev.potion, true), 60000);
+          out.resume = await evalExpr(client, `(async () => {
+            const s = self.__mptPrev, p = game.combat.player, sleep = ms => new Promise(r => setTimeout(r, ms));
+            p.changeEquipmentSet(s.set);
+            if (s.onTask) game.combat.slayerTask.jumpToTaskOnClick();
+            else if (s.action === game.combat && s.monster) game.combat.selectMonster(s.monster, s.area);
+            else if (s.trees?.length) { if (game.activeAction) game.activeAction.stop(); for (const t of s.trees) if (!game.woodcutting.activeTrees.has(t)) game.woodcutting.selectTree(t); }
+            else if (s.action) s.action.start();
+            else if (game.activeAction) game.activeAction.stop();
+            await sleep(1500);
+            return { wanted: s.name, now: game.activeAction?.name ?? null, set: p.selectedEquipmentSet + 1, ok: (game.activeAction?.name ?? null) === s.name,
+              trees: game.activeAction === game.woodcutting ? [...game.woodcutting.activeTrees].map(t => t.name) : null };
+          })()`, 60000);
+        }
+        return out;
+      });
+      const run = r.run || {};
+      console.log(`${who} | dungeon-clear | ${check.dungeon} | ${r.status} | S${setNumber}${plans.length ? ' with the plan' : ''}${r.potion ? ' | potion ' + potion : ''}`);
+      for (const s of run.samples || []) console.log(`  ${s.t.slice(11, 19)} progress ${s.progress} | ${s.monster || '-'} | player ${s.hp}/${s.maxHP} | food ${s.food ?? '?'}${s.stoppedCombat !== undefined ? ' | fled ' + s.stoppedCombat : ''}`);
+      for (const o of run.rewardOptions || []) console.log(`  pending option: ${o.label}`);
+      if (r.restore) console.log(`  gear back: ${r.restore.applied ? 'yes' : 'NO: ' + (r.restore.left || []).join('; ')}`);
+      if (r.potionBack) console.log(`  potion back: ${r.potionBack.final ?? r.potionBack.error}`);
+      console.log(`  previous activity: ${r.prev.name}${r.prev.trees ? ' (' + r.prev.trees.join(', ') + ')' : ''}${r.prev.onTask ? ' (Slayer task)' : ''} -> now ${r.resume.now}${r.resume.trees ? ' (' + r.resume.trees.join(', ') + ')' : ''} on S${r.resume.set}: ${r.resume.ok ? 'resumed' : 'NOT resumed'}`);
+      console.log(`  saved: ${r.saved} | source ${r.sourceBefore} -> ${r.sourceAfter}`);
+      fs.appendFileSync(path.join(JOURNAL_DIR, `${who}.md`), `## ${new Date().toISOString()} - ${who} dungeon-clear\n\n- Dungeon: ${check.dungeon}\n- Status: ${r.status}, set S${setNumber}${plans.length ? ' with the plan' : ''}\n- Lowest HP: ${Math.min(...(run.samples || []).map(s => s.hp))}\n- Back to: ${r.resume.now} (${r.resume.ok ? 'resumed' : 'not resumed'})\n\n`);
+      if (!r.resume.ok || (r.restore && !r.restore.applied)) throw Error('dungeon-clear did not put everything back: see above');
       return;
     }
 
