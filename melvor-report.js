@@ -462,7 +462,7 @@ function currentActionPlan(r) {
   const report = r.report;
   const eq = report.equipment || {};
   const action = report.action || 'idle';
-  const notes = (report.actionEstimate?.notes || []).filter(note => !(action === 'Combat' && report.combat?.playerAttackType === 'magic' && /^(Quiver|Consumable Ranged)/.test(note)));
+  const notes = (report.actionEstimate?.notes || []).filter(note => !(action === 'Combat' && report.combat?.playerAttackType === 'magic' && /^(Ammo:|Consumable: Ranged)/.test(note)));
   const lines = [...notes, ...(r.skilling?.notes || []), ...planLines(r)];
   const add = note => { if (!lines.includes(note)) lines.push(note); };
   if (action === 'idle') {
@@ -1557,7 +1557,7 @@ function progressEtas(current, previous) {
   const curAt = Date.parse(current.observed.at);
   const elapsed = curAt - prevAt;
   if (!Number.isFinite(elapsed) || elapsed < 5 * 60000) return ['ETA pending: needs at least 5 minutes between comparable journal scans'];
-  if (sameCloudSnapshot(current, previous)) return ['ETA pending: cloud save has not advanced since the previous scan'];
+  if (sameCloudSnapshot(current, previous)) return ['ETA pending: no progress since the last scan (the cloud save only moves when you play)'];
   if (current.observed.action === 'Combat' && current.observed.equipment?.Weapon !== previous?.observed?.equipment?.Weapon)
     return ['ETA pending: combat weapon changed; rescan after 5 minutes of the same build'];
   const prevSkills = Object.fromEntries((previous?.observed?.skills || []).map(s => [s.name, s]));
@@ -1576,17 +1576,19 @@ function progressEtas(current, previous) {
         const nextTen = Math.min((s.levelCap ?? 120), Math.ceil((s.level + 1) / 10) * 10);
         const cap = s.levelCap ?? 120;
         parts.push(`${s.name}: ${fmtNum(dxp)} XP gained (${fmtRate(dxp * 3600000 / elapsed)}/h)`);
-        if (nextLevel > s.level) parts.push(`next level ETA ${fmtDuration((xpForLevel(nextLevel) - s.xp) / xpPerMs)}`);
-        if (nextTen > s.level) parts.push(`level ${nextTen} ETA ${fmtDuration((xpForLevel(nextTen) - s.xp) / xpPerMs)}`);
-        if (cap > s.level) parts.push(`cap ${cap} ETA ${fmtDuration((xpForLevel(cap) - s.xp) / xpPerMs)}`);
+        // one chip per distinct target: next level, next ten, cap can coincide
+        if (nextLevel > s.level && nextLevel < nextTen) parts.push(`next level ETA ${fmtDuration((xpForLevel(nextLevel) - s.xp) / xpPerMs)}`);
+        if (nextTen > s.level && nextTen < cap) parts.push(`level ${nextTen} ETA ${fmtDuration((xpForLevel(nextTen) - s.xp) / xpPerMs)}`);
+        if (cap > s.level) parts.push(`level ${cap} (cap) ETA ${fmtDuration((xpForLevel(cap) - s.xp) / xpPerMs)}`);
       }
       if (daxp > 0) {
         const axpPerMs = daxp / elapsed;
         parts.push(`${s.name}: ${fmtNum(daxp)} abyssal XP gained (${fmtRate(daxp * 3600000 / elapsed)}/h)`);
         parts.push(`abyssal level ${s.abyssalLevel ?? '?'}/${s.abyssalCap ?? '?'}`);
-        if (s.abyssalXPNextLevel) parts.push(`abyssal next level ETA ${fmtDuration((s.abyssalXPNextLevel - s.abyssalXP) / axpPerMs)}`);
-        if (s.abyssalXPNextTen) parts.push(`abyssal level ${Math.min(s.abyssalCap ?? 60, Math.ceil(((s.abyssalLevel ?? 0) + 1) / 10) * 10)} ETA ${fmtDuration((s.abyssalXPNextTen - s.abyssalXP) / axpPerMs)}`);
-        if (s.abyssalXPCap) parts.push(`abyssal cap ${s.abyssalCap} ETA ${fmtDuration((s.abyssalXPCap - s.abyssalXP) / axpPerMs)}`);
+        const aTen = Math.min(s.abyssalCap ?? 60, Math.ceil(((s.abyssalLevel ?? 0) + 1) / 10) * 10);
+        if (s.abyssalXPNextLevel && s.abyssalXPNextLevel < (s.abyssalXPNextTen || Infinity)) parts.push(`abyssal next level ETA ${fmtDuration((s.abyssalXPNextLevel - s.abyssalXP) / axpPerMs)}`);
+        if (s.abyssalXPNextTen && s.abyssalXPNextTen < (s.abyssalXPCap || Infinity)) parts.push(`abyssal level ${aTen} ETA ${fmtDuration((s.abyssalXPNextTen - s.abyssalXP) / axpPerMs)}`);
+        if (s.abyssalXPCap) parts.push(`abyssal level ${s.abyssalCap} (cap) ETA ${fmtDuration((s.abyssalXPCap - s.abyssalXP) / axpPerMs)}`);
         if (!s.abyssalXPNextLevel && !s.abyssalXPNextTen && !s.abyssalXPCap)
           parts.push('abyssal ETA unavailable until abyssal XP thresholds are mapped');
       }
@@ -1658,17 +1660,18 @@ function structuredInsights(entry) {
     const amount = label.match(/\(([\d,]+)\s+(kills?|attacks?|charges?)\s+(?:left|if|at)\b/i);
     const etaSeconds = duration ? Math.round(Number(duration[1]) * ({ min: 60, h: 3600, d: 86400 }[duration[2].toLowerCase()])) : null;
     const isAlert = source === 'alert';
+    const isPending = /^ETA pending/i.test(label);
     const isIdle = /\bidle\b|action stopped/i.test(label);
-    const isSave = /save|source-of-truth/i.test(label);
-    const isRunway = /quiver|consumable|summon|food equipped|runway/i.test(label);
+    const isSave = !isPending && /save|source-of-truth/i.test(label);
+    const isRunway = /^(ammo|consumable|familiar|food):|quiver|summon|runway/i.test(label);
     const isTask = /slayer task|finish |ETA/i.test(label) && !isRunway;
-    const actionable = isSave || / -> .*available x[1-9]\d*/i.test(label) || /; \d+ actions; [\d.]+ h runway;/i.test(label) || /\bfinish\b/i.test(label);
-    const priority = isIdle || (isAlert && isSave) ? 'critical'
+    const actionable = !isPending && (isSave || / -> .*available x[1-9]\d*/i.test(label) || /; \d+ actions; [\d.]+ h runway;/i.test(label) || /\bfinish\b/i.test(label));
+    const priority = isPending ? 'low' : isIdle || (isAlert && isSave) ? 'critical'
       : (isAlert || actionable || (etaSeconds !== null && etaSeconds <= 3600)) ? 'high'
         : isRunway || isTask ? 'medium' : 'low';
     insights.push({
       id: sha(`${source}|${key}`),
-      type: isIdle ? 'idle' : isSave ? 'source_of_truth' : isRunway ? 'resource_runway' : isTask ? 'progress_eta' : actionable ? 'next_decision' : 'progress',
+      type: isPending ? 'status' : isIdle ? 'idle' : isSave ? 'source_of_truth' : isRunway ? 'resource_runway' : isTask ? 'progress_eta' : actionable ? 'next_decision' : 'progress',
       priority,
       severity: isIdle || (isAlert && isSave) ? 'danger' : isAlert ? 'warning' : 'info',
       label,
@@ -1685,7 +1688,8 @@ function structuredInsights(entry) {
   for (const label of entry.analysis.progressEtas || []) add(label, 'progress_eta');
   for (const label of entry.analysis.standardPlan || []) add(label, 'standard_plan');
   for (const label of entry.analysis.abyssalPlan || []) add(label, 'abyssal_plan');
-  return insights.sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || a.label.localeCompare(b.label));
+  // stable sort: within a priority, plan order (lowest skill first) is kept
+  return insights.sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]);
 }
 
 function buildLatest(chars, latest, previous, now) {
@@ -1715,7 +1719,7 @@ function buildLatest(chars, latest, previous, now) {
       if (e.character !== name) continue;
       decisions[e.status]?.push({ id: e.id, slot: e.slot, item: e.item, risk: e.risk, reason: e.reason, ts: e.ts });
     }
-    characters[name] = { ...entry, decisions, history: recentJournalEntries(name) };
+    characters[name] = { ...entry, decisions, history: recentJournalEntries(name, 6) };
   }
   const actionsSummary = Object.fromEntries(ACTION_STATUSES.map(s => [s, 0]));
   for (const e of latest.values()) if (e.status in actionsSummary) actionsSummary[e.status]++;
@@ -2023,7 +2027,7 @@ a:hover { text-decoration: underline; }
 <div class="toolbar">
   <input id="q" type="search" placeholder="Search character, activity or item" aria-label="Search">
   <div class="seg" id="quick" role="group" aria-label="Quick filter"><button type="button" data-quick="all" aria-pressed="true">All</button><button type="button" data-quick="attention" aria-pressed="false">Needs attention</button><button type="button" data-quick="combat" aria-pressed="false">Combat</button><button type="button" data-quick="skilling" aria-pressed="false">Skilling</button></div>
-  <select id="sort" aria-label="Sort characters"><option value="score">Sort: score</option><option value="completion">Sort: completion</option><option value="name">Sort: name</option></select>
+  <select id="sort" aria-label="Sort characters"><option value="score">Sort: total level</option><option value="completion">Sort: completion</option><option value="name">Sort: name</option></select>
   <details id="filterBox"><summary>Filters</summary><div id="filters">
   <select id="fAction"><option value="">all activities</option></select>
   <select id="fRisk"><option value="">all saves</option><option value="risk">save risk</option><option value="ok">save safe</option></select>
@@ -2047,15 +2051,17 @@ const priority = c => insights(c)[0]?.priority || 'low';
 const score = c => c.observed.totalLevel || 0;
 const short = (text, max = 88) => text && text.length > max ? text.slice(0, max - 1) + '…' : text;
 const isAutomaticTask = label => /^current combat: finish Slayer task/i.test(label || '');
-const nextAction = decision => short((decision?.label || 'Nothing: let it run').replace(/^current [^:]+:\s*/i, '').split(';')[0], 64);
+// "Cooking: Carrot Cake; 17903 actions; 39.8 h runway; ..." is a plan to switch skill: say so, keep the runway
+const planLine = label => { const parts = label.split('; '); return /^\\d+ actions$/.test(parts[1] || '') ? 'Switch to ' + parts[0] + ' · ' + (parts.find(p => /runway/.test(p)) || '').replace(' runway', ' of materials') : null; };
+const nextAction = decision => short(decision ? planLine(decision.label) || decision.label.replace(/^current [^:]+:\\s*/i, '').split(';')[0] : 'Nothing: let it run', 72);
 const current = c => {
   const combat = c.observed.combat;
-  if (c.observed.action === 'Combat' && combat?.slayerTask) return 'Combat · ' + combat.slayerTask.monster + ' (' + combat.slayerTask.left + ' left)';
+  if (c.observed.action === 'Combat' && combat?.slayerTask) return 'Combat · ' + combat.slayerTask.monster + ' · ' + combat.slayerTask.left + ' kills';
   return c.observed.action || 'Idle';
 };
 const attention = (name, c) => hasRisk(name) || isStale(name) || insights(c).some(i => i.severity === 'danger' || i.severity === 'warning');
 const fmtEta = seconds => seconds < 3600 ? Math.round(seconds / 60) + ' min' : seconds < 172800 ? Math.round(seconds / 3600) + ' h' : Math.round(seconds / 86400) + ' d';
-const relative = value => { const min = Math.max(0, Math.round((Date.now() - Date.parse(value)) / 60000)); return min < 1 ? 'just now' : min < 60 ? min + 'm ago' : min < 1440 ? Math.round(min / 60) + 'h ago' : Math.round(min / 1440) + 'd ago'; };
+const relative = value => { const min = Math.max(0, Math.round((Date.now() - Date.parse(value)) / 60000)); return min < 1 ? 'just now' : min < 60 ? min + ' min ago' : min < 1440 ? Math.round(min / 60) + ' h ago' : Math.round(min / 1440) + ' d ago'; };
 const scanTime = document.getElementById('scanTime'); scanTime.textContent = 'Scanned ' + relative(snap.generatedAt); scanTime.title = new Date(snap.generatedAt).toLocaleString('en-GB');
 document.getElementById('setupButton').addEventListener('click', () => document.getElementById('setup').showModal());
 const refreshCharacter = document.getElementById('refreshCharacter');
@@ -2100,7 +2106,7 @@ else start.append(el('h2', '', 'To do'));
 for (const [name, item] of urgent) {
   const parts = item.label.split('; ');
   const row = el('div', 'start-item p-' + item.priority); row.title = item.label;
-  row.append(el('span', 'name-chip', name), el('span', '', [parts[0], parts.find(p => /runway|left|ETA/.test(p))].filter(Boolean).join(' · ')));
+  row.append(el('span', 'name-chip', name), el('span', '', planLine(item.label) || [parts[0], parts.find(p => /runway|left|ETA/.test(p))].filter(Boolean).join(' · ')));
   start.append(row);
 }
 
@@ -2113,7 +2119,7 @@ const stat = (label, value, quickFilter, tone) => {
 const completions = Object.values(snap.characters).map(c => c.observed.completion?.total).filter(v => v != null);
 stat('characters', Object.keys(snap.characters).length, 'all', 'plain');
 stat('alerts', Object.values(snap.characters).flatMap(c => insights(c)).filter(i => i.severity === 'danger' || i.severity === 'warning').length, 'attention', 'warn');
-stat('finish within 1 h', (operations.nearTermCompletions || []).length, 'soon');
+stat('due within 1 h', (operations.nearTermCompletions || []).length, 'soon'); summary.lastChild.title = 'Slayer task or level reached within the hour';
 stat('save risks', snap.account.saveRisks.length, 'risk', 'warn');
 if (completions.length) stat('avg completion', (completions.reduce((a, b) => a + b, 0) / completions.length).toFixed(1) + '%', null, 'plain');
 let quick = 'all';
@@ -2137,6 +2143,7 @@ const collectWikiTerms = value => {
 };
 Object.values(snap.characters).forEach(collectWikiTerms);
 const wikiPattern = new RegExp([...wikiTerms].sort((a, b) => b.length - a.length).map(RegExp.escape).join('|'), 'g');
+const fmtCompact = n => Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
 const wikiText = text => {
   const fragment = document.createDocumentFragment(); const value = String(text || ''); let last = 0;
   for (const match of value.matchAll(wikiPattern)) { fragment.append(document.createTextNode(value.slice(last, match.index)), wiki(match[0])); last = match.index + match[0].length; }
@@ -2224,14 +2231,14 @@ function upgradeSheet(c) {
   const body = el('section', 'panel panel-grid'); body.dataset.panel = 'upgrades';
   const context = plan.context || {};
   const contextRow = el('section', 'group'); contextRow.append(el('h3', '', 'Context'));
-  const contextText = context.kind === 'non_combat_skill' ? ['Non-combat skill: ', wiki(context.target || 'unknown'), document.createTextNode('; combat upgrades deferred until it stops')] : context.kind === 'slayer_task' ? ['Slayer task: ', wiki(context.target || 'unknown'), document.createTextNode('; ' + (context.remaining ?? '?') + ' left; ' + context.refresh)] : context.kind === 'dungeon' ? ['Dungeon: ', wiki(context.target || 'unknown'), document.createTextNode('; strategy guide: '), wiki(context.target || 'unknown')] : ['Activity: ' + (context.target || 'unknown')];
+  const contextText = context.kind === 'non_combat_skill' ? ['Non-combat skill: ', wiki(context.target || 'unknown'), document.createTextNode('; combat upgrades deferred until it stops')] : context.kind === 'slayer_task' ? ['Slayer task: ', wiki(context.target || 'unknown'), document.createTextNode(' · ' + (context.remaining ?? '?') + ' kills left · ' + context.refresh)] : context.kind === 'dungeon' ? ['Dungeon: ', wiki(context.target || 'unknown'), document.createTextNode('; strategy guide: '), wiki(context.target || 'unknown')] : ['Activity: ' + (context.target || 'unknown')];
   const contextLine = el('div'); contextLine.append(...contextText); const build = el('div', 'insight-chips'); build.append(el('span', '', 'build: ' + (plan.attackType || 'unknown') + (plan.damageType ? ' / ' + plan.damageType : ''))); const ctx = el('div', 'insight'); ctx.append(contextLine, build); contextRow.append(ctx); contextRow.classList.add('span-all'); body.append(contextRow);
-  const source = item => item.loot ? [document.createTextNode('loot: '), wiki(item.loot)] : item.craft ? [document.createTextNode('craft: ' + item.craft.skill + ' / '), wiki(item.craft.recipe)] : [document.createTextNode(item.source || 'source unknown')];
+  const source = (item, kind) => kind === 'craft' && item.craft ? [document.createTextNode('craft: ' + item.craft.skill + ' / '), wiki(item.craft.recipe)] : item.loot ? [document.createTextNode('loot: '), wiki(item.loot)] : [document.createTextNode(item.source || 'source unknown')];
   const section = (title, kind) => {
     const tiles = Object.entries(plan.slots || {}).filter(([, entry]) => entry[kind]).map(([slot, entry]) => {
       const choice = entry[kind]; const tile = el('div', 'tile' + (choice.primary.blocked?.length ? ' blocked' : ''));
       const name = el('div', 'tile-title'); name.append(wiki(choice.primary.name));
-      const meta = el('div', 'insight-chips'); const src = el('span'); src.append(...source(choice.primary)); meta.append(src);
+      const meta = el('div', 'insight-chips'); const src = el('span'); src.append(...source(choice.primary, kind)); meta.append(src);
       if (choice.primary.blocked?.length) meta.append(el('span', 'chip-warn', 'blocked: ' + choice.primary.blocked.join(', ')));
       tile.append(el('small', '', slot), name, meta);
       if (choice.alternatives?.length) { const alt = el('div', 'tile-alt'); alt.append(document.createTextNode('or ')); choice.alternatives.forEach((item, i) => { if (i) alt.append(document.createTextNode(', ')); alt.append(wiki(item.name)); }); tile.append(alt); }
@@ -2265,9 +2272,16 @@ function skillsSheet(c) {
     const levelMeter = meter('xp', 'XP', skill.xp, skill.xpLevelStart, skill.xpNextLevel); if (levelMeter) card.append(levelMeter);
     if (skill.abyssalLevel !== null && skill.abyssalLevel !== undefined) {
       card.append(stat('Abyssal ', skill.abyssalLevel + '/' + skill.abyssalCap));
-      const abyssMeter = meter('abyss', 'AXP', skill.abyssalXP, skill.abyssalXPLevelStart, skill.abyssalXPNextLevel); if (abyssMeter) card.append(abyssMeter);
+      const abyssMeter = meter('abyss', 'Abyssal XP', skill.abyssalXP, skill.abyssalXPLevelStart, skill.abyssalXPNextLevel); if (abyssMeter) card.append(abyssMeter);
     }
-    for (const pool of skill.masteryPools || []) { const masteryMeter = meter('mastery', pool.realm.replace(' Realm', '') + ' M', pool.xp, 0, pool.cap); if (masteryMeter) { masteryMeter.title = amount(pool.xp) + ' / ' + amount(pool.cap) + ' mastery pool XP'; card.append(masteryMeter); } }
+    for (const pool of skill.masteryPools || []) {
+      const label = /abyss/i.test(pool.realm) ? 'Abyssal pool' : 'Mastery pool';
+      if (pool.xp >= pool.cap && pool.cap > 0) { // MasteryCanPoolOverflow lets the pool exceed its cap
+        const row = el('div', 'skill-meter mastery'); const bar = el('progress'); bar.max = 100; bar.value = 100;
+        row.append(el('span', '', label), el('span', 'skill-meter-value', 'Full' + (pool.xp > pool.cap ? ' (+' + fmtCompact(pool.xp - pool.cap) + ' overflow)' : '')), bar); row.title = amount(pool.xp) + ' / ' + amount(pool.cap) + ' pool XP'; card.append(row); continue;
+      }
+      const masteryMeter = meter('mastery', label, pool.xp, 0, pool.cap); if (masteryMeter) { masteryMeter.title = amount(pool.xp) + ' / ' + amount(pool.cap) + ' pool XP'; card.append(masteryMeter); }
+    }
     if (!skill.masteryPools?.length) card.append(stat('Mastery ', 'not applicable'));
     grid.append(card);
   }
@@ -2322,9 +2336,10 @@ function render() {
     const head = el('summary', 'character-head');
     const identity = el('div', 'identity');
     const identityTitle = el('div', 'identity-title');
-    identityTitle.append(el('strong', '', name), el('span', 'badge info', 'score ' + score(c).toLocaleString('fr-FR')));
+    identityTitle.append(el('strong', '', name), el('span', 'badge info', 'total lvl ' + score(c).toLocaleString('en-US')));
     if (p === 'critical') identityTitle.append(el('span', 'badge danger', p));
-    identity.append(identityTitle, el('small', '', (c.observed.mode || '') + ' · ' + relative(c.observed.at)));
+    const lagging = Math.abs(Date.parse(snap.generatedAt) - Date.parse(c.observed.at)) > 30 * 60000;
+    identity.append(identityTitle, el('small', '', (c.observed.mode || '') + (lagging ? ' · scanned ' + relative(c.observed.at) : '')));
     if (hasRisk(name)) identity.append(el('span', 'badge risk', 'save risk'));
     const cell = (label, value) => { const n = el('div', 'cell'); const text = el('span', 'cell-value'); text.append(value || '—'); n.append(el('span', 'cell-label', label), text); return n; };
     const next = nextAction(decision);
@@ -2338,14 +2353,28 @@ function render() {
     const body = el('div', 'character-body');
     const equipment = equipmentSheet(c);
     const history = el('div', 'panel history'); history.dataset.panel = 'history';
-    for (const h of c.history || []) {
+    // what changed between two journal entries, from their State lines
+    const stateOf = h => { const text = (h.state || []).join('\\n'); const num = re => { const m = re.exec(text); return m ? m[1] : null; };
+      const gp = num(/GP ([\\d.]+[KMBT]?)/); const mult = { K: 1e3, M: 1e6, B: 1e9, T: 1e12 };
+      return { action: num(/Action: ([^(\\n]+?) \\(/), total: +num(/Total level (\\d+)/), maxed: num(/maxed (\\d+\\/\\d+)/), combat: +num(/combat (\\d+)/), gp: gp ? parseFloat(gp) * (mult[gp.slice(-1)] || 1) : null }; };
+    const entries = c.history || [];
+    for (const [i, h] of entries.slice(0, 5).entries()) {
+      const now = stateOf(h), before = entries[i + 1] ? stateOf(entries[i + 1]) : null;
+      const changes = !before ? ['first journal entry' + (now.action ? ' · ' + now.action : '')] : [
+        now.action !== before.action && now.action ? 'activity: ' + (before.action || 'idle') + ' → ' + now.action : null,
+        now.total > before.total ? 'total level +' + (now.total - before.total) + ' (' + now.total + ')' : null,
+        now.maxed && now.maxed !== before.maxed ? 'maxed skills ' + now.maxed : null,
+        now.combat > before.combat ? 'combat level +' + (now.combat - before.combat) : null,
+        now.gp != null && before.gp != null && Math.abs(now.gp - before.gp) >= 1e6 ? 'GP ' + (now.gp > before.gp ? '+' : '−') + fmtCompact(Math.abs(now.gp - before.gp)) : null,
+      ].filter(Boolean);
       const row = el('div', 'history-entry'); row.append(el('time', '', new Date(h.at).toLocaleString()));
-      const lines = [...new Set([...(h.currentActionPlan || []), ...(h.progressEtas || []), ...(h.recommendations || [])])].slice(0, 5);
-      const stack = el('div', 'stack'); stack.append(...lines.map(line => detailRow(line, 'compact'))); row.append(stack); history.append(row);
+      const chips = el('div', 'insight-chips'); for (const change of changes.length ? changes : ['no change']) chips.append(el('span', '', change));
+      const box = el('div', 'insight'); box.append(chips); row.append(box); history.append(row);
     }
-    const actions = STATUSES.flatMap(s => (c.decisions[s] || []).map(a => { const row = el('div', 'insight status-' + s); const head = el('div'); head.append(el('span', 'badge ' + (s === 'stale' ? 'stale' : s === 'blocked' ? 'danger' : 'info'), s), wiki(a.item), document.createTextNode(' in ' + a.slot)); row.append(head, el('div', 'muted', a.reason)); return row; }));
+    const hidden = ['stale', 'done', 'dismissed'].reduce((n, s) => n + (c.decisions[s] || []).length, 0);
+    const actions = STATUSES.filter(s => !['stale', 'done', 'dismissed'].includes(s)).flatMap(s => (c.decisions[s] || []).map(a => { const row = el('div', 'insight status-' + s); const head = el('div'); head.append(el('span', 'badge ' + (s === 'stale' ? 'stale' : s === 'blocked' ? 'danger' : 'info'), s), wiki(a.item), document.createTextNode(' in ' + a.slot)); row.append(head, el('div', 'muted', a.reason)); return row; }));
     const panels = [
-      insightPanel(insights(c)),
+      insightPanel(insights(c).filter(i => i.source !== 'progress_eta' && i.type !== 'status' && !planLine(i.label))),
       panel('progress', [
         box('Level ETA', (c.analysis.progressEtas || []).map(line => detailRow(line))),
         box('Standard lows', (c.observed.standard?.lowest || []).slice(0, 6).map(s => meterRow(s.name, s.level, s.cap, s.level + '/' + s.cap, true))),
@@ -2356,7 +2385,7 @@ function render() {
       upgradeSheet(c),
       inventorySheet(c),
       skillsSheet(c),
-      panel('plans', [box('Standard plan', (c.analysis.standardPlan || []).map(line => detailRow(line))), box('Abyssal plan', (c.analysis.abyssalPlan || []).map(line => detailRow(line))), box('Decisions', actions), box('Risk notes', (c.analysis.riskNotes || []).map(line => detailRow(line, 'sev-warning')))]),
+      panel('plans', [box('Standard plan', (c.analysis.standardPlan || []).map(line => detailRow(line))), box('Abyssal plan', (c.analysis.abyssalPlan || []).map(line => detailRow(line))), box('Decisions', actions.length || !hidden ? actions : [el('p', 'muted', 'No open decision (' + hidden + ' closed or stale hidden).')]), box('Risk notes', (c.analysis.riskNotes || []).map(line => detailRow(line, 'sev-warning')))]),
       history.children.length ? history : null,
     ].filter(Boolean);
     const tabs = el('div', 'tab-switch'); tabs.setAttribute('role', 'tablist');

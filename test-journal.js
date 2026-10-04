@@ -50,14 +50,14 @@ const magicCombat = buildCharacterJournal('MagicChar', {
   report: {
     ...data.report, action: 'Combat',
     equipment: { Weapon: 'Abyssal Staff', Quiver: 'Abyssium Arrows', Consumable: 'Ranged Hinder Scroll' },
-    actionEstimate: { notes: ['Quiver Abyssium Arrows: about 5 d', 'Consumable Ranged Hinder Scroll: about 17 d'] },
+    actionEstimate: { notes: ['Ammo: Abyssium Arrows · about 5 d', 'Consumable: Ranged Hinder Scroll · about 17 d'] },
     combat: { playerAttackType: 'magic', playerDamageType: 'Abyssal Damage', slayerTask: { monster: 'Tangled Thorns', left: 80 } },
     combatGoals: { unclearedDungeons: [{ name: 'Underwater City', boss: 'Nagaia', maxCombatLevel: 768 }] },
   },
 }, save);
 assert.ok(magicCombat.analysis.currentActionPlan.some(line => /Magic with Abyssal Staff \(Abyssal Damage\)/.test(line)), 'Magic build is stated');
 assert.ok(magicCombat.analysis.currentActionPlan.some(line => /Magic 5.*Abyssal Wand/.test(line)), 'Magic upgrade target is stated');
-assert.ok(!magicCombat.analysis.currentActionPlan.some(line => /Quiver|Ranged Hinder/.test(line)), 'ranged-only runways are omitted for Magic');
+assert.ok(!magicCombat.analysis.currentActionPlan.some(line => /Ammo:|Ranged Hinder/.test(line)), 'ranged-only runways are omitted for Magic');
 assert.ok(!magicCombat.analysis.currentActionPlan.some(line => /finish Slayer task/.test(line)), 'automatic Slayer tasks are not recommendations');
 assert.ok(!journalMd(magicCombat).includes('Underwater City'), 'active Slayer task suppresses unrelated dungeon goals');
 
@@ -148,7 +148,7 @@ const cloudPrev = buildLatest([cloudPrevEntry], new Map(), null, now);
 const cloudAgain = withSkills(105000, '2026-07-05T12:10:00.000Z');
 cloudAgain.observed.saveSource = { source: 'cloud', diffMinutes: -60 };
 const cloudSnap = buildLatest([cloudAgain], new Map(), cloudPrev, now);
-assert.match(cloudSnap.characters.EtaChar.analysis.progressEtas[0], /cloud save has not advanced/);
+assert.match(cloudSnap.characters.EtaChar.analysis.progressEtas[0], /no progress since the last scan/);
 assert.ok(!cloudSnap.characters.EtaChar.analysis.alerts.some(a => /XP is lower/.test(a)), 'same cloud snapshot cannot regress XP');
 const withAbyssal = (abyssalXP, at) => {
   const entry = buildCharacterJournal('AbyssEtaChar', {

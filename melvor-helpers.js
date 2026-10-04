@@ -122,7 +122,8 @@
       if (!e?.quantity || !interval) return;
       const eta = fmtMs(e.quantity * interval);
       runways.push({ slot, item: e.item, quantity: e.quantity, unit, eta });
-      notes.push(`${slot} ${e.item}: about ${eta} (${e.quantity} ${unit})`);
+      const label = { Quiver: 'Ammo', Summon1: 'Familiar', Summon2: 'Familiar' }[slot] || slot;
+      notes.push(`${label}: ${e.item} · about ${eta} (${e.quantity.toLocaleString('en-US')} ${unit})`);
     };
     if (action === 'Combat') {
       const attackInterval = p.stats.attackInterval;
@@ -138,7 +139,7 @@
       if (p.attackType === 'ranged' || !/^Ranged /i.test(consumable)) addRunway('Consumable', attackInterval, 'combat charges at 1/attack');
       addRunway('Summon1', attackInterval, 'combat charges at 1/attack');
       addRunway('Summon2', attackInterval, 'combat charges at 1/attack');
-      if (p.food.currentSlot?.quantity) notes.push(`${p.food.currentSlot.item.name}: ${p.food.currentSlot.quantity} food equipped; runway depends on damage taken`);
+      if (p.food.currentSlot?.quantity) notes.push(`Food: ${p.food.currentSlot.item.name} x${p.food.currentSlot.quantity.toLocaleString('en-US')}`);
     } else {
       const interval = game.activeAction?.actionInterval ?? game.activeAction?.currentActionInteral ?? null;
       if (interval) notes.push(`current interval about ${fmtMs(interval)}`);
@@ -310,7 +311,7 @@
     const canEquip = item => (item.equipRequirements ?? []).every(meetsRequirement);
     const requirementText = r =>
       r.type === 'SkillLevel' ? `${r.skill?.name || 'skill'} ${r.level}` :
-      r.type === 'AbyssalLevel' ? `${r.skill?.name || 'abyssal skill'} ${r.level}` :
+      r.type === 'AbyssalLevel' ? `Abyssal ${r.skill?.name || 'skill'} ${r.level}` :
       r.type === 'DungeonCompletion' ? `${r.dungeon?.name || 'dungeon'} x${r.count ?? 1}` :
       r.type === 'AbyssDepthCompletion' ? `${r.depth?.name || r.abyssDepth?.name || 'Abyss depth'} completion` :
       r.type === 'ShopPurchase' ? `purchase ${r.purchase?.name || 'required'}` :
@@ -341,7 +342,7 @@
     const prefixes = { melee: ['stabAttackBonus','slashAttackBonus','blockAttackBonus','meleeStrengthBonus','meleeDefenceBonus','resistance'], ranged: ['rangedAttackBonus','rangedStrengthBonus','rangedDefenceBonus','resistance'], magic: ['magicAttackBonus','magicDamageBonus','magicDefenceBonus','resistance'] }[attackType] || [];
     const score = item => prefixes.reduce((sum, key) => sum + Math.max(0, ...Object.entries(statsOf(item)).filter(([name]) => name.startsWith(key)).map(([, value]) => value)), 0);
     const meets = r => r.type === 'SkillLevel' ? r.skill?.level >= r.level : r.type === 'AbyssalLevel' ? (r.skill?.abyssalLevel ?? 0) >= r.level : r.type === 'DungeonCompletion' ? (combat.getDungeonCompleteCount?.(r.dungeon) ?? 0) >= r.count : r.type === 'AbyssDepthCompletion' ? false : r.type === 'ShopPurchase' ? false : false;
-    const requirement = r => r.type === 'SkillLevel' ? `${r.skill?.name || 'skill'} ${r.level}` : r.type === 'AbyssalLevel' ? `${r.skill?.name || 'abyssal skill'} ${r.level}` : r.type === 'DungeonCompletion' ? `${r.dungeon?.name || 'dungeon'} x${r.count ?? 1}` : r.type === 'AbyssDepthCompletion' ? `${r.depth?.name || r.abyssDepth?.name || 'Abyss depth'} completion` : r.type === 'ShopPurchase' ? `purchase ${r.purchase?.name || 'required'}` : r.type || 'unknown requirement';
+    const requirement = r => r.type === 'SkillLevel' ? `${r.skill?.name || 'skill'} ${r.level}` : r.type === 'AbyssalLevel' ? `Abyssal ${r.skill?.name || 'skill'} ${r.level}` : r.type === 'DungeonCompletion' ? `${r.dungeon?.name || 'dungeon'} x${r.count ?? 1}` : r.type === 'AbyssDepthCompletion' ? `${r.depth?.name || r.abyssDepth?.name || 'Abyss depth'} completion` : r.type === 'ShopPurchase' ? `purchase ${r.purchase?.name || 'required'}` : r.type || 'unknown requirement';
     const craft = new Map();
     for (const skill of values(game.skills)) for (const action of values(skill.actions).length ? values(skill.actions) : values(skill.recipes)) {
       const item = action.product ?? action.item ?? action.outputs?.[0]?.item;
