@@ -46,11 +46,13 @@ const quantityIndex = argv.indexOf('--quantity');
 const requestedQuantity = quantityIndex >= 0 ? Number(argv[quantityIndex + 1]) : undefined;
 const styleIndex = argv.indexOf('--style');
 const gearStyle = styleIndex >= 0 ? argv[styleIndex + 1] : null;
+const capeIndex = argv.indexOf('--cape');
+const capeName = capeIndex >= 0 ? argv[capeIndex + 1] : null;
 const slotIndex = argv.indexOf('--slot');
 const requestedSlot = slotIndex >= 0 ? Number(argv[slotIndex + 1]) : 6;
 const dashboardPortIndex = argv.indexOf('--port');
 const dashboardPort = dashboardPortIndex >= 0 ? Number(argv[dashboardPortIndex + 1]) : Number(process.env.MELVOR_JOURNAL_PORT || 8787);
-const [cmd = 'summary', who = 'all', arg3, arg4] = argv.filter((a, i) => !['--record', '--abyssal', '--save-backup', '--sim', '--detail', '--apply', '--restore-ranged', '--style', '--slot', '--port', '--quantity'].includes(a) && (styleIndex < 0 || i !== styleIndex + 1) && (slotIndex < 0 || i !== slotIndex + 1) && (dashboardPortIndex < 0 || i !== dashboardPortIndex + 1) && (quantityIndex < 0 || i !== quantityIndex + 1));
+const [cmd = 'summary', who = 'all', arg3, arg4] = argv.filter((a, i) => !['--record', '--abyssal', '--save-backup', '--sim', '--detail', '--apply', '--restore-ranged', '--style', '--slot', '--port', '--quantity', '--cape'].includes(a) && (styleIndex < 0 || i !== styleIndex + 1) && (capeIndex < 0 || i !== capeIndex + 1) && (slotIndex < 0 || i !== slotIndex + 1) && (dashboardPortIndex < 0 || i !== dashboardPortIndex + 1) && (quantityIndex < 0 || i !== quantityIndex + 1));
 const usage = `usage:
   ./melvor-report.js slots
   ./melvor-report.js smoke
@@ -82,7 +84,7 @@ const usage = `usage:
   ./melvor-report.js completion [all|character] [--record]
   ./melvor-report.js dungeon-guide "<dungeon name>"
   ./melvor-report.js dungeon-check <character> "<dungeon name>"
-  ./melvor-report.js dungeon-optimize <character> "<dungeon name>" [--style melee|ranged|magic]
+  ./melvor-report.js dungeon-optimize <character> "<dungeon name>" [--style melee|ranged|magic] [--cape "<cape name>"]
   ./melvor-report.js dungeon-setup <character> "<dungeon name>"   (preview of the plans against their sets; no --apply yet)
   ./melvor-report.js journal-serve [--port 8787]
   ./melvor-report.js journal-status [all|character]
@@ -2322,7 +2324,9 @@ if (require.main === module) (async () => {
         return { style, fight: fight.key, label: fight.label, setIndex, monsterId, entityId: check.id, before: sim?.deathRate ?? null };
       }).filter(t => t.setIndex > 0);
       const { sources } = await readSourcesByName();
-      const capeId = check.cape ? `(() => game.items.allObjects.find(i => i.name === ${JSON.stringify(check.cape)})?.id)()` : 'null';
+      // --cape: another required cape than the check's best one (one Maximum Skillcape cannot sit in every set)
+      const cape = capeName || check.cape;
+      const capeId = cape ? `(() => game.items.allObjects.find(i => i.name === ${JSON.stringify(cape)})?.id)()` : 'null';
       const results = await withCharacterSource(who, sources[who]?.source, async client => {
         const out = [];
         for (const t of targets) {
