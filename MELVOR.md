@@ -1,4 +1,4 @@
-# Melvor Idle — driving the game via chrome-devtools MCP
+# Melvor Idle: driving the game via chrome-devtools MCP
 
 Project: read/modify the game state at https://melvoridle.com/index_game.php through the browser console.
 
@@ -18,9 +18,9 @@ Its tools (`new_page`, `evaluate_script`, `list_pages`, `select_page`, `navigate
   ```
 - **Any other MCP client**: same stdio command.
 
-Persistent Chrome profile: `~/.cache/chrome-devtools-mcp/chrome-profile` — the Melvor cloud
+Persistent Chrome profile: `~/.cache/chrome-devtools-mcp/chrome-profile`; the Melvor cloud
 session is already logged in there (shared by every AI client on this machine). Chrome locks
-the profile: only one AI client can drive the browser at a time — never run two simultaneously.
+the profile: only one AI client can drive the browser at a time; never run two simultaneously.
 Never launch
 in isolated mode, it loses the login. If the login expires or a captcha blocks: restart the
 server **without** `--headless`, let the user log in through the visible window, then re-add
@@ -54,7 +54,7 @@ the user explicitly asks for the older cloud save.
 3. Verification `evaluate_script`: loop until `game.characterName === '<Name>'`
    (~15-30s load time).
 
-Reloading kills `window.mh` — the initScript re-injects it, do not re-inject manually.
+Reloading kills `window.mh`; the initScript re-injects it, so do not re-inject manually.
 
 ## Multi-tab (validated, one character per tab)
 
@@ -71,29 +71,29 @@ Rules:
 
 ## Helpers (`window.mh`, tested on v1.3.1)
 
-- `mh.loadCharacter(name)` — from the selection screen (switches to cloud saves if needed, waits for the async list)
-- `mh.save()` — local save + cloud push (`saveData()` + `cloudManager.forceUpdatePlayFabSave()`)
-- `mh.dismissModal(accept?)` — closes swal2 popups
-- `mh.snapshot()` — character, GP, HP, current action, equipment, food
-- `mh.bankFind("dragon")` — bank search by regex
-- `mh.skillInfo("Fishing")` / `mh.skills()` — skill state
-- `mh.gearAudit()` — full audit: equipped gear + top 5 bank candidates per slot, stats and
+- `mh.loadCharacter(name)`: from the selection screen (switches to cloud saves if needed, waits for the async list)
+- `mh.save()`: local save + cloud push (`saveData()` + `cloudManager.forceUpdatePlayFabSave()`)
+- `mh.dismissModal(accept?)`: closes swal2 popups
+- `mh.snapshot()`: character, GP, HP, current action, equipment, food
+- `mh.bankFind("dragon")`: bank search by regex
+- `mh.skillInfo("Fishing")` / `mh.skills()`: skill state
+- `mh.gearAudit()`: full audit of equipped gear + top 5 bank candidates per slot, stats and
   passives included, filtered by attackType. Large output: read it in chunks if needed.
-- `mh.equipSlot("Item Name", "Slot")` — explicit equip from the bank; use this instead of
+- `mh.equipSlot("Item Name", "Slot")`: explicit equip from the bank; use this instead of
   guessing slots for passive/summon/offhand items
-- `mh.equip("Item Name")` — deprecated guard; returns a reminder to use `mh.equipSlot`
-- `mh.combatInfo()` — area, monster, hit chance, slayer task
-- `mh.itemPassives("Item Name")` — an item's modifiers/passives (bank, equipped or registry);
+- `mh.equip("Item Name")`: deprecated guard; returns a reminder to use `mh.equipSlot`
+- `mh.combatInfo()`: area, monster, hit chance, slayer task
+- `mh.itemPassives("Item Name")`: an item's modifiers/passives (bank, equipped or registry);
   always check passives before drawing conclusions from raw stats
 
-## `game` object — useful paths (v1.3.1)
+## `game` object: useful paths (v1.3.1)
 
 - `game.characterName`, `game.gp.amount`, `game.activeAction.name`
-- `game.bank.items` — `Map<Item, BankItem>`; `bankItem.quantity`, `item.id` (e.g. `melvorD:Dragon_Bones`)
-- `game.skills` — registry; `game.skills.find(s => s.name === 'Fishing')`, `.allObjects` for the list
-- `game.combat.player` — `.hitpoints`, `.prayerPoints`, `.food.currentSlot`, `.equipment.equippedArray`
-- `game.items.getObjectByID('melvorD:...')` — item lookup by id
-- `game.loopStarted` — true only when a character is actually loaded (false on the selection screen)
+- `game.bank.items`: `Map<Item, BankItem>`; `bankItem.quantity`, `item.id` (e.g. `melvorD:Dragon_Bones`)
+- `game.skills`: registry; `game.skills.find(s => s.name === 'Fishing')`, `.allObjects` for the list
+- `game.combat.player`: `.hitpoints`, `.prayerPoints`, `.food.currentSlot`, `.equipment.equippedArray`
+- `game.items.getObjectByID('melvorD:...')`: item lookup by id
+- `game.loopStarted`: true only when a character is actually loaded (false on the selection screen)
 
 ## Pitfalls
 
@@ -101,7 +101,7 @@ Rules:
   `.swal2-popup` after a click, confirm via `mh.dismissModal()`.
 - Cloud saves can be older than local saves even when logged in. Always run `./melvor-report.js slots`
   before writes and treat `Old save` as a stop sign unless the user explicitly approves.
-- `evaluate_script` only returns JSON-serializable values — never return a raw game object
+- `evaluate_script` only returns JSON-serializable values; never return a raw game object
   (circular references), always map to primitives.
 - The `game` object is huge: go through the helpers rather than exploring blindly.
 

@@ -1,7 +1,7 @@
 ## run_008_apply_a_guarded_melvor_equipment_skilling_or_talent_action - Apply a guarded Melvor equipment, skilling, or talent action
 > Status: Active
 > Category: other
-> Verified: 2026-10-03 — `config-set` applied potions on GrifhinZ/Rya/Dash, prayers on Dash/Edalbraw/Kang, POIs on Dash/Edalbraw/Kang/Chap; re-read with `config all` and `brief all`. 2026-10-04 — `config-set Kang style Block` preview listed `Stab, Slash, Block` (apply not yet exercised).
+> Verified: 2026-10-03. `config-set` applied potions on GrifhinZ/Rya/Dash, prayers on Dash/Edalbraw/Kang, POIs on Dash/Edalbraw/Kang/Chap; re-read with `config all` and `brief all`. 2026-10-04, `config-set Kang style Block` preview listed `Stab, Slash, Block` (apply not yet exercised).
 > Related request: (none yet)
 > Related backlog: (none yet)
 > Related task: `task_005_implement_guarded_melvor_character_actions`

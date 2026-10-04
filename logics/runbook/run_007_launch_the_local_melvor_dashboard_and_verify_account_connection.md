@@ -1,7 +1,7 @@
 ## run_007_launch_the_local_melvor_dashboard_and_verify_account_connection - Launch the local Melvor dashboard and verify account connection
 > Status: Active
 > Category: support
-> Verified: 2026-08-15 — local dashboard launch and HTTP check passed
+> Verified: 2026-08-15. Local dashboard launch and HTTP check passed
 > Related request: (none yet)
 > Related backlog: (none yet)
 > Related task: `task_004_implement_journal_cockpit_v2_and_structured_insights`

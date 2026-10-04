@@ -51,5 +51,5 @@ Journal generation is read-only against the game and never writes local profile 
 Save backups are opt-in with `save-backup` or `journal --save-backup`; the raw save strings
 stay under git-ignored `journal/saves/` and are not embedded into `latest.json` or the
 dashboard. `journal/` is private local player data and must never be committed. Executing
-actions stays out of scope — any future apply-action flow still requires `source-of-truth`
+actions stays out of scope; any future apply-action flow still requires `source-of-truth`
 checks and explicit user approval.

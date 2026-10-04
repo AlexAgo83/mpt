@@ -1,7 +1,7 @@
 ## run_010_prepare_and_run_a_standard_dungeon_with_combat_setup_and_combat_run - Prepare and run a standard dungeon with combat-setup and combat-run
 > Status: Draft
 > Category: support
-> Verified: (not yet verified) — documented from the code path on 2026-10-03; no live run in this session.
+> Verified: (not yet verified). Documented from the code path on 2026-10-03; no live run in this session.
 > Related request: (none yet)
 > Related backlog: (none yet)
 > Related task: (none yet)
@@ -11,7 +11,7 @@
 - `brief` or `combat-plan` names an uncleared standard dungeon (`combat setup: <dungeon> with set N ...`) and the operator wants it cleared.
 
 # Prerequisites
-- Explicit operator approval: **both commands write immediately — there is no preview mode and no `--apply` gate.**
+- Explicit operator approval: **both commands write immediately; there is no preview mode and no `--apply` gate.**
 - `run_001_safe_melvor_save_and_session_operations` completed.
 - The character is not on an Abyssal Slayer task the operator wants to keep: `combat-setup` changes the equipment set and `combat-run` replaces the current combat action.
 

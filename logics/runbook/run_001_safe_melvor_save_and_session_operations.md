@@ -1,7 +1,7 @@
 ## run_001_safe_melvor_save_and_session_operations - Safe Melvor save and session operations
 > Status: Active
 > Category: support
-> Verified: 2026-10-03 — `source-of-truth` reported cloud newest for all 7 characters (local stale by ~22 days); `save-push` documented from its code path.
+> Verified: 2026-10-03. `source-of-truth` reported cloud newest for all 7 characters (local stale by ~22 days); `save-push` documented from its code path.
 > Related request: (none yet)
 > Related backlog: (none yet)
 > Related task: (none yet)

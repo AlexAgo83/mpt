@@ -1445,7 +1445,7 @@ function recentJournalEntries(name, limit = 5) {
     .filter(Boolean)
     .map(block => {
       const [heading] = block.split('\n', 1);
-      const [at] = heading.split(' — ');
+      const [at] = heading.split(/ \u2014 | · /); // older entries separate with an em dash
       return {
         at,
         state: sectionLines(block, 'State'),
@@ -1465,7 +1465,7 @@ function journalMd(c) {
   const o = c.observed;
   const list = xs => xs.length ? xs.map(x => `- ${x}`) : ['- none'];
   return [
-    `## ${o.at} — ${c.name}`,
+    `## ${o.at} · ${c.name}`,
     '',
     '### State',
     `- Action: ${o.action || 'idle'} (${o.mode || 'unknown mode'})`,
@@ -2101,7 +2101,7 @@ const urgent = Object.entries(snap.characters)
   .sort((a, b) => RANK[a[1].priority] - RANK[b[1].priority])
   .slice(0, 3);
 const start = document.getElementById('start');
-if (!urgent.length) { start.className = 'all-good'; start.textContent = '✓ All running — nothing to do'; }
+if (!urgent.length) { start.className = 'all-good'; start.textContent = '✓ All running, nothing to do'; }
 else start.append(el('h2', '', 'To do'));
 for (const [name, item] of urgent) {
   const parts = item.label.split('; ');
@@ -2354,7 +2354,7 @@ function render() {
     const lagging = Math.abs(Date.parse(snap.generatedAt) - Date.parse(c.observed.at)) > 30 * 60000;
     identity.append(identityTitle, el('small', '', (c.observed.mode || '') + (lagging ? ' · scanned ' + relative(c.observed.at) : '')));
     if (hasRisk(name)) identity.append(el('span', 'badge risk', 'save risk'));
-    const cell = (label, value) => { const n = el('div', 'cell'); const text = el('span', 'cell-value'); text.append(value || '—'); n.append(el('span', 'cell-label', label), text); return n; };
+    const cell = (label, value) => { const n = el('div', 'cell'); const text = el('span', 'cell-value'); text.append(value || 'n/a'); n.append(el('span', 'cell-label', label), text); return n; };
     const next = nextAction(decision);
     const nextCell = cell('Next', wikiText(next)); if (/^(Nothing|ETA pending)/.test(next)) nextCell.classList.add('idle');
     const done = c.observed.completion?.total;
@@ -2635,7 +2635,7 @@ function lock(retry = true) {
     process.once('SIGTERM', () => { unlock(); process.exit(143); });
     return unlock;
   } catch {
-    // ponytail: kill(pid, 0) treats EPERM as alive — fine, this tool only locks its own pids
+    // ponytail: kill(pid, 0) treats EPERM as alive; fine, this tool only locks its own pids
     const holder = Number(fs.readFileSync(LOCK, 'utf8').trim());
     let holderAlive = false;
     try { process.kill(holder, 0); holderAlive = true; } catch {}

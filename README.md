@@ -2,7 +2,7 @@
 
 <p align="center"><img src="assets/mpt-crest.png" width="160" alt="MelvorPT crest"></p>
 
-<p align="center"><b>Your whole Melvor Idle account, one private dashboard — with an AI co-pilot that never risks your save.</b></p>
+<p align="center"><b>Your whole Melvor Idle account, one private dashboard, with an AI co-pilot that never risks your save.</b></p>
 
 <p align="center">
 
@@ -19,7 +19,7 @@
 Running seven characters across Standard, Hardcore, Adventure and Ancient Relics means
 seven Slayer tasks, seven sets of scrolls running dry and seven saves that can drift between
 local and cloud. MelvorPT puts all of them on one page and lets Claude, Codex or any MCP
-assistant read, plan and act for you — one reviewed change at a time.
+assistant read, plan and act for you, one reviewed change at a time.
 
 ## Why you'll like it
 
@@ -29,8 +29,8 @@ assistant read, plan and act for you — one reviewed change at a time.
   gaps and skilling plans, ranked per character.
 - **Track your completion.** Completion Log progress per expansion and category, with the
   gain since your last check.
-- **Ask your AI.** "Who runs out of scrolls first?", "Is Kang ready for Into the Abyss?" —
-  your assistant reads the live account instead of guessing.
+- **Ask your AI.** "Who runs out of scrolls first?", "Is Kang ready for Into the Abyss?"
+  Your assistant reads the live account instead of guessing.
 - **Never lose a save.** The newest save, local or cloud, always wins. Every change is a
   preview first, applies to one character only and is verified after the save.
 - **Stays private.** Runs on your machine, uses your own logged-in browser and never sees
@@ -64,4 +64,4 @@ Log in once through the official Melvor page if asked. Then try:
 
 ## License
 
-MIT — see [LICENSE](./LICENSE). A fan-made tool, not affiliated with Games by Malcs.
+MIT, see [LICENSE](./LICENSE). A fan-made tool, not affiliated with Games by Malcs.

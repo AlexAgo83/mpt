@@ -1,7 +1,7 @@
 ## run_006_refresh_the_journal_dashboard_from_local_controls - Refresh the journal dashboard from local controls
 > Status: Active
 > Category: support
-> Verified: 2026-08-15 — offline checks and local HTTP rendering passed
+> Verified: 2026-08-15. Offline checks and local HTTP rendering passed
 > Related request: (none yet)
 > Related backlog: (none yet)
 > Related task: `task_004_implement_journal_cockpit_v2_and_structured_insights`

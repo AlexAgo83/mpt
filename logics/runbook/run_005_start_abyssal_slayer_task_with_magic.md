@@ -1,7 +1,7 @@
 ## run_005_start_abyssal_slayer_task_with_magic - Start an active Abyssal Slayer task with Magic
 > Status: Active
 > Category: support
-> Verified: 2026-08-15 — GrifhinZ started Tangled Thorns in Tangled Grove using set 6 Magic; follow-up observed Magic, 89.7% hit chance, and task progress from 89 to 87 kills remaining.
+> Verified: 2026-08-15. GrifhinZ started Tangled Thorns in Tangled Grove using set 6 Magic; follow-up observed Magic, 89.7% hit chance, and task progress from 89 to 87 kills remaining.
 > Related request: (none yet)
 > Related backlog: (none yet)
 > Related task: (none yet)

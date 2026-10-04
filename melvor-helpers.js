@@ -1,4 +1,4 @@
-// Melvor Idle console helpers — inject via evaluate_script at the start of a session.
+// Melvor Idle console helpers: inject via evaluate_script at the start of a session.
 // Everything hangs off window.mh to avoid polluting the game's global scope.
 (() => {
   const mh = {};
@@ -289,7 +289,7 @@
   };
 
   // Gear audit: equipped gear + top bank candidates per slot, stats AND passives
-  // (passives often flip the verdict of raw stats — never conclude without them).
+  // (passives often flip the verdict of raw stats; never conclude without them).
   mh.gearAudit = (attackType = game.combat.player.attackType, topN = 5) => {
     const prefix = { melee: ['stabAttackBonus','slashAttackBonus','blockAttackBonus','meleeStrengthBonus','meleeDefenceBonus','resistance'],
                      ranged: ['rangedAttackBonus','rangedStrengthBonus','rangedDefenceBonus','resistance'],
@@ -529,7 +529,7 @@
     return goals;
   };
 
-  // An item's passives (modifiers) — bank, equipped, or global registry.
+  // An item's passives (modifiers) from the bank, equipped items or the global registry.
   mh.itemPassives = (name) => {
     const item = findBank(name)
       ?? game.combat.player.equipment.equippedArray.find(s => !s.isEmpty && s.item.name === name)?.item

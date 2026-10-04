@@ -1,7 +1,7 @@
 ## run_002_task_aware_melvor_equipment_and_configuration_audit - Task-aware Melvor equipment and configuration audit
 > Status: Active
 > Category: validation
-> Verified: 2026-10-03 — all 7 characters audited with `brief all`, `audit all`, `config all`, `gear --detail`, and `skilling`.
+> Verified: 2026-10-03. All 7 characters audited with `brief all`, `audit all`, `config all`, `gear --detail`, and `skilling`.
 > Related request: (none yet)
 > Related backlog: (none yet)
 > Related task: (none yet)
