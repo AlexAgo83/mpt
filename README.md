@@ -51,6 +51,7 @@ flowchart LR
 - Generates compact `brief` JSON with source-of-truth, current-action, standard, and abyssal recommendations
 - Estimates current-action status, including idle/stopped actions, skill intervals, Slayer ETA, and equipped consumable/ammo runway
 - Exports structured state for deeper AI recommendations
+- Tracks Completion Log progress (total, per expansion, per category) with deltas between records
 - Keeps an append-only character journal with a structured snapshot, action ledger, Melvor-themed offline dashboard, and recent recommendation history
 - Records assistant-improvement reports after messy sessions
 - Documents the live browser workflow for Codex and Claude handoff
@@ -111,7 +112,8 @@ npm run source
 ./melvor-report.js equip <character> <item> <slot>
 ./melvor-report.js skill-start <character> <skill> <recipe>
 ./melvor-report.js talent-unlock <character> <skill> <node>
-./melvor-report.js config-set <character> <potion|prayers|poi> <value>
+./melvor-report.js config-set <character> <potion|prayers|poi|style> <value>
+./melvor-report.js completion [all|character] [--record]
 ./melvor-report.js export-state all > /tmp/melvor-state.json
 ./melvor-report.js save-backup all
 ./melvor-report.js journal <character>

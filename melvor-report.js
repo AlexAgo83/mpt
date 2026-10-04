@@ -1006,7 +1006,7 @@ const configSetScript = (kind, value, shouldApply) => `(async () => {
     result.final = map.playerPosition?.pointOfInterest?.name ?? 'none';
     if (map.playerPosition !== poi.hex) return { ...result, error: 'Melvor did not move to the point of interest' };
   } else if (kind === 'style') {
-    // Block / Longrange / Defensive are the styles that send combat XP to Defence.
+    // The preview lists the styles of the current attack type; melee Block sends combat XP to Defence.
     const type = player.attackType;
     const styles = game.attackStyles.allObjects.filter(style => style.attackType === type);
     result.current = player.attackStyles?.[type]?.name ?? 'unknown';

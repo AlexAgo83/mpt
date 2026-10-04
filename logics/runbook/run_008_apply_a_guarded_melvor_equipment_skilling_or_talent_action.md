@@ -1,7 +1,7 @@
 ## run_008_apply_a_guarded_melvor_equipment_skilling_or_talent_action - Apply a guarded Melvor equipment, skilling, or talent action
 > Status: Active
 > Category: other
-> Verified: 2026-10-03 — `config-set` applied potions on GrifhinZ/Rya/Dash, prayers on Dash/Edalbraw/Kang, POIs on Dash/Edalbraw/Kang/Chap; re-read with `config all` and `brief all`.
+> Verified: 2026-10-03 — `config-set` applied potions on GrifhinZ/Rya/Dash, prayers on Dash/Edalbraw/Kang, POIs on Dash/Edalbraw/Kang/Chap; re-read with `config all` and `brief all`. 2026-10-04 — `config-set Kang style Block` preview listed `Stab, Slash, Block` (apply not yet exercised).
 > Related request: (none yet)
 > Related backlog: (none yet)
 > Related task: `task_005_implement_guarded_melvor_character_actions`
@@ -22,7 +22,7 @@
    - `./melvor-report.js equip <character> <item> <slot> [--quantity n]`
    - `./melvor-report.js skill-start <character> <skill> <recipe>`
    - `./melvor-report.js talent-unlock <character> <skill> <node>`
-   - `./melvor-report.js config-set <character> potion "<potion>"` | `prayers "<A>,<B>"` | `poi "<point of interest>"`
+   - `./melvor-report.js config-set <character> potion "<potion>"` | `prayers "<A>,<B>"` | `poi "<point of interest>"` | `style <name>` (current attack type only; the preview lists the available styles, e.g. melee `Stab, Slash, Block`, and `Block` trains Defence)
 3. Confirm the preview's target and prerequisites with the operator. Do not substitute a similarly named item, recipe, or node.
 4. Repeat the same command with `--apply`. It loads the authoritative local/cloud source, applies one change, saves, and re-reads the resulting state.
 5. Run `brief <character>` or `journal <character> --record` to retain the observed result.
@@ -37,7 +37,7 @@
 # Rollback
 - Equipment: preview and apply the recorded prior item in the same slot.
 - Skilling: stop or choose another task only with a new explicit approval.
-- Config: re-run `config-set` with the previous potion, prayers, or POI recorded by the preview (POI travel costs GP again).
+- Config: re-run `config-set` with the previous potion, prayers, POI, or attack style recorded by the preview (POI travel costs GP again).
 - Talent nodes cannot be refunded by this tool; do not apply a previewed node unless it is the intended choice.
 - Stop on save-source divergence; never overwrite a newer local save with cloud data.
 
