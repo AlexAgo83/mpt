@@ -119,3 +119,10 @@ Use it before recommending potions, prayers, or Cartography moves (see `logics/r
 Each command is a no-write preview until `--apply` is explicit. Before applying, run the
 preview, confirm the character and target, then let the command load the newest source, save,
 and verify the final game state. Never add or use an all-character/apply-all variation.
+
+## Completion tracking
+
+`./melvor-report.js completion [all|character] [--record]` prints the Completion Log: total, per
+expansion (base, TotH, AoD, ItA) and per category (skills, mastery, items, monsters, pets), always
+over the whole game whatever the in-game completion toggle shows. `--record` appends one row per
+character to `journal/completion.jsonl`; later runs show the delta since the last record.

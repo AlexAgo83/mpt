@@ -80,6 +80,7 @@ const usage = `usage:
   ./melvor-report.js save-backup [all|character]
   ./melvor-report.js save-push <character> [--local-source]
   ./melvor-report.js journal [all|character] [--record] [--save-backup]
+  ./melvor-report.js completion [all|character] [--record]
   ./melvor-report.js journal-serve [--port 8787]
   ./melvor-report.js journal-status [all|character]
   ./melvor-report.js journal-diff [all|character]
@@ -93,7 +94,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'audit', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'plan', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -926,6 +927,32 @@ const equipmentActionScript = (itemName, slotName, quantity, shouldApply) => `((
   result.applied = true;
   return result;
 })()`;
+
+// Completion log percentages: total, per expansion, and per category over the whole game.
+const COMPLETION_LOG = path.join(JOURNAL_DIR, 'completion.jsonl');
+const completionScript = `(() => {
+  const c = game.completion, all = 'melvorTrue'; // not c.visibleCompletion: that is a per-character UI toggle
+  const pct = v => Math.round(v * 100) / 100;
+  return {
+    total: pct(c.totalProgressTrue),
+    expansions: { base: pct(c.totalProgressBaseGame), toth: pct(c.totalProgressTotH), aod: pct(c.totalProgressAoD), ita: pct(c.totalProgressItA) },
+    categories: { skills: pct(c.skillProgress.getPercent(all)), mastery: pct(c.masteryProgress.getPercent(all)), items: pct(c.itemProgress.getPercent(all)),
+      monsters: pct(c.monsterProgress.getPercent(all)), pets: pct(c.petProgress.getPercent(all)) },
+  };
+})()`;
+const lastCompletion = name => {
+  if (!fs.existsSync(COMPLETION_LOG)) return null;
+  const rows = fs.readFileSync(COMPLETION_LOG, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)).filter(row => row.name === name);
+  return rows[rows.length - 1] || null;
+};
+const completionLine = (row, prev) => {
+  const delta = (v, p) => p == null || v === p ? '' : ` (${v > p ? '+' : ''}${(v - p).toFixed(2)})`;
+  const e = row.expansions, c = row.categories, pe = prev?.expansions || {}, pc = prev?.categories || {};
+  return `${row.name} | completion ${row.total.toFixed(2)}%${delta(row.total, prev?.total)}\n` +
+    `  base ${e.base.toFixed(1)}%${delta(e.base, pe.base)} | TotH ${e.toth.toFixed(1)}%${delta(e.toth, pe.toth)} | AoD ${e.aod.toFixed(1)}%${delta(e.aod, pe.aod)} | ItA ${e.ita.toFixed(1)}%${delta(e.ita, pe.ita)}\n` +
+    `  skills ${c.skills.toFixed(1)}% | mastery ${c.mastery.toFixed(1)}% | items ${c.items.toFixed(1)}% | monsters ${c.monsters.toFixed(1)}% | pets ${c.pets.toFixed(1)}%` +
+    (prev ? `\n  vs ${prev.at.slice(0, 10)}` : '');
+};
 
 // Guarded combat configuration change: kind is potion | prayers | poi | style.
 const configSetScript = (kind, value, shouldApply) => `(async () => {
@@ -2406,7 +2433,7 @@ function lock(retry = true) {
   }
 }
 
-module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData };
+module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData, completionLine };
 if (require.main === module) (async () => {
   if (cmd === 'journal-serve') return runJournalServer();
   if (cmd === 'journal-action') return runJournalAction(who, arg3);
@@ -2437,6 +2464,17 @@ if (require.main === module) (async () => {
 
     if (cmd === 'journal') {
       await runJournal();
+      return;
+    }
+
+    if (cmd === 'completion') {
+      const { sources } = await readSourcesByName();
+      const at = new Date().toISOString();
+      for (const name of names) {
+        const row = { at, name, ...await withCharacterSource(name, sources[name]?.source, client => evalExpr(client, completionScript)) };
+        console.log(completionLine(row, lastCompletion(name)));
+        if (record) fs.appendFileSync(COMPLETION_LOG, JSON.stringify(row) + '\n');
+      }
       return;
     }
 

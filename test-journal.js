@@ -275,3 +275,13 @@ assert.strictEqual(promotionRuns, 2, 'one request and one index refresh');
 fs.rmSync(promotions, { force: true });
 
 console.log('journal self-check ok');
+
+{
+  const { completionLine } = require('./melvor-report.js');
+  const row = at => ({ at, name: 'Kang', total: 50.6, expansions: { base: 82.9, toth: 49.5, aod: 50.4, ita: 0.6 }, categories: { skills: 90, mastery: 60, items: 70, monsters: 80, pets: 30 } });
+  const prev = { ...row('2026-10-01T00:00:00Z'), total: 50.1 };
+  const line = completionLine(row('2026-10-04T00:00:00Z'), prev);
+  assert.match(line, /completion 50\.60% \(\+0\.50\)/, 'completion shows the delta since the last record');
+  assert.match(line, /vs 2026-10-01/, 'completion names the compared record');
+  assert.doesNotMatch(completionLine(row('x'), null), /\(\+|vs /, 'first record has no delta');
+}
