@@ -142,7 +142,6 @@
       if (p.food.currentSlot?.quantity) notes.push(`Food: ${p.food.currentSlot.item.name} x${p.food.currentSlot.quantity.toLocaleString('en-US')}`);
     } else {
       const interval = game.activeAction?.actionInterval ?? game.activeAction?.currentActionInteral ?? null;
-      if (interval) notes.push(`current interval about ${fmtMs(interval)}`);
       if (interval) {
         addRunway('Consumable', interval, 'skilling charges at 1/action');
         addRunway('Summon1', interval, 'skilling charges at 1/action');
@@ -770,8 +769,6 @@
       notes: [
         eq.Amulet === 'Amulet of Fishing' && eq.Weapon !== 'Potion Stirrer' ? 'Amulet of Fishing is only useful for Fishing' : null,
         eq.Weapon === 'Grappling Hook' && eq.Summon2 !== 'Eagle' ? 'Grappling Hook is a Thieving item; Eagle is the Agility summon' : null,
-        eq.Ring === 'Ancient Ring of Mastery' ? 'Mastery ring favors mastery XP over skill XP' : null,
-        eq.Ring === 'Ancient Ring of Skills' ? 'Skills ring favors level XP over mastery XP' : null,
       ].filter(Boolean),
     };
   };

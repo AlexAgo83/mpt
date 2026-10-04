@@ -500,8 +500,6 @@ function currentActionPlan(r) {
   } else if (action === 'Herblore') {
     if (eq.Weapon !== 'Potion Stirrer') add('current Herblore: use Potion Stirrer if available');
     if (eq.Summon1 !== 'Bear') add('current Herblore: use Bear summon for preserve');
-  } else if (action && action !== 'idle') {
-    add(`current ${action}: verify ring choice, summon synergy, consumable, and mastery-vs-level XP goal`);
   }
   for (const advice of talentAdvice(report, r.talents)) add(advice);
   return lines.slice(0, 8);
@@ -1388,7 +1386,7 @@ function buildCharacterJournal(name, data, save) {
   })();
   const improvements = planActions(data, goalStep);
   const actions = improvements.map(a => ({ ...a, id: actionId(name, a), contextHash: actionContextHash(report, a) }));
-  const upgradePlan = data.upgradePlan ? { ...data.upgradePlan, activity: [], ...(data.upgradeSim ? { sim: data.upgradeSim } : {}) } : null;
+  const upgradePlan = data.upgradePlan ? { ...data.upgradePlan, ...(data.upgradeSim ? { sim: data.upgradeSim } : {}) } : null;
   const saveRisk = !save || save.source === 'unknown' ? 'save source of truth unknown' : null;
   return {
     name,
@@ -1424,7 +1422,6 @@ function buildCharacterJournal(name, data, save) {
     analysis: {
       recommendations: activeSlayerTask ? brief.currentAction.next : brief.next,
       currentActionPlan: brief.currentAction.next,
-      optimizationPlan: activeSlayerTask ? [] : brief.standard.next,
       standardPlan: activeSlayerTask ? [] : brief.standard.next,
       abyssalPlan: activeSlayerTask ? [] : brief.abyssal.next,
       // kept out of Next/To do so the Slayer task is not interrupted; Plans shows it as "After the Slayer task"
@@ -1501,7 +1498,7 @@ function journalMd(c) {
     ...list(c.analysis.progressEtas || []),
     '',
     '### Optimization plan',
-    ...list(c.analysis.optimizationPlan),
+    ...list(c.analysis.standardPlan || []),
     '',
     '### Abyssal plan',
     ...list(c.analysis.abyssalPlan || []),

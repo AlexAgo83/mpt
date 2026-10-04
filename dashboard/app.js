@@ -334,7 +334,7 @@ function equipmentSheet(c) {
 }
 function upgradeSheet(c) {
   const plan = c.observed.upgradePlan;
-  if (!plan || (!Object.keys(plan.slots || {}).length && !Object.keys(plan.skilling || {}).length && !plan.activity?.length && plan.context?.kind !== 'non_combat_skill')) return null;
+  if (!plan || (!Object.keys(plan.slots || {}).length && !Object.keys(plan.skilling || {}).length && plan.context?.kind !== 'non_combat_skill')) return null;
   const body = el('section', 'panel panel-grid'); body.dataset.panel = 'upgrades';
   const context = plan.context || {};
   const contextRow = el('section', 'group'); contextRow.append(el('h3', '', 'Context'));
@@ -377,8 +377,7 @@ function upgradeSheet(c) {
   };
   const tileGroup = (title, tiles) => { if (!tiles.length) return null; const b = el('section', 'group span-all'); const grid = el('div', 'tile-grid'); grid.append(...tiles); b.append(el('h3', '', title), grid); return b; };
   const skilling = tileGroup('Skilling gear in your bank', Object.entries(plan.skilling || {}).map(([slot, entry]) => swapTile(slot, entry.current, entry.candidates[0].name, entry.candidates[0].available, entry.candidates[0].passives, entry.candidates.slice(1).map(item => item.name))));
-  const activity = tileGroup('For the current activity', (plan.activity || []).map(a => swapTile(a.slot, a.current, a.item, a.available, [a.reason], [])));
-  body.append(...[skilling, activity, section('Equip from your bank', 'bank'), section('Next loot', 'loot'), section('Next craft', 'craft')].filter(Boolean));
+  body.append(...[skilling, section('Equip from your bank', 'bank'), section('Next loot', 'loot'), section('Next craft', 'craft')].filter(Boolean));
   return body;
 }
 // Skills as a compact table: what is left first, maxed skills folded, filters and sortable columns.
