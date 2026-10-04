@@ -88,6 +88,7 @@ const usage = `usage:
   ./melvor-report.js dungeon-optimize <character> "<dungeon name>" [--style melee|ranged|magic] [--cape "<cape name>"]
   ./melvor-report.js dungeon-setup <character> "<dungeon name>" [--style melee,ranged] [--apply] [--restore --apply]
   ./melvor-report.js dungeon-clear <character> "<dungeon name>"   (one clear, then back to the previous activity)
+  ./melvor-report.js item-where <character> "<item name part>"     (bank, sets, deaths: where an item went)
   ./melvor-report.js journal-serve [--port 8787]
   ./melvor-report.js journal-status [all|character]
   ./melvor-report.js journal-diff [all|character]
@@ -101,7 +102,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide', 'dungeon-check', 'dungeon-optimize', 'dungeon-setup', 'dungeon-clear'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide', 'dungeon-check', 'dungeon-optimize', 'dungeon-setup', 'dungeon-clear', 'item-where'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -2337,6 +2338,25 @@ if (require.main === module) (async () => {
         console.log(completionLine(row, lastCompletion(name)));
         if (record) fs.appendFileSync(COMPLETION_LOG, JSON.stringify(row) + '\n');
       }
+      return;
+    }
+
+    if (cmd === 'item-where') {
+      // read-only: where an item is (bank, equipment sets), plus the death count (a Standard death loses an equipped item)
+      if (who === 'all' || !arg3) throw Error('usage: ./melvor-report.js item-where <character> "<item name part>"');
+      const { sources } = await readSourcesByName();
+      const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, `(() => {
+        const part = ${JSON.stringify(arg3.toLowerCase())};
+        const items = game.items.allObjects.filter(i => i.name.toLowerCase().includes(part));
+        const bank = items.map(i => [i.name, game.bank.items.get(i)?.quantity ?? 0]).filter(([, q]) => q > 0);
+        const sets = game.combat.player.equipmentSets.flatMap((set, i) => set.equipment.equippedArray.filter(s => items.includes(s.item)).map(s => ['S' + (i + 1) + ' ' + s.slot.localID, s.item.name]));
+        let deaths = null; try { deaths = game.stats.Combat.get(CombatStats.Deaths); } catch {}
+        return { name: game.characterName, mode: game.currentGamemode?.name, matches: items.map(i => i.name), bank, sets, deaths, bankSlots: game.bank.occupiedSlots ?? null };
+      })()`));
+      console.log(`${r.name} | ${r.mode} | deaths ${r.deaths ?? '?'} | bank slots used ${r.bankSlots ?? '?'}`);
+      console.log(`  items matching: ${r.matches.join(', ') || 'none'}`);
+      console.log(`  in bank: ${r.bank.map(([n, q]) => n + ' x' + q).join(', ') || 'none'}`);
+      console.log(`  equipped: ${r.sets.map(([w, n]) => w + ' ' + n).join(', ') || 'none'}`);
       return;
     }
 
