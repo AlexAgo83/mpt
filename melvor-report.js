@@ -2312,7 +2312,7 @@ async function collectJournal(name, save, includeSaveBackup = false) {
     const inventory = [...game.bank.items].map(([item, entry]) => ({ name: item.name, quantity: entry.quantity, media: item.media || null })).sort((a, b) => a.name.localeCompare(b.name));
     const values = value => value instanceof Map ? [...value.values()] : value instanceof Set ? [...value] : Array.isArray(value) ? value : value?.allObjects ?? [];
     const talents = game.skills.allObjects.flatMap(skill => values(skill.skillTrees).map(tree => ({ skill: skill.name, points: tree.points || 0, candidates: values(tree.nodes).filter(node => node.canUnlock && tree.canAffordNode(node) && !values(tree.unlockedNodes).includes(node)).map(node => ({ name: node.name, shortName: node.shortName })) }))).filter(tree => tree.points > 0);
-    const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])), equipmentSets, inventory, talents, upgradePlan: mh.upgradePlan() };
+    const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])), equipmentSets, inventory, talents, upgradePlan: mh.upgradePlan(), completion: ${completionScript} };
     if (${JSON.stringify(includeSaveBackup)}) out.saveExport = mh.exportSaveString();
     return out;
   })()`));
@@ -2364,8 +2364,10 @@ async function runJournal() {
   const { sources } = await readSourcesByName();
   const chars = [];
   const backupEntries = [];
+  const completions = [];
   for (const name of names) {
     const data = await collectJournal(name, sources[name], saveBackup);
+    completions.push({ at: new Date().toISOString(), name, ...data.completion });
     if (saveBackup) backupEntries.push(recordSaveBackup(name, sources[name], data.saveExport));
     chars.push(buildCharacterJournal(name, data, sources[name]));
   }
@@ -2382,6 +2384,9 @@ async function runJournal() {
     fs.appendFileSync(path.join(JOURNAL_DIR, `${c.name}.md`), journalMd(c) + '\n\n');
     console.log(`recorded journal/${c.name}.md`);
   }
+  for (const row of completions) console.log(completionLine(row, lastCompletion(row.name)));
+  fs.appendFileSync(COMPLETION_LOG, completions.map(row => JSON.stringify(row)).join('\n') + '\n');
+  console.log(`recorded ${completions.length} completion row(s) in journal/completion.jsonl`);
   const { events, latest } = mergeLedger(chars, readLedger(), now);
   if (events.length) {
     fs.appendFileSync(LEDGER, events.map(e => JSON.stringify(e)).join('\n') + '\n');

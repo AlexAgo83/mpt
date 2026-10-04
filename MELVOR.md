@@ -124,5 +124,5 @@ and verify the final game state. Never add or use an all-character/apply-all var
 
 `./melvor-report.js completion [all|character] [--record]` prints the Completion Log: total, per
 expansion (base, TotH, AoD, ItA) and per category (skills, mastery, items, monsters, pets), always
-over the whole game whatever the in-game completion toggle shows. `--record` appends one row per
-character to `journal/completion.jsonl`; later runs show the delta since the last record.
+over the whole game whatever the in-game completion toggle shows. `--record` (and every `journal --record`,
+including the dashboard refresh button) appends one row per character to `journal/completion.jsonl`; later runs show the delta since the last record.

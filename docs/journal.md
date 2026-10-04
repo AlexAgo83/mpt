@@ -15,6 +15,8 @@ recommendations, current-action plan, standard plan, abyssal plan, proposed acti
 - `journal/saves/`: private save-string backups. `*.latest.txt` contains the latest raw
   export per character, dated archives keep recent history, and `manifest.jsonl` stores
   only metadata (timestamp, source, byte size, hash, relative path)
+- `journal/completion.jsonl`: one Completion Log row per character and refresh (also written by
+  `completion --record`); runs print the delta since the previous row
 - `journal/index.html`: offline decision cockpit with account indicators, priority/attention
   filtering, a responsive character comparison view, and Now/Progress/Equipment/Upgrade plans/Plans/History
   detail tabs. It opens directly from disk and links to the full Markdown journals.
