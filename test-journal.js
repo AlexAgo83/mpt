@@ -323,3 +323,30 @@ console.log('journal self-check ok');
   assert.match(goals.dungeons[1], /^Unlock The Abyssal Approach; needs clear Impending Darkness Event/, 'locked dungeons say what blocks them');
   assert.match(goals.target[0], /Farm Hollow Reaper; Tendril Hollow; 0.10% per kill; about 4.0 h on average/, 'target farm time from drop chance and simulated kills per hour');
 }
+
+// dungeon-check verdict and dungeon-clear's choice
+{
+  const { dungeonVerdict, chooseClearPlan } = require('./melvor-report.js');
+  const sim = (fight, set, deathRate, trials = 1000) => ({ fight, set, ok: true, deathRate, killTimeS: 10, trials });
+  const check = (sims, extra = {}) => ({ dungeon: 'D', simulated: true, hardcore: false, checks: [{ label: 'entry', ok: true }], fights: [{ key: 'a' }, { key: 'boss' }], sims, ...extra });
+  const ready = check([sim('a', 1, 0), sim('boss', 1, 0.004), sim('a', 2, 0), sim('boss', 2, 0)]);
+  assert.strictEqual(dungeonVerdict(ready).ready, true, 'every fight under 1% is ready');
+  assert.strictEqual(chooseClearPlan(ready).setNumber, 2, 'ready as is: the set whose worst fight is safest');
+  assert.deepStrictEqual(chooseClearPlan(ready).plans, [], 'ready as is: no gear change');
+  const notReady = check([sim('a', 1, 0), sim('boss', 1, 0.2)]);
+  assert.strictEqual(dungeonVerdict(notReady).ready, false, 'a 20% fight is not ready');
+  assert.match(chooseClearPlan(notReady, []).error, /not ready/, 'no plan: refused');
+  assert.match(chooseClearPlan(notReady, [{ setIndex: 1, best: { death: 0.05, kill: 9 } }]).error, /not ready/, 'plan above the threshold: refused');
+  const plans = [{ setIndex: 2, style: 'ranged', best: { death: 0, kill: 50 }, potion: 'P2', equipment: [] }, { setIndex: 3, style: 'magic', best: { death: 0, kill: 113 }, potion: 'P3', equipment: [] }, { setIndex: 1, style: 'melee', best: { death: 0.043, kill: 38 } }];
+  const chosen = chooseClearPlan(notReady, plans);
+  assert.strictEqual(chosen.setNumber, 2, 'safest then fastest plan under the threshold (Opa: S2 before S3)');
+  assert.strictEqual(chosen.potion, 'P2', 'the plan potion comes with it');
+  assert.strictEqual(chosen.plans.length, 1, 'only the chosen set is equipped');
+  const hc = check([sim('a', 1, 0, 400), sim('boss', 1, 0, 400)], { hardcore: true });
+  assert.strictEqual(dungeonVerdict(hc).ready, false, 'Hardcore: 0% over 400 trials is not proof');
+  assert.strictEqual(dungeonVerdict({ ...hc, sims: [sim('a', 1, 0), sim('boss', 1, 0)] }).ready, true, 'Hardcore: 0% over 1000 trials is ready');
+  assert.match(chooseClearPlan({ ...hc, sims: [sim('a', 1, 0), sim('boss', 1, 0)] }).error, /Hardcore/, 'Hardcore is never run automatically');
+  assert.strictEqual(dungeonVerdict({ ...ready, checks: [{ label: 'Map', ok: false }] }).ready, false, 'a missing prerequisite blocks');
+  assert.strictEqual(dungeonVerdict({ ...ready, simulated: false }).ready, false, 'no simulation is never ready');
+}
+console.log('dungeon verdict and clear choice ok');

@@ -2005,6 +2005,20 @@ function dungeonVerdict(r, threshold = r.hardcore ? 0 : Number(process.env.MELVO
   return { threshold, fights, blockers, ready: r.simulated && !blockers.length && fights.every(f => f.ready) };
 }
 
+// dungeon-clear's choice, kept pure for the tests: the safest set when the check is ready as is, otherwise the safest
+// then fastest plan under the threshold. Hardcore characters are never run automatically.
+function chooseClearPlan(check, planResults = []) {
+  if (check.hardcore) return { error: 'Hardcore character, not run automatically' };
+  const verdict = dungeonVerdict(check);
+  if (verdict.ready) {
+    const worst = set => Math.max(...verdict.fights.map(f => check.sims.find(s => s.fight === f.key && s.set === set && s.ok)?.deathRate ?? 1));
+    return { setNumber: [...new Set(check.sims.map(s => s.set))].sort((a, b) => worst(a) - worst(b))[0], plans: [], potion: null };
+  }
+  const best = planResults.filter(r => r.best.death <= verdict.threshold).sort((a, b) => a.best.death - b.best.death || a.best.kill - b.best.kill)[0];
+  if (!best) return { error: `not ready for ${check.dungeon}, with or without a plan` };
+  return { setNumber: best.setIndex, potion: best.potion, plans: [{ setIndex: best.setIndex, style: best.style, equipment: best.equipment, prayers: best.prayers, best: best.best }] };
+}
+
 function printDungeonCheck(name, r) {
   const v = dungeonVerdict(r);
   console.log(`${name} | ${r.dungeon} | clears ${r.clears ?? '?'} | ${v.ready ? 'READY' : 'NOT READY'} (death threshold ${(v.threshold * 100).toFixed(0)}%)`);
@@ -2257,7 +2271,7 @@ function lock(retry = true) {
   }
 }
 
-module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData, completionLine, verifiedSkillPlan, buildGoals, dungeonVerdict };
+module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData, completionLine, verifiedSkillPlan, buildGoals, dungeonVerdict, chooseClearPlan };
 if (require.main === module) (async () => {
   if (cmd === 'journal-serve') return runJournalServer();
   if (cmd === 'dungeon-guide') return runDungeonGuide(who);
@@ -2311,20 +2325,10 @@ if (require.main === module) (async () => {
       const checkFile = path.join(dir, `${safeFilePart(who)}-${safeFilePart(arg3)}.json`);
       if (!fs.existsSync(checkFile)) throw Error(`run dungeon-check ${who} "${arg3}" first`);
       const check = JSON.parse(fs.readFileSync(checkFile, 'utf8'));
-      if (check.hardcore) throw Error('Hardcore character: not run automatically until the simulations are made stronger');
-      const verdict = dungeonVerdict(check);
-      let setNumber, plans = [], potion = null;
-      if (verdict.ready) {
-        // the set whose worst fight is the safest
-        const worst = set => Math.max(...verdict.fights.map(f => check.sims.find(s => s.fight === f.key && s.set === set && s.ok)?.deathRate ?? 1));
-        setNumber = [...new Set(check.sims.map(s => s.set))].sort((a, b) => worst(a) - worst(b))[0];
-      } else {
-        const planFile = path.join(dir, `${safeFilePart(who)}-${safeFilePart(arg3)}-plan.json`);
-        const best = fs.existsSync(planFile) ? JSON.parse(fs.readFileSync(planFile, 'utf8')).results.filter(r => r.best.death <= verdict.threshold).sort((a, b) => a.best.death - b.best.death || a.best.kill - b.best.kill)[0] : null;
-        if (!best) throw Error(`${who} is not ready for ${check.dungeon}, with or without a plan: nothing was changed`);
-        setNumber = best.setIndex; potion = best.potion;
-        plans = [{ setIndex: best.setIndex, style: best.style, equipment: best.equipment, prayers: best.prayers, best: best.best }];
-      }
+      const planFile = path.join(dir, `${safeFilePart(who)}-${safeFilePart(arg3)}-plan.json`);
+      const choice = chooseClearPlan(check, fs.existsSync(planFile) ? JSON.parse(fs.readFileSync(planFile, 'utf8')).results : []);
+      if (choice.error) throw Error(`${who}: ${choice.error}: nothing was changed`);
+      const { setNumber, plans, potion } = choice;
       // an Abyss depth took over 20 min for Edalbraw (Depths of Woe): give abyssal areas an hour
       const timeout = Number(process.env.MELVOR_COMBAT_RUN_TIMEOUT_MS || (check.abyssal ? 60 : 20) * 60 * 1000);
       const r = await withCharacterWrite(who, async client => {
