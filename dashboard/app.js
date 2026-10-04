@@ -263,7 +263,7 @@ const TAB_INTRO = {
   equipment: 'Gear worn in the current set and the saved sets, with the active style, damage type and accuracy.',
   upgrades: 'Better gear for what this character is doing now: items to loot or craft, and owned items worth equipping.',
   inventory: 'Everything in the bank, grouped by kind and worth (sell price). In use shows what the current activity consumes.',
-  skills: 'What is left first: levels, mastery pools, XP/h and next-level time per skill; maxed skills fold at the bottom. Click a column to sort.',
+  skills: 'Every skill in game order: levels, mastery pools, XP/h and next-level time. Click a column to sort.',
   plans: 'The plan for the chosen goal; the Next column and To do follow it.',
   history: 'What changed between journal scans: activity, total level, maxed skills and GP.',
 };
@@ -427,7 +427,7 @@ function upgradeSheet(c) {
   body.append(...[skilling, section('Equip from your bank', 'bank'), section('Next loot', 'loot'), section('Next craft', 'craft')].filter(Boolean));
   return body;
 }
-// Skills as a compact table: what is left first, maxed skills folded, filters and sortable columns.
+// Skills as a compact table in game order (the order mh.skills reads them), filters and sortable columns.
 const SKILL_KIND = { Attack: 'Combat', Strength: 'Combat', Defence: 'Combat', Hitpoints: 'Combat', Ranged: 'Combat', Magic: 'Combat', Prayer: 'Combat', Slayer: 'Combat', Corruption: 'Combat',
   Woodcutting: 'Gathering', Fishing: 'Gathering', Mining: 'Gathering', Thieving: 'Gathering', Farming: 'Gathering', Astrology: 'Gathering', Archaeology: 'Gathering', Harvesting: 'Gathering',
   Firemaking: 'Artisan', Cooking: 'Artisan', Smithing: 'Artisan', Fletching: 'Artisan', Crafting: 'Artisan', Runecrafting: 'Artisan', Herblore: 'Artisan', Summoning: 'Artisan',
@@ -440,8 +440,6 @@ function skillsSheet(c, charName) {
   const pct = (v, a, b) => Number.isFinite(b) && b > a ? Math.max(0, Math.min(100, (v - a) / (b - a) * 100)) : null;
   const abyssOpen = s => abyss && (s.abyssalCap ?? 0) > 1;
   const maxed = s => s.level >= (s.levelCap ?? 120) && (!abyssOpen(s) || (s.abyssalLevel ?? 0) >= s.abyssalCap);
-  // what is left: abyssal gap first once in the Abyss, then the standard gap
-  const gap = s => (abyssOpen(s) ? (s.abyssalCap - (s.abyssalLevel ?? 0)) / s.abyssalCap : 0) * 1000 + ((s.levelCap ?? 120) - s.level) / (s.levelCap ?? 120) * 100;
   // next-level ETA from the Progress lines ("Skill: ...; next level ETA 9 h" or "abyssal next level ETA ...")
   const etaOf = name => { for (const line of c.analysis.progressEtas || []) { if (!line.startsWith(name + ':')) continue; const p = line.split('; ').find(x => x.includes('next level ETA')); if (p) return p.split('ETA ')[1]; } return null; };
   // XP per hour measured between the last two scans (Progress lines: "Skill: 2,352,928 abyssal XP gained (6.8M/h); ...")
@@ -449,7 +447,7 @@ function skillsSheet(c, charName) {
   const pending = (c.analysis.progressEtas || []).find(line => line.startsWith('ETA pending'));
   const planned = (() => { const goal = goalOf(charName, c); const line = goalLines(c, goal)?.[0] || (c.analysis.standardPlan || [])[0] || (c.analysis.afterTaskPlan || [])[0] || ''; return line.replace(/^(Switch to |abyssal )+/, '').split(':')[0]; })();
   const kinds = ['All', 'Not maxed', 'Combat', 'Gathering', 'Artisan', 'Support'];
-  let kind = 'All', sortBy = 'gap', desc = true;
+  let kind = 'All', sortBy = 'name', desc = false;
   const meter = (value, text, title, cls) => { const m = el('div', 'st-meter ' + (cls || '')); const bar = el('progress'); bar.max = 100; bar.value = value; m.append(bar, el('span', '', text)); if (title) m.title = title; return m; };
   const levelCell = s => (s.levelCap ?? 120) <= 1 ? el('span', 'muted', '—') : s.level >= (s.levelCap ?? 120) ? el('span', 'st-done', '✓ ' + s.level)
     : meter(pct(s.xp, s.xpLevelStart, s.xpNextLevel) ?? 0, s.level + '/' + s.levelCap, fmtCompact(s.xp - (s.xpLevelStart || 0)) + ' / ' + fmtCompact((s.xpNextLevel || 0) - (s.xpLevelStart || 0)) + ' XP to the next level');
@@ -484,25 +482,22 @@ function skillsSheet(c, charName) {
   const head = el('div', 'st-row st-head');
   const cols = [['name', 'Skill'], ['level', 'Level'], ...(abyss ? [['abyssal', 'Abyssal']] : []), ['pool', 'Mastery pool'], ['eta', 'XP/h · next level']];
   for (const [key, label] of cols) { const b = el('button', '', label); b.type = 'button'; b.dataset.sort = key; b.addEventListener('click', () => { desc = sortBy === key ? !desc : key !== 'name'; sortBy = key; draw(); }); head.append(b); }
-  const list = el('div', 'st-list'); const folded = el('details', 'st-maxed');
-  const order = { gap, eta: s => -(etaOf(s.name) ? 1 : 0), name: s => s.name, level: s => s.level + pct(s.xp, s.xpLevelStart, s.xpNextLevel) / 100, abyssal: s => (s.abyssalLevel ?? 0) / (s.abyssalCap || 1), pool: s => Math.min(...(s.masteryPools || []).map(p => p.cap ? p.xp / p.cap : 2), 2) };
+  const list = el('div', 'st-list');
+  const order = { eta: s => -(etaOf(s.name) ? 1 : 0), name: s => skills.indexOf(s), level: s => s.level + pct(s.xp, s.xpLevelStart, s.xpNextLevel) / 100, abyssal: s => (s.abyssalLevel ?? 0) / (s.abyssalCap || 1), pool: s => Math.min(...(s.masteryPools || []).map(p => p.cap ? p.xp / p.cap : 2), 2) };
   const draw = () => {
     for (const b of filters.children) b.setAttribute('aria-pressed', String(b.textContent.startsWith(kind)));
     for (const b of head.children) b.classList.toggle('sorted', b.dataset.sort === sortBy);
     const shown = skills.filter(s => kind === 'All' || (kind === 'Not maxed' ? !maxed(s) : SKILL_KIND[s.name] === kind));
-    const key = order[sortBy]; const cmp = (a, b) => { const x = key(a), y = key(b); const d = typeof x === 'string' ? x.localeCompare(y) : x - y; return (desc ? -d : d) || a.name.localeCompare(b.name); };
-    const open = shown.filter(s => !maxed(s)).sort(cmp), done = shown.filter(maxed).sort((a, b) => a.name.localeCompare(b.name));
-    list.replaceChildren(...open.map(row));
-    if (!open.length) list.append(el('p', 'muted', 'Every skill here is maxed.'));
-    folded.replaceChildren(); folded.hidden = !done.length;
-    const sum = el('summary'); sum.append(el('strong', '', 'Maxed'), el('span', 'muted', ' ' + done.length)); folded.append(sum, ...done.map(row));
+    const key = order[sortBy]; const cmp = (a, b) => { const x = key(a), y = key(b); const d = typeof x === 'string' ? x.localeCompare(y) : x - y; return (desc ? -d : d) || skills.indexOf(a) - skills.indexOf(b); };
+    list.replaceChildren(...shown.sort(cmp).map(row));
+    if (!shown.length) list.append(el('p', 'muted', 'Every skill here is maxed.'));
     loadWikiIcons();
   };
   for (const k of kinds) { const n = skills.filter(s => k === 'All' || (k === 'Not maxed' ? !maxed(s) : SKILL_KIND[s.name] === k)).length; if (!n) continue; const b = el('button', '', k + ' · ' + n); b.type = 'button'; b.addEventListener('click', () => { kind = k; draw(); }); filters.append(b); }
   panel.classList.toggle('no-abyss', !abyss);
   panel.append(filters);
   if (pending) panel.append(el('p', 'muted st-pending', 'Measured XP/h needs two scans with play in between (' + pending.replace('ETA pending: ', '') + '). Italic values are estimates for the current or best action.'));
-  panel.append(head, list, folded); draw();
+  panel.append(head, list); draw();
   return panel;
 }
 // Bank view in the game's style: icon tiles grouped by item type, "In use" first, value from the sell price.

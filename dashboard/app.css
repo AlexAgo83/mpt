@@ -189,7 +189,7 @@ a:hover { text-decoration: underline; }
 .st-head { background: transparent; border-left-color: transparent; padding-top: 0; padding-bottom: 0; }
 .st-head button { width: auto; padding: .2rem 0; border: 0; background: transparent; color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; text-align: left; }
 .st-head button.sorted { color: var(--accent); }
-.st-list, .st-maxed { display: grid; gap: .3rem; }
+.st-list { display: grid; gap: .3rem; }
 .st-name { display: flex; align-items: center; gap: .4rem; min-width: 0; font-weight: 600; }
 .st-tag { padding: 0 .4rem; border: 1px solid var(--teal); border-radius: 999px; color: var(--teal); font-size: .66rem; font-weight: 600; text-transform: uppercase; }
 .st-tag.plan { border-color: var(--accent); color: var(--accent); }
@@ -202,8 +202,6 @@ a:hover { text-decoration: underline; }
 .st-pools { display: grid; gap: .15rem; }
 .st-done { color: var(--muted); font-size: .8rem; }
 .st-next { font-size: .78rem; text-align: right; }
-.st-maxed > summary { cursor: pointer; padding: .35rem 0; }
-.st-maxed > summary strong { color: var(--accent); font-size: .84rem; }
 .inventory { display: grid; gap: .6rem; }
 .inv-cats { flex-wrap: wrap; }
 .inv-cats select { width: auto; border: 0; background: transparent; color: var(--muted); padding: .3rem .5rem; }
