@@ -40,6 +40,7 @@ const abyssalOnly = argv.includes('--abyssal');
 const detail = argv.includes('--detail');
 const saveBackup = argv.includes('--save-backup');
 const simulate = argv.includes('--sim');
+const restore = argv.includes('--restore');
 const apply = argv.includes('--apply');
 const restoreRanged = argv.includes('--restore-ranged');
 const quantityIndex = argv.indexOf('--quantity');
@@ -52,7 +53,7 @@ const slotIndex = argv.indexOf('--slot');
 const requestedSlot = slotIndex >= 0 ? Number(argv[slotIndex + 1]) : 6;
 const dashboardPortIndex = argv.indexOf('--port');
 const dashboardPort = dashboardPortIndex >= 0 ? Number(argv[dashboardPortIndex + 1]) : Number(process.env.MELVOR_JOURNAL_PORT || 8787);
-const [cmd = 'summary', who = 'all', arg3, arg4] = argv.filter((a, i) => !['--record', '--abyssal', '--save-backup', '--sim', '--detail', '--apply', '--restore-ranged', '--style', '--slot', '--port', '--quantity', '--cape'].includes(a) && (styleIndex < 0 || i !== styleIndex + 1) && (capeIndex < 0 || i !== capeIndex + 1) && (slotIndex < 0 || i !== slotIndex + 1) && (dashboardPortIndex < 0 || i !== dashboardPortIndex + 1) && (quantityIndex < 0 || i !== quantityIndex + 1));
+const [cmd = 'summary', who = 'all', arg3, arg4] = argv.filter((a, i) => !['--record', '--abyssal', '--save-backup', '--sim', '--detail', '--apply', '--restore-ranged', '--restore', '--style', '--slot', '--port', '--quantity', '--cape'].includes(a) && (styleIndex < 0 || i !== styleIndex + 1) && (capeIndex < 0 || i !== capeIndex + 1) && (slotIndex < 0 || i !== slotIndex + 1) && (dashboardPortIndex < 0 || i !== dashboardPortIndex + 1) && (quantityIndex < 0 || i !== quantityIndex + 1));
 const usage = `usage:
   ./melvor-report.js slots
   ./melvor-report.js smoke
@@ -85,7 +86,7 @@ const usage = `usage:
   ./melvor-report.js dungeon-guide "<dungeon name>"
   ./melvor-report.js dungeon-check <character> "<dungeon name>"
   ./melvor-report.js dungeon-optimize <character> "<dungeon name>" [--style melee|ranged|magic] [--cape "<cape name>"]
-  ./melvor-report.js dungeon-setup <character> "<dungeon name>"   (preview of the plans against their sets; no --apply yet)
+  ./melvor-report.js dungeon-setup <character> "<dungeon name>" [--style melee,ranged] [--apply] [--restore --apply]
   ./melvor-report.js journal-serve [--port 8787]
   ./melvor-report.js journal-status [all|character]
   ./melvor-report.js journal-diff [all|character]
@@ -103,8 +104,9 @@ if (require.main === module) {
     console.error(usage);
     process.exit(2);
   }
-  if (gearStyle && !['melee', 'ranged', 'magic'].includes(gearStyle)) {
-    console.error('gear style must be melee, ranged, or magic');
+  // a comma list (melee,ranged) is only meaningful for dungeon-setup
+  if (gearStyle && !gearStyle.split(',').every(x => ['melee', 'ranged', 'magic'].includes(x)) || (gearStyle?.includes(',') && cmd !== 'dungeon-setup')) {
+    console.error('gear style must be melee, ranged, or magic (dungeon-setup accepts a list: melee,ranged)');
     process.exit(2);
   }
   if (!Number.isInteger(requestedSlot) || requestedSlot < 1) {
@@ -704,7 +706,9 @@ const potionItemName = s => String(s || '').split(/\s+(?:for|if)\s+/i)[0].trim()
 const combatRunScript = (dungeonRef, timeoutMs, setNumber = null) => `(async () => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const beats = { melee: 'magic', ranged: 'melee', magic: 'ranged' };
-  const allDungeons = game.dungeons.allObjects;
+  // dungeons and Abyss depths (strongholds need a tier choice: not handled)
+  const depths = game.abyssDepths?.allObjects ?? [];
+  const allDungeons = [...game.dungeons.allObjects, ...depths];
   const ref = ${JSON.stringify(dungeonRef)}.toLowerCase();
   const dungeon = allDungeons.find(d => d.id.toLowerCase() === ref)
     ?? allDungeons.find(d => d.name.toLowerCase() === ref)
@@ -725,10 +729,13 @@ const combatRunScript = (dungeonRef, timeoutMs, setNumber = null) => `(async () 
   if (!set) return { status: 'error', dungeon: dungeon.name, error: 'no combat set found' };
   // never start a run that could not flee on low HP
   if (typeof game.combat.stop !== 'function' || !('isActive' in game.combat)) return { status: 'error', dungeon: dungeon.name, error: 'cannot flee (game.combat.stop/isActive missing): not starting' };
-  const beforeCompleted = game.combat.getDungeonCompleteCount(dungeon);
+  const isDepth = depths.includes(dungeon);
+  const completedCount = () => isDepth ? (dungeon.timesCompleted ?? 0) : game.combat.getDungeonCompleteCount(dungeon);
+  if (isDepth && typeof game.combat.selectAbyssDepth !== 'function') return { status: 'error', dungeon: dungeon.name, error: 'cannot select an Abyss depth: not starting' };
+  const beforeCompleted = completedCount();
   p.changeEquipmentSet(set.index);
   if (game.activeAction?.name !== 'Combat' || game.combat.selectedArea?.id !== dungeon.id)
-    game.combat.selectDungeon(dungeon);
+    isDepth ? game.combat.selectAbyssDepth(dungeon) : game.combat.selectDungeon(dungeon);
   await sleep(5000);
   const samples = [];
   const started = Date.now();
@@ -737,7 +744,7 @@ const combatRunScript = (dungeonRef, timeoutMs, setNumber = null) => `(async () 
     const sample = {
       t: new Date().toISOString(),
       progress: game.combat.areaProgress,
-      completed: game.combat.getDungeonCompleteCount(dungeon),
+      completed: completedCount(),
       monster: game.combat.enemy?.monster?.name ?? null,
       enemyHP: game.combat.enemy?.hitpoints ?? null,
       fight: game.combat.fightInProgress,
@@ -2290,11 +2297,28 @@ if (require.main === module) (async () => {
 
     if (cmd === 'dungeon-setup') {
       if (who === 'all' || !arg3) throw Error('usage: ./melvor-report.js dungeon-setup <character> "<dungeon name>"');
-      if (apply) throw Error('dungeon-setup is preview only for now: nothing was changed');
-      const planFile = path.join(JOURNAL_DIR, 'dungeons', `${safeFilePart(who)}-${safeFilePart(arg3)}-plan.json`);
-      if (!fs.existsSync(planFile)) throw Error(`run dungeon-optimize ${who} "${arg3}" first`);
+      // --restore: the gear the last --apply replaced (journal/dungeons/<char>-<dungeon>-before.json)
+      const beforeFile = path.join(JOURNAL_DIR, 'dungeons', `${safeFilePart(who)}-${safeFilePart(arg3)}-before.json`);
+      const planFile = restore ? beforeFile : path.join(JOURNAL_DIR, 'dungeons', `${safeFilePart(who)}-${safeFilePart(arg3)}-plan.json`);
+      if (!fs.existsSync(planFile)) throw Error(restore ? `nothing to restore: no dungeon-setup --apply recorded for ${who}` : `run dungeon-optimize ${who} "${arg3}" first`);
       const plan = JSON.parse(fs.readFileSync(planFile, 'utf8'));
-      const plans = [...plan.results].sort((a, b) => a.setIndex - b.setIndex).map(r => ({ setIndex: r.setIndex, style: r.style, equipment: r.equipment, potion: r.potion, prayers: r.prayers, best: r.best }));
+      // --style melee,ranged: only these sets (e.g. Impending Darkness without the magic plan)
+      const styles = gearStyle ? gearStyle.split(',').map(x => x.trim()) : null;
+      const plans = [...plan.results].filter(r => !styles || styles.includes(r.style)).sort((a, b) => a.setIndex - b.setIndex).map(r => ({ setIndex: r.setIndex, style: r.style, equipment: r.equipment, potion: r.potion, prayers: r.prayers, best: r.best }));
+      if (!plans.length) throw Error('no plan for ' + (styles || []).join(', '));
+      if (apply) {
+        const r = await withCharacterWrite(who, client => evalExpr(client, `mh.dungeonSetupApply(${JSON.stringify(plans)})`, 120000));
+        // keep the first record: a second --apply must not overwrite the daily gear with the dungeon gear
+        if (!restore && r.before && !fs.existsSync(beforeFile)) fs.writeFileSync(beforeFile, JSON.stringify({ at: new Date().toISOString(), character: who, dungeon: plan.dungeon, results: r.before.map(b => ({ ...b, best: { death: 0 } })) }, null, 2));
+        if (restore && r.applied) fs.unlinkSync(beforeFile);
+        console.log(`${r.name} | ${plan.dungeon} | ${restore ? 'restore' : 'setup'} ${r.applied ? 'applied' : 'NOT fully applied'} | back on S${r.backTo ?? '?'} | saved: ${r.saved} | source ${r.sourceBefore} -> ${r.sourceAfter}`);
+        for (const line of r.log || []) console.log('  ' + line);
+        for (const line of r.left || []) console.log('  LEFT: ' + line);
+        for (const x of r.shortages || []) console.log(`  SHORT: ${x.name} needed in ${x.need} sets, ${x.have} available`);
+        if (r.error) throw Error(r.error);
+        console.log('  potion not changed (shared by every set): activate it before the run');
+        return;
+      }
       const { sources } = await readSourcesByName();
       const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, `mh.dungeonSetupPreview(${JSON.stringify(plans)})`, 60000));
       if (r.error) throw Error(r.error);

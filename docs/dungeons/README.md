@@ -15,10 +15,12 @@ Two sources, read before preparing any dungeon:
    `MELVOR_DEATH_THRESHOLD`). The verdict also shows in Plans > Dungeon path.
 2. `dungeon-optimize <character> "<dungeon>"`: owned gear, potion and prayers that bring the hardest fight
    under the threshold, per style. Read-only.
-3. `dungeon-setup <character> "<dungeon>"`: the plan against each set it targets, and the items several
-   sets would need at once. Preview only for now.
+3. `dungeon-setup <character> "<dungeon>" [--style melee,ranged]`: the plan against each set it targets and
+   the items several sets would need at once; `--apply` equips it (refused on any shortage) and records the
+   replaced gear. The combat potion is shared by every set: it is not changed.
 4. `combat-run <character> "<dungeon>" --slot N`: runs the dungeon with the checked set and flees on low HP.
-   The game repeats the dungeon afterwards; `slayer-start` puts the character back on its task.
+   The game repeats the dungeon afterwards: `dungeon-setup ... --restore --apply` puts the daily gear back,
+   then `slayer-start --slot N` puts the character back on its task.
 
 Event dungeons do not behave like a monster list and get their own notes here:
 

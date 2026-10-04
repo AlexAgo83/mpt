@@ -34,7 +34,7 @@ npm run source
 ./melvor-report.js dungeon-guide "<dungeon name>"
 ./melvor-report.js dungeon-check <character> "<dungeon name>"
 ./melvor-report.js dungeon-optimize <character> "<dungeon name>" [--style melee|ranged|magic] [--cape "<cape>"]
-./melvor-report.js dungeon-setup <character> "<dungeon name>"
+./melvor-report.js dungeon-setup <character> "<dungeon name>" [--style melee,ranged] [--apply] [--restore --apply]
 ./melvor-report.js export-state all > /tmp/melvor-state.json
 ./melvor-report.js save-backup all
 ./melvor-report.js journal <character>
@@ -54,7 +54,9 @@ or apply-all command.
 
 `dungeon-check`, `dungeon-optimize` and `dungeon-setup` are read-only: the fights are simulated in
 [Myth] Combat Simulator's own copy of the game. `combat-run --slot N` uses the set `dungeon-check`
-validated, flees below 35% HP, and refuses to start when the game offers no way to flee.
+validated, flees below 35% HP, and refuses to start when the game offers no way to flee; it also runs
+Abyss depths. `dungeon-setup` writes only with `--apply`: it equips each plan into its own set, records
+the gear it replaces, and `--restore --apply` puts that gear back (the daily Slayer sets).
 
 `brief` is the preferred command for AI account triage. It returns one compact JSON object
 per character with:

@@ -615,6 +615,39 @@
     return { name: game.characterName, sets: out, shortages, potionOwned: Object.fromEntries([...new Set(out.map(s => s.potion).filter(Boolean))].map(n => [n, bankQty(n)])) };
   };
 
+  // Equip the plans into their own sets, then go back to the set in use. Refuses on any shortage. The combat potion
+  // is shared by every set, so it is left to the run. Two passes: an item another set frees later in the loop.
+  mh.dungeonSetupApply = async (plans) => {
+    const preview = mh.dungeonSetupPreview(plans);
+    if (preview.shortages.length) return { ...preview, error: 'not enough copies: ' + preview.shortages.map(x => x.name).join(', ') };
+    // what the plans replace, so --restore can put the daily (Slayer) gear back; an empty slot is not restored
+    const before = preview.sets.map(s => ({ setIndex: s.setIndex, style: s.style, equipment: (s.swaps || []).filter(w => w.from).map(w => [w.slot, w.from]), prayers: s.prayersNow }));
+    const p = game.combat.player, original = p.selectedEquipmentSet, log = [];
+    const nameIn = (slot) => { const e = p.equipment.equippedArray.find(x => x.slot.localID === slot); return e && e.item !== game.emptyEquipmentItem ? e.item.name : null; };
+    for (let pass = 0; pass < 2; pass++) {
+      for (const plan of plans) {
+        p.changeEquipmentSet(plan.setIndex - 1);
+        const todo = plan.equipment.filter(([slot, name]) => name && nameIn(slot) !== name);
+        for (const [slot, name] of todo) {
+          // a stack (tablets, ammo, scrolls) wanted by several sets is split between them
+          const sharing = plans.filter(o => o.setIndex >= plan.setIndex && o.equipment.some(([s, n]) => s === slot && n === name)).length;
+          const qty = /^Summon[12]$|^Quiver$|^Consumable$/.test(slot) ? Math.max(1, Math.floor((game.bank.items.get(game.items.allObjects.find(i => i.name === name))?.quantity ?? 0) / sharing)) : undefined;
+          log.push('S' + plan.setIndex + ' ' + mh.equipSlot(name, slot, qty));
+        }
+        if (plan.prayers?.length) {
+          const wanted = plan.prayers.map(n => game.prayers.allObjects.find(x => x.name === n)).filter(Boolean);
+          for (const x of [...p.activePrayers]) if (!wanted.includes(x)) p.togglePrayer(x);
+          for (const x of wanted) if (!p.activePrayers.has(x)) p.togglePrayer(x);
+        }
+      }
+    }
+    p.changeEquipmentSet(original);
+    const after = mh.dungeonSetupPreview(plans);
+    const left = after.sets.flatMap(s => (s.swaps || []).map(w => 'S' + s.setIndex + ' ' + w.slot + ' is ' + (w.from || 'empty') + ', not ' + w.to)
+      .concat(s.prayers?.length && s.prayers.join() !== s.prayersNow.join() ? ['S' + s.setIndex + ' prayers are ' + (s.prayersNow.join(' + ') || 'none')] : []));
+    return { name: game.characterName, applied: !left.length, log, left, before, backTo: original + 1, error: left.length ? 'not fully applied' : null };
+  };
+
   mh.simUpgrades = async (plan, maxSims = 30) => {
     const session = await simSession(); if (session.error) return { error: session.error };
     const monster = game.combat.enemy?.monster ?? game.combat.selectedMonster;
