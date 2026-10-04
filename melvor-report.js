@@ -2292,7 +2292,10 @@ if (require.main === module) (async () => {
         for (const c of finalBySlot.values()) console.log(`  ${c.slot}: ${c.from ? c.from + ' -> ' : ''}${c.to}`);
         if (!r.changes.length) console.log('  no owned change improves this fight');
       }
-      fs.writeFileSync(path.join(JOURNAL_DIR, 'dungeons', `${safeFilePart(who)}-${safeFilePart(check.dungeon)}-plan.json`), JSON.stringify({ at: new Date().toISOString(), character: who, dungeon: check.dungeon, results }, null, 2));
+      // a --style run replaces that style only and keeps the others
+      const planFile = path.join(JOURNAL_DIR, 'dungeons', `${safeFilePart(who)}-${safeFilePart(check.dungeon)}-plan.json`);
+      const kept = fs.existsSync(planFile) ? JSON.parse(fs.readFileSync(planFile, 'utf8')).results.filter(old => !results.some(r => r.style === old.style)) : [];
+      fs.writeFileSync(planFile, JSON.stringify({ at: new Date().toISOString(), character: who, dungeon: check.dungeon, results: [...kept, ...results] }, null, 2));
       return;
     }
 

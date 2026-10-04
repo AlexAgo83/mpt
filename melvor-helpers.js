@@ -556,6 +556,9 @@
       const candidates = bank.filter(item => item.validSlots.some(v => v.localID === slot) && item.id !== now).sort((a, b) => defensive(b) - defensive(a)).slice(0, slot === 'Weapon' ? 4 : 3);
       for (const item of candidates) {
         if (sims >= maxSims) break;
+        // one bank copy fills one slot: count the other slots already taking this item from the bank
+        const taken = [...current.equipment].filter(([k, v]) => k !== key && v === item.id && base.equipment.get(k) !== v).length;
+        if ((game.bank.items.get(item)?.quantity ?? 0) <= taken) continue;
         const equipment = new Map(current.equipment); equipment.set(key, item.id);
         const trial = { ...current, equipment }; const r = await run(trial);
         if (better(r, best)) { best = r; current = trial; changes.push({ slot, from: game.items.getObjectByID(now)?.name ?? 'empty', to: item.name, death: r.death, kill: r.kill }); }
