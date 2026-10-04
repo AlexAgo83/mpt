@@ -216,7 +216,7 @@ assert.match(html, /wiki\.melvoridle\.com\/api\.php/, 'equipment sheet loads off
 assert.match(html, /score\(b\[1\]\) - score\(a\[1\]\)/, 'characters sort by total-level score');
 assert.match(html, /identity-title/, 'score is grouped with the character name');
 assert.match(html, /nextAction/, 'dashboard keeps the next action compact');
-assert.match(renderDashboard(buildLatest([upgrades], new Map(), null, now)), /Upgrade plans/, 'dashboard renders the dedicated upgrade plans tab');
+assert.match(renderDashboard(buildLatest([upgrades], new Map(), null, now)), /upgrades: 'Upgrades'/, 'dashboard renders the dedicated upgrade plans tab');
 assert.match(html, /SKILL_COLORS/, 'dashboard renders skill colors');
 assert.match(html, /Sort inventory/, 'inventory supports quantity and name sorting');
 assert.match(html, /wikiText/, 'dashboard links known game entities in text panels');
@@ -284,4 +284,10 @@ console.log('journal self-check ok');
   assert.match(line, /completion 50\.60% \(\+0\.50\)/, 'completion shows the delta since the last record');
   assert.match(line, /vs 2026-10-01/, 'completion names the compared record');
   assert.doesNotMatch(completionLine(row('x'), null), /\(\+|vs /, 'first record has no delta');
+}
+
+{
+  // the dashboard script lives in a template literal: a bad escape (e.g. "\/" in a regex) breaks the whole page
+  const html = renderDashboard(buildLatest([], new Map(), null, new Date().toISOString()));
+  for (const [, code] of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) assert.doesNotThrow(() => new Function(code), 'dashboard script parses');
 }

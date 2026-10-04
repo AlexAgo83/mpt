@@ -1,8 +1,8 @@
-# Melvor CP
+# MelvorPT
 
-<p align="center"><img src="assets/mpt-crest.png" width="160" alt="Melvor CP crest"></p>
+<p align="center"><img src="assets/mpt-crest.png" width="160" alt="MelvorPT crest"></p>
 
-<p align="center"><b>Your whole Melvor Idle account, one private command post — with an AI co-pilot that never risks your save.</b></p>
+<p align="center"><b>Your whole Melvor Idle account, one private dashboard — with an AI co-pilot that never risks your save.</b></p>
 
 <p align="center">
 
@@ -18,7 +18,7 @@
 
 Running seven characters across Standard, Hardcore, Adventure and Ancient Relics means
 seven Slayer tasks, seven sets of scrolls running dry and seven saves that can drift between
-local and cloud. Melvor CP puts all of them on one page and lets Claude, Codex or any MCP
+local and cloud. MelvorPT puts all of them on one page and lets Claude, Codex or any MCP
 assistant read, plan and act for you — one reviewed change at a time.
 
 ## Why you'll like it

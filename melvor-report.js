@@ -332,6 +332,7 @@ async function ensureChrome() {
   throw Error(`Chrome debug port ${PORT} unavailable`);
 }
 
+const fmtRate = n => Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
 function fmtNum(n) {
   return Intl.NumberFormat('en-US', { notation: Math.abs(n) >= 1e9 ? 'compact' : 'standard', maximumFractionDigits: 2 }).format(n);
 }
@@ -1574,14 +1575,14 @@ function progressEtas(current, previous) {
         const nextLevel = Math.min((s.levelCap ?? 120), s.level + 1);
         const nextTen = Math.min((s.levelCap ?? 120), Math.ceil((s.level + 1) / 10) * 10);
         const cap = s.levelCap ?? 120;
-        parts.push(`${s.name}: ${fmtNum(dxp)} XP gained (${fmtNum(dxp * 3600000 / elapsed)}/h)`);
+        parts.push(`${s.name}: ${fmtNum(dxp)} XP gained (${fmtRate(dxp * 3600000 / elapsed)}/h)`);
         if (nextLevel > s.level) parts.push(`next level ETA ${fmtDuration((xpForLevel(nextLevel) - s.xp) / xpPerMs)}`);
         if (nextTen > s.level) parts.push(`level ${nextTen} ETA ${fmtDuration((xpForLevel(nextTen) - s.xp) / xpPerMs)}`);
         if (cap > s.level) parts.push(`cap ${cap} ETA ${fmtDuration((xpForLevel(cap) - s.xp) / xpPerMs)}`);
       }
       if (daxp > 0) {
         const axpPerMs = daxp / elapsed;
-        parts.push(`${s.name}: ${fmtNum(daxp)} abyssal XP gained (${fmtNum(daxp * 3600000 / elapsed)}/h)`);
+        parts.push(`${s.name}: ${fmtNum(daxp)} abyssal XP gained (${fmtRate(daxp * 3600000 / elapsed)}/h)`);
         parts.push(`abyssal level ${s.abyssalLevel ?? '?'}/${s.abyssalCap ?? '?'}`);
         if (s.abyssalXPNextLevel) parts.push(`abyssal next level ETA ${fmtDuration((s.abyssalXPNextLevel - s.abyssalXP) / axpPerMs)}`);
         if (s.abyssalXPNextTen) parts.push(`abyssal level ${Math.min(s.abyssalCap ?? 60, Math.ceil(((s.abyssalLevel ?? 0) + 1) / 10) * 10)} ETA ${fmtDuration((s.abyssalXPNextTen - s.abyssalXP) / axpPerMs)}`);
@@ -1589,7 +1590,7 @@ function progressEtas(current, previous) {
         if (!s.abyssalXPNextLevel && !s.abyssalXPNextTen && !s.abyssalXPCap)
           parts.push('abyssal ETA unavailable until abyssal XP thresholds are mapped');
       }
-      return parts.filter(Boolean).join('; ');
+      return parts.filter(part => part && !/ETA null$/.test(part)).join('; ');
     })
     .filter(Boolean)
     .slice(0, 5);
@@ -1824,7 +1825,7 @@ function renderDashboard(snap) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/png" href="/assets/favicon.png">
-<title>Melvor CP</title>
+<title>MelvorPT</title>
 <style>
 :root {
   color-scheme: dark;
@@ -1868,7 +1869,7 @@ button:hover { border-color: var(--accent); }
 button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid #e2b95f77; outline-offset: 1px; }
 .check { display: flex; align-items: center; gap: .4rem; white-space: nowrap; color: var(--muted); }
 .check input { width: auto; }
-.column-head, .character-head { display: grid; grid-template-columns: 1fr 1fr 2.5fr; gap: .75rem; min-width: 0; }
+.column-head, .character-head { display: grid; grid-template-columns: minmax(11rem, 1fr) minmax(0, 2.2fr) minmax(0, 1.6fr) 7.5rem; gap: 1rem; min-width: 0; }
 .column-head { padding: .35rem .75rem; color: var(--muted); font-size: .72rem; text-transform: uppercase; }
 .character { margin-bottom: .45rem; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
 .character[open] { border-color: #58675f; }
@@ -1879,7 +1880,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .identity small { color: var(--muted); }
 .identity-title { display: flex; align-items: center; gap: .35rem; min-width: 0; }
 .identity-title .badge { margin: 0; }
-.cell-value { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cell-value { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.cell.idle .cell-value { color: var(--muted); }
+.completion-cell .cell-value { display: grid; gap: .2rem; font-variant-numeric: tabular-nums; }
+.completion-cell progress { width: 100%; height: .35rem; accent-color: var(--accent); }
 .cell-label { display: none; }
 .badge { display: inline-block; margin: .18rem .25rem 0 0; border: 1px solid; border-radius: 4px; padding: .05rem .35rem; font-size: .72rem; font-weight: 650; text-transform: uppercase; }
 .badge.danger, .badge.risk { color: #ffd8d2; border-color: var(--danger); background: #4b211e; }
@@ -1891,17 +1895,26 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .tabs { display: flex; gap: .35rem; overflow-x: auto; margin-bottom: .7rem; }
 .tabs button { width: auto; padding: .35rem .65rem; white-space: nowrap; }
 .tabs button[aria-selected="true"] { color: #101413; border-color: var(--accent); background: var(--accent); }
-.tab-switch { display: inline-flex; max-width: 100%; overflow-x: auto; margin-bottom: .7rem; border: 1px solid var(--line); border-radius: 999px; padding: 2px; gap: 2px; }
-.tab-switch button { width: auto; display: grid; place-items: center; padding: .4rem .6rem; border: 0; border-radius: 999px; background: transparent; color: inherit; }
-.tab-switch button:hover { background: var(--line); }
-.tab-switch button[aria-selected="true"] { color: #101413; background: var(--accent); }
-.tab-switch svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tab-switch { display: flex; overflow-x: auto; margin: -.7rem -.8rem .8rem; padding: 0 .5rem; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+.tab-switch button { width: auto; flex: 0 0 auto; display: flex; align-items: center; gap: .4rem; padding: .6rem .7rem; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); }
+.tab-switch button:hover { color: var(--ink); border-color: transparent; }
+.tab-switch button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-switch .tab-sep { flex: 0 0 1px; margin: .55rem .35rem; background: var(--line); }
+.tab-switch svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.insight-list { display: grid; gap: .35rem; }
+.insight { display: grid; gap: .3rem; padding: .45rem .6rem; border-left: 3px solid var(--line); border-radius: 0 4px 4px 0; background: #111614; }
+.insight.p-critical { border-left-color: var(--danger); }
+.insight.p-high { border-left-color: var(--accent); }
+.insight.sev-warning { border-left-color: var(--warning); }
+.insight-chips { display: flex; flex-wrap: wrap; gap: .3rem; }
+.insight-chips span { border: 1px solid var(--line); border-radius: 999px; padding: .05rem .5rem; color: var(--muted); font-size: .76rem; }
+.insight-meter { display: flex; align-items: center; gap: .45rem; color: var(--muted); font-size: .76rem; font-variant-numeric: tabular-nums; }
+.insight-meter progress { width: 8rem; height: .35rem; accent-color: var(--teal); }
 .panel[hidden] { display: none; }
 .panel-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .group { min-width: 0; }
 .group h3 { margin: 0 0 .3rem; color: var(--accent); font-size: .82rem; text-transform: uppercase; }
-.insight, .plain-list li { margin: .25rem 0; overflow-wrap: anywhere; }
-.insight .badge { margin-right: .45rem; }
+.plain-list li { margin: .25rem 0; overflow-wrap: anywhere; }
 .plain-list { margin: 0; padding-left: 1.1rem; }
 .equipment-sheet { display: grid; gap: .7rem; }
 .equipment-summary { display: flex; flex-wrap: wrap; gap: .35rem; }
@@ -1954,6 +1967,9 @@ a { color: var(--accent); }
   #q { grid-column: 1 / -1; }
   .column-head { display: none; }
   .character-head { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem .7rem; }
+  .tab-switch .tab-label { display: none; }
+  .tab-switch button { padding: .55rem .5rem; }
+  .tab-switch .tab-sep { margin: .55rem .15rem; }
   .identity { grid-column: 1 / -1; }
   .cell-label { display: block; color: var(--muted); font-size: .68rem; text-transform: uppercase; }
   .cell-value { white-space: normal; overflow-wrap: anywhere; }
@@ -1961,7 +1977,7 @@ a { color: var(--accent); }
 }
 </style>
 <body>
-<header class="title-row"><div class="brand"><img src="/assets/mpt-crest.png" alt=""><h1>Melvor CP</h1></div><p id="scanTime"></p></header>
+<header class="title-row"><div class="brand"><img src="/assets/mpt-crest.png" alt=""><h1>MelvorPT</h1></div><p id="scanTime"></p></header>
 <section id="refreshControls" aria-label="Refresh journal"><select id="refreshCharacter"><option value="all">all characters</option></select><button id="refreshButton" type="button">Refresh</button><span id="refreshStatus"></span></section>
 <details id="setup"><summary>Account setup</summary><ol><li>Sign in through the official Melvor page in the shared browser profile.</li><li>Set your character roster in <code>.env.local</code>.</li><li>Use Refresh to build the first local journal.</li></ol><p><a href="https://melvoridle.com/" target="_blank" rel="noopener">Open Melvor sign-in</a> · MPT never stores your credentials.</p></details>
 <section id="start"><h2>Start here</h2></section>
@@ -1974,7 +1990,7 @@ a { color: var(--accent); }
   <select id="fPriority"><option value="">all priorities</option><option value="critical">critical</option><option value="high">high</option><option value="medium">medium</option><option value="low">low</option></select>
   <label class="check"><input id="fAttention" type="checkbox"> needs attention</label>
 </div></details>
-<div class="column-head" aria-hidden="true"><span>Character</span><span>Current</span><span>Next</span></div>
+<div class="column-head" aria-hidden="true"><span>Character</span><span>Current</span><span>Next</span><span>Completion</span></div>
 <div id="cards"></div>
 <script id="data" type="application/json">${json}</script>
 <script>
@@ -2070,7 +2086,8 @@ const wikiText = text => {
 const list = items => { const ul = el('ul', 'plain-list'); for (const item of [...new Set(items)].filter(Boolean)) { const row = el('li'); row.append(wikiText(item)); ul.append(row); } return ul; };
 const group = (title, items) => { if (!items.length) return null; const box = el('section', 'group'); box.append(el('h3', '', title), list(items)); return box; };
 // Icon-only tab switch: the label stays in title/aria-label. Static Lucide-style paths, no user data.
-const TAB_LABELS = { now: 'Now', progress: 'Progress', equipment: 'Equipment', upgrades: 'Upgrade plans', completion: 'Completion', skills: 'Skills', inventory: 'Inventory', plans: 'Plans', history: 'History' };
+const TAB_GROUP = { now: 0, progress: 0, completion: 0, equipment: 1, upgrades: 1, inventory: 1, skills: 1, plans: 2, history: 2 };
+const TAB_LABELS = { now: 'Now', progress: 'Progress', equipment: 'Equipment', upgrades: 'Upgrades', completion: 'Completion', skills: 'Skills', inventory: 'Inventory', plans: 'Plans', history: 'History' };
 const TAB_ICONS = {
   now: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
   progress: '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
@@ -2098,9 +2115,20 @@ const completionSheet = c => {
 const panel = (name, groups) => { const body = el('div', 'panel panel-grid'); body.dataset.panel = name; for (const item of groups.filter(Boolean)) body.append(item); return body.children.length ? body : null; };
 const insightPanel = items => {
   if (!items.length) return null;
-  const body = el('div', 'panel'); body.dataset.panel = 'now';
+  const body = el('div', 'panel insight-list'); body.dataset.panel = 'now';
   for (const item of items.slice(0, 10)) {
-    const row = el('div', 'insight'); row.append(el('span', 'badge ' + item.severity, item.priority), wikiText(item.label)); body.append(row);
+    // "Skill: headline; detail; detail" -> headline + level meter + detail chips
+    const [headline, ...details] = item.label.split('; ');
+    const row = el('div', 'insight p-' + item.priority + ' sev-' + item.severity); row.title = item.priority + ' priority';
+    const head = el('div'); head.append(wikiText(headline)); row.append(head);
+    const chips = el('div', 'insight-chips');
+    for (const detail of details) {
+      const level = /^(abyssal )?level (\\d+)\\/(\\d+)$/.exec(detail);
+      if (level) { const meter = el('div', 'insight-meter'); const bar = el('progress'); bar.max = +level[3]; bar.value = +level[2]; meter.append(bar, el('span', '', (level[1] ? 'abyssal ' : '') + level[2] + '/' + level[3])); row.append(meter); }
+      else chips.append(el('span', '', detail.replace(/ ETA /, ' · ')));
+    }
+    if (chips.children.length) row.append(chips);
+    body.append(row);
   }
   return body;
 };
@@ -2211,7 +2239,12 @@ function render() {
     identity.append(identityTitle, el('small', '', (c.observed.mode || '') + ' · ' + relative(c.observed.at)));
     if (hasRisk(name)) identity.append(el('span', 'badge risk', 'save risk'));
     const cell = (label, value) => { const n = el('div', 'cell'); const text = el('span', 'cell-value'); text.append(value || '—'); n.append(el('span', 'cell-label', label), text); return n; };
-    head.append(identity, cell('Current', wikiText(current(c) + (eta?.etaSeconds ? ' · ' + fmtEta(eta.etaSeconds) : ''))), cell('Next', wikiText(nextAction(decision))));
+    const next = nextAction(decision);
+    const nextCell = cell('Next', wikiText(next)); if (/^(Nothing|ETA pending)/.test(next)) nextCell.classList.add('idle');
+    const done = c.observed.completion?.total;
+    const completionCell = cell('Completion', null); completionCell.classList.add('completion-cell');
+    if (done != null) { const bar = el('progress'); bar.max = 100; bar.value = done; completionCell.querySelector('.cell-value').replaceChildren(el('span', '', done.toFixed(1) + '%'), bar); }
+    head.append(identity, cell('Current', wikiText(current(c) + (eta?.etaSeconds ? ' · ' + fmtEta(eta.etaSeconds) : ''))), nextCell, completionCell);
     details.append(head);
 
     const body = el('div', 'character-body');
@@ -2226,11 +2259,11 @@ function render() {
     const panels = [
       insightPanel(insights(c)),
       panel('progress', [group('Level ETA', c.analysis.progressEtas || []), group('Standard lows', (c.observed.standard?.lowest || []).slice(0, 6).map(s => s.name + ' ' + s.level + '/' + s.cap)), group('Abyssal lows', (c.observed.abyssal?.lowest || []).slice(0, 6).map(s => s.name + ' ' + s.abyssalLevel + '/' + s.abyssalCap))]),
+      completionSheet(c),
       equipment,
       upgradeSheet(c),
-      skillsSheet(c),
       inventorySheet(c),
-      completionSheet(c),
+      skillsSheet(c),
       panel('plans', [group('Standard plan', c.analysis.standardPlan || []), group('Abyssal plan', c.analysis.abyssalPlan || []), group('Decisions', actions), group('Risk notes', c.analysis.riskNotes || [])]),
       history.children.length ? history : null,
     ].filter(Boolean);
@@ -2238,8 +2271,10 @@ function render() {
     for (const [index, content] of panels.entries()) {
       const tabName = content.dataset.panel;
       const label = TAB_LABELS[tabName] || tabName;
-      const btn = el('button', ''); btn.type = 'button'; btn.dataset.tab = tabName; btn.title = label; btn.setAttribute('aria-label', label); btn.setAttribute('role', 'tab'); btn.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
-      if (TAB_ICONS[tabName]) btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + TAB_ICONS[tabName] + '</svg>'; else btn.textContent = label;
+      const btn = el('button', ''); btn.type = 'button'; btn.dataset.tab = tabName; btn.setAttribute('role', 'tab'); btn.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
+      if (TAB_ICONS[tabName]) btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + TAB_ICONS[tabName] + '</svg>';
+      btn.append(el('span', 'tab-label', label));
+      if (index && TAB_GROUP[tabName] !== TAB_GROUP[panels[index - 1].dataset.panel]) tabs.append(el('span', 'tab-sep'));
       content.hidden = index !== 0; tabs.append(btn); body.append(content);
     }
     body.prepend(tabs);
