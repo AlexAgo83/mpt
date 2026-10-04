@@ -18,8 +18,8 @@ recommendations, current-action plan, standard plan, abyssal plan, proposed acti
 - `journal/completion.jsonl`: one Completion Log row per character and refresh (also written by
   `completion --record`); runs print the delta since the previous row
 - `journal/index.html`: offline decision cockpit with account indicators, priority/attention
-  filtering, a responsive character comparison view, and Now/Progress/Equipment/Upgrade plans/Plans/History
-  detail tabs. It opens directly from disk and links to the full Markdown journals.
+  filtering, a responsive character comparison view, and Now/Progress/Equipment/Upgrade plans/Skills/Inventory/Completion/Plans/History
+  detail tabs, shown as an icon-only switch (hover or screen reader gives the name). It opens directly from disk and links to the full Markdown journals.
   Run `./melvor-report.js journal-serve` and open `http://127.0.0.1:8787` to enable the
   dashboard's read-only refresh button for one character or the whole account. It never
   changes game state; it only runs `journal <character> --record` locally.

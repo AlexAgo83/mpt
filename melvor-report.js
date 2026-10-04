@@ -940,11 +940,9 @@ const completionScript = `(() => {
       monsters: pct(c.monsterProgress.getPercent(all)), pets: pct(c.petProgress.getPercent(all)) },
   };
 })()`;
-const lastCompletion = name => {
-  if (!fs.existsSync(COMPLETION_LOG)) return null;
-  const rows = fs.readFileSync(COMPLETION_LOG, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)).filter(row => row.name === name);
-  return rows[rows.length - 1] || null;
-};
+const completionRows = name => !fs.existsSync(COMPLETION_LOG) ? [] :
+  fs.readFileSync(COMPLETION_LOG, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)).filter(row => row.name === name);
+const lastCompletion = name => completionRows(name).at(-1) || null;
 const completionLine = (row, prev) => {
   const delta = (v, p) => p == null || v === p ? '' : ` (${v > p ? '+' : ''}${(v - p).toFixed(2)})`;
   const e = row.expansions, c = row.categories, pe = prev?.expansions || {}, pc = prev?.categories || {};
@@ -1893,6 +1891,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .tabs { display: flex; gap: .35rem; overflow-x: auto; margin-bottom: .7rem; }
 .tabs button { width: auto; padding: .35rem .65rem; white-space: nowrap; }
 .tabs button[aria-selected="true"] { color: #101413; border-color: var(--accent); background: var(--accent); }
+.tab-switch { display: inline-flex; max-width: 100%; overflow-x: auto; margin-bottom: .7rem; border: 1px solid var(--line); border-radius: 999px; padding: 2px; gap: 2px; }
+.tab-switch button { width: auto; display: grid; place-items: center; padding: .4rem .6rem; border: 0; border-radius: 999px; background: transparent; color: inherit; }
+.tab-switch button:hover { background: var(--line); }
+.tab-switch button[aria-selected="true"] { color: #101413; background: var(--accent); }
+.tab-switch svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .panel[hidden] { display: none; }
 .panel-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .group { min-width: 0; }
@@ -2066,6 +2069,32 @@ const wikiText = text => {
 };
 const list = items => { const ul = el('ul', 'plain-list'); for (const item of [...new Set(items)].filter(Boolean)) { const row = el('li'); row.append(wikiText(item)); ul.append(row); } return ul; };
 const group = (title, items) => { if (!items.length) return null; const box = el('section', 'group'); box.append(el('h3', '', title), list(items)); return box; };
+// Icon-only tab switch: the label stays in title/aria-label. Static Lucide-style paths, no user data.
+const TAB_LABELS = { now: 'Now', progress: 'Progress', equipment: 'Equipment', upgrades: 'Upgrade plans', completion: 'Completion', skills: 'Skills', inventory: 'Inventory', plans: 'Plans', history: 'History' };
+const TAB_ICONS = {
+  now: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+  progress: '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
+  equipment: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  upgrades: '<circle cx="12" cy="12" r="10"/><polyline points="16 12 12 8 8 12"/><line x1="12" y1="16" x2="12" y2="8"/>',
+  completion: '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
+  skills: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  inventory: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
+  plans: '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>',
+  history: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+};
+const completionSheet = c => {
+  const now = c.observed.completion, prev = c.analysis.completionPrevious;
+  if (!now) return null;
+  const pct = (label, v, p) => label + ' ' + v.toFixed(1) + '%' + (p == null || v === p ? '' : ' (' + (v > p ? '+' : '') + (v - p).toFixed(2) + ')');
+  const names = { base: 'Base game', toth: 'Throne of the Herald', aod: 'Atlas of Discovery', ita: 'Into the Abyss', skills: 'Skills', mastery: 'Mastery', items: 'Items', monsters: 'Monsters', pets: 'Pets' };
+  const rows = (key) => Object.entries(now[key] || {}).map(([k, v]) => pct(names[k] || k, v, prev?.[key]?.[k]));
+  return panel('completion', [
+    group('Completion Log', [pct('Total', now.total, prev?.total)].concat(prev ? ['since ' + new Date(prev.at).toLocaleString()] : [])),
+    group('Expansions', rows('expansions')),
+    group('Categories', rows('categories')),
+    group('History', (c.analysis.completionHistory || []).slice().reverse().map(h => new Date(h.at).toLocaleString() + ' · ' + h.total.toFixed(2) + '%')),
+  ]);
+};
 const panel = (name, groups) => { const body = el('div', 'panel panel-grid'); body.dataset.panel = name; for (const item of groups.filter(Boolean)) body.append(item); return body.children.length ? body : null; };
 const insightPanel = items => {
   if (!items.length) return null;
@@ -2201,13 +2230,16 @@ function render() {
       upgradeSheet(c),
       skillsSheet(c),
       inventorySheet(c),
+      completionSheet(c),
       panel('plans', [group('Standard plan', c.analysis.standardPlan || []), group('Abyssal plan', c.analysis.abyssalPlan || []), group('Decisions', actions), group('Risk notes', c.analysis.riskNotes || [])]),
       history.children.length ? history : null,
     ].filter(Boolean);
-    const tabs = el('div', 'tabs'); tabs.setAttribute('role', 'tablist');
+    const tabs = el('div', 'tab-switch'); tabs.setAttribute('role', 'tablist');
     for (const [index, content] of panels.entries()) {
       const tabName = content.dataset.panel;
-      const btn = el('button', '', ({ now: 'Now', progress: 'Progress', equipment: 'Equipment', upgrades: 'Upgrade plans', skills: 'Skills', inventory: 'Inventory', plans: 'Plans', history: 'History' })[tabName] || tabName); btn.type = 'button'; btn.dataset.tab = tabName; btn.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
+      const label = TAB_LABELS[tabName] || tabName;
+      const btn = el('button', ''); btn.type = 'button'; btn.dataset.tab = tabName; btn.title = label; btn.setAttribute('aria-label', label); btn.setAttribute('role', 'tab'); btn.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
+      if (TAB_ICONS[tabName]) btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + TAB_ICONS[tabName] + '</svg>'; else btn.textContent = label;
       content.hidden = index !== 0; tabs.append(btn); body.append(content);
     }
     body.prepend(tabs);
@@ -2372,6 +2404,11 @@ async function runJournal() {
     chars.push(buildCharacterJournal(name, data, sources[name]));
   }
   for (const b of backupEntries) console.log(`recorded ${b.path} (${b.character}, ${b.source}, ${b.hash})`);
+  for (const [i, c] of chars.entries()) {
+    c.observed.completion = completions[i];
+    c.analysis.completionPrevious = lastCompletion(c.name);
+    c.analysis.completionHistory = [...completionRows(c.name).slice(-8), completions[i]].map(row => ({ at: row.at, total: row.total }));
+  }
   const previous = readLatestSnapshot();
   const now = new Date().toISOString();
   for (const c of chars) c.analysis.progressEtas = progressEtas(c, previous?.characters?.[c.name] || null);
