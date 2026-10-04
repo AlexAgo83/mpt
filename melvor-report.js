@@ -556,9 +556,10 @@ const fmtDuration = ms => {
 
 function verifiedSkillPlan(data, skill, abyssal) {
   const option = (data.skillingOptions?.[skill.name] || [])
-    .filter(o => Boolean(o.abyssalLevel) === abyssal && o.runwayHours >= 8)
-    .sort((a, b) => (b.xpPerHour ?? 0) - (a.xpPerHour ?? 0) || b.runwayHours - a.runwayHours)[0];
+    .filter(o => Boolean(o.abyssalLevel) === abyssal && (o.gathering || o.runwayHours >= 8))
+    .sort((a, b) => (b.xpPerHour ?? 0) - (a.xpPerHour ?? 0) || (b.runwayHours ?? Infinity) - (a.runwayHours ?? Infinity))[0];
   if (!option) return null;
+  if (option.gathering) return `${abyssal ? 'abyssal ' : ''}${skill.name}: ${option.recipe}; no materials needed; ${option.xpPerHour ? fmtRate(option.xpPerHour) + ' XP/h' : 'XP rate unknown'}`;
   const inputs = option.inputs.map(i => `${i.item} ${i.owned} (${i.perAction}/action)`).join(', ');
   return `${abyssal ? 'abyssal ' : ''}${skill.name}: ${option.recipe}; ${option.maxActions} actions; ${option.runwayHours.toFixed(1)} h runway; ${inputs}`;
 }
@@ -568,7 +569,7 @@ function briefFromData(name, data, save, previousEntry, now = new Date().toISOSt
   const skills = data.skills || [];
   const goals = report.combatGoals || {};
   const standardOpen = skills
-    .filter(s => (s.levelCap ?? 120) > 1 && s.level < (s.levelCap ?? 120))
+    .filter(s => (s.levelCap ?? 120) > 1 && s.level < (s.levelCap ?? 120) && s.name !== report.action)
     .sort(byLevelThenXp);
   const abyssalSkills = skills.filter(hasTrainableAbyssalLevels);
   const abyssalOpen = abyssalSkills
@@ -1413,6 +1414,8 @@ function buildCharacterJournal(name, data, save) {
       optimizationPlan: activeSlayerTask ? [] : brief.standard.next,
       standardPlan: activeSlayerTask ? [] : brief.standard.next,
       abyssalPlan: activeSlayerTask ? [] : brief.abyssal.next,
+      // kept out of Next/To do so the Slayer task is not interrupted; Plans shows it as "After the Slayer task"
+      afterTaskPlan: activeSlayerTask ? [...brief.standard.next, ...brief.abyssal.next] : [],
       riskNotes: [
         saveRisk,
         report.mode === 'Hardcore Mode' ? 'Hardcore character: verify survivability before any combat change' : null,
@@ -1665,7 +1668,7 @@ function structuredInsights(entry) {
     const isSave = !isPending && /save|source-of-truth/i.test(label);
     const isRunway = /^(ammo|consumable|familiar|food):|quiver|summon|runway/i.test(label);
     const isTask = /slayer task|finish |ETA/i.test(label) && !isRunway;
-    const actionable = !isPending && (isSave || / -> .*available x[1-9]\d*/i.test(label) || /; \d+ actions; [\d.]+ h runway;/i.test(label) || /\bfinish\b/i.test(label));
+    const actionable = !isPending && (isSave || / -> .*available x[1-9]\d*/i.test(label) || /; (\d+ actions; [\d.]+ h runway|no materials needed);/i.test(label) || /\bfinish\b/i.test(label));
     const priority = isPending ? 'low' : isIdle || (isAlert && isSave) ? 'critical'
       : (isAlert || actionable || (etaSeconds !== null && etaSeconds <= 3600)) ? 'high'
         : isRunway || isTask ? 'medium' : 'low';
@@ -2075,7 +2078,7 @@ const score = c => c.observed.totalLevel || 0;
 const short = (text, max = 88) => text && text.length > max ? text.slice(0, max - 1) + '…' : text;
 const isAutomaticTask = label => /^current combat: finish Slayer task/i.test(label || '');
 // "Cooking: Carrot Cake; 17903 actions; 39.8 h runway; ..." is a plan to switch skill: say so, keep the runway
-const planLine = label => { const parts = label.split('; '); return /^\\d+ actions$/.test(parts[1] || '') ? 'Switch to ' + parts[0] + ' · ' + (parts.find(p => /runway/.test(p)) || '').replace(' runway', ' of materials') : null; };
+const planLine = label => { const parts = label.split('; '); if (parts[1] === 'no materials needed') return 'Switch to ' + parts[0] + ' · ' + (parts[2] || ''); return /^\\d+ actions$/.test(parts[1] || '') ? 'Switch to ' + parts[0] + ' · ' + (parts.find(p => /runway/.test(p)) || '').replace(' runway', ' of materials') : null; };
 const nextAction = decision => short(decision ? planLine(decision.label) || decision.label.replace(/^current [^:]+:\\s*/i, '').split(';')[0] : 'Nothing: let it run', 72);
 const current = c => {
   const combat = c.observed.combat;
@@ -2271,13 +2274,15 @@ function upgradeSheet(c) {
   const contextRow = el('section', 'group'); contextRow.append(el('h3', '', 'Context'));
   const contextText = context.kind === 'non_combat_skill' ? ['Skilling: ', wiki(context.target || 'unknown'), document.createTextNode(' · combat upgrades wait until it stops')] : context.kind === 'slayer_task' ? ['Slayer task: ', wiki(context.target || 'unknown'), document.createTextNode(' · ' + (context.remaining ?? '?') + ' kills left · ' + context.refresh)] : context.kind === 'dungeon' ? ['Dungeon: ', wiki(context.target || 'unknown'), document.createTextNode(' · strategy guide: '), wiki(context.target || 'unknown')] : ['Activity: ' + (context.target || 'unknown')];
   const contextLine = el('div'); contextLine.append(...contextText); const build = el('div', 'insight-chips'); build.append(el('span', '', 'build: ' + (plan.attackType || 'unknown') + (plan.damageType ? ' / ' + plan.damageType : ''))); const ctx = el('div', 'insight'); ctx.append(contextLine); if (context.kind !== 'non_combat_skill') ctx.append(build); contextRow.append(ctx); contextRow.classList.add('span-all'); body.append(contextRow);
-  const source = (item, kind) => kind === 'craft' && item.craft ? (item.craft.recipe === item.name ? [document.createTextNode('craft: ' + item.craft.skill)] : [document.createTextNode('craft: ' + item.craft.skill + ' / '), wiki(item.craft.recipe)]) : item.loot ? [document.createTextNode('loot: '), wiki(item.loot)] : [document.createTextNode(item.source || 'source unknown')];
+  const source = (item, kind) => kind === 'craft' && item.craft ? (item.craft.recipe === item.name ? [document.createTextNode('craft: ' + item.craft.skill)] : [document.createTextNode('craft: ' + item.craft.skill + ' / '), wiki(item.craft.recipe)]) : kind === 'bank' ? [document.createTextNode('in bank x' + (item.owned || 0).toLocaleString('en-US'))] : item.loot ? [document.createTextNode('loot: '), wiki(item.loot), document.createTextNode(item.lootChance ? ' · ' + (item.lootChance >= 1 ? item.lootChance.toFixed(1) : item.lootChance.toPrecision(2)) + '%' : '')] : [document.createTextNode(item.source || 'source unknown')];
   const section = (title, kind) => {
     const tiles = Object.entries(plan.slots || {}).filter(([, entry]) => entry[kind]).map(([slot, entry]) => {
       const choice = entry[kind]; const tile = el('div', 'tile' + (choice.primary.blocked?.length ? ' blocked' : ''));
       const name = el('div', 'tile-title'); name.append(wiki(choice.primary.name));
       const meta = el('div', 'insight-chips'); const src = el('span'); src.append(...source(choice.primary, kind)); meta.append(src);
       if (choice.primary.blocked?.length) meta.append(el('span', 'chip-warn', 'blocked: ' + choice.primary.blocked.join(', ')));
+      if (kind !== 'bank' && choice.primary.owned) meta.append(el('span', '', 'owned x' + choice.primary.owned.toLocaleString('en-US')));
+      for (const passive of choice.primary.passives || []) meta.append(el('span', '', passive));
       tile.append(el('small', '', slot), name, meta);
       if (choice.alternatives?.length) { const alt = el('div', 'tile-alt'); alt.append(document.createTextNode('or ')); choice.alternatives.forEach((item, i) => { if (i) alt.append(document.createTextNode(', ')); alt.append(wiki(item.name)); }); tile.append(alt); }
       return tile;
@@ -2297,7 +2302,7 @@ function upgradeSheet(c) {
   const tileGroup = (title, tiles) => { if (!tiles.length) return null; const b = el('section', 'group span-all'); const grid = el('div', 'tile-grid'); grid.append(...tiles); b.append(el('h3', '', title), grid); return b; };
   const skilling = tileGroup('Skilling gear in your bank', Object.entries(plan.skilling || {}).map(([slot, entry]) => swapTile(slot, entry.current, entry.candidates[0].name, entry.candidates[0].available, entry.candidates[0].passives, entry.candidates.slice(1).map(item => item.name))));
   const activity = tileGroup('For the current activity', (plan.activity || []).map(a => swapTile(a.slot, a.current, a.item, a.available, [a.reason], [])));
-  body.append(...[skilling, activity, section('Next loot', 'loot'), section('Next craft', 'craft')].filter(Boolean));
+  body.append(...[skilling, activity, section('Equip from your bank', 'bank'), section('Next loot', 'loot'), section('Next craft', 'craft')].filter(Boolean));
   return body;
 }
 function skillsSheet(c) {
@@ -2490,7 +2495,7 @@ function render() {
       upgradeSheet(c),
       inventorySheet(c),
       skillsSheet(c),
-      panel('plans', [box('Standard plan', (c.analysis.standardPlan || []).map(line => detailRow(line))), box('Abyssal plan', (c.analysis.abyssalPlan || []).map(line => detailRow(line))), (c.analysis.standardPlan || []).length || (c.analysis.abyssalPlan || []).length ? null : box('Next activities', [el('p', 'muted', c.observed.action === 'Combat' && c.observed.combat?.slayerTask ? 'Paused while a Slayer task runs: skill plans come back when it ends.' : 'Nothing to switch to: no low skill has materials for 8 h or more.')]), box('Decisions', actions.length || !hidden ? actions : [el('p', 'muted', 'No open decision (' + hidden + ' closed or stale hidden).')]), box('Risk notes', (c.analysis.riskNotes || []).map(line => detailRow(line, 'sev-warning')))]),
+      panel('plans', [box('Standard plan', (c.analysis.standardPlan || []).map(line => detailRow(line))), box('Abyssal plan', (c.analysis.abyssalPlan || []).map(line => detailRow(line))), box('After the Slayer task', (c.analysis.afterTaskPlan || []).map(line => detailRow(line))), (c.analysis.standardPlan || []).length || (c.analysis.abyssalPlan || []).length || (c.analysis.afterTaskPlan || []).length ? null : box('Next activities', [el('p', 'muted', c.observed.action === 'Combat' && c.observed.combat?.slayerTask ? 'Paused while a Slayer task runs: skill plans come back when it ends.' : 'Nothing to switch to: no low skill has materials for 8 h or more.')]), box('Decisions', actions.length || !hidden ? actions : [el('p', 'muted', 'No open decision (' + hidden + ' closed or stale hidden).')]), box('Risk notes', (c.analysis.riskNotes || []).map(line => detailRow(line, 'sev-warning')))]),
       history.children.length ? history : null,
     ].filter(Boolean);
     const tabs = el('div', 'tab-switch'); tabs.setAttribute('role', 'tablist');
@@ -2740,7 +2745,7 @@ function lock(retry = true) {
   }
 }
 
-module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData, completionLine };
+module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData, completionLine, verifiedSkillPlan };
 if (require.main === module) (async () => {
   if (cmd === 'journal-serve') return runJournalServer();
   if (cmd === 'journal-action') return runJournalAction(who, arg3);

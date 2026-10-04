@@ -23,10 +23,18 @@ recommendations, current-action plan, standard plan, abyssal plan, proposed acti
   Run `./melvor-report.js journal-serve` and open `http://127.0.0.1:8787` to enable the
   dashboard's read-only refresh button for one character or the whole account. It never
   changes game state; it only runs `journal <character> --record` locally.
-- `Upgrade plans`: per equipped slot, the next loot and craft candidates plus up to three
-  alternatives. Compatibility comes from live game metadata (style, active damage type,
-  and requirements); a fixed dungeon may show an official-wiki guide link, while a Slayer
-  task is explicitly refreshed when its target changes.
+- `Upgrades`: per equipped slot, better gear in three lanes: equip from your bank (owned and
+  equippable), next loot (monster with the best drop chance, shown in %) and next craft, each with
+  up to three alternatives and its first passives. Compatibility comes from live game metadata
+  (style, active damage type, requirements). The score weighs attack, strength and defence
+  bonuses plus resistance for the realm being fought (normal or abyssal, x10); items whose
+  passives slow attacks never count as upgrades. Other passives and game-mode restrictions
+  are not scored yet: read the passive chips before swapping. A Slayer task is refreshed when
+  its target changes.
+- `Plans`: for the lowest skills, the best-XP recipe with materials for 8 h or more, and for
+  gathering skills (Woodcutting, Fishing, Mining, Thieving, Astrology, Harvesting) the best
+  unlocked action. The skill already being trained is skipped. During a Slayer task the plans
+  are listed as "After the Slayer task" and stay out of Next and To do.
 - `Level ETA`: projected time to next level, next 10-level milestone, and current cap when
   two journal snapshots have enough standard or abyssal XP gain to estimate a rate; abyssal
   thresholds come from the game `abyssalExp.levelToXP` table; otherwise it explains what

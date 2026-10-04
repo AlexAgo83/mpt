@@ -291,3 +291,13 @@ console.log('journal self-check ok');
   const html = renderDashboard(buildLatest([], new Map(), null, new Date().toISOString()));
   for (const [, code] of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) assert.doesNotThrow(() => new Function(code), 'dashboard script parses');
 }
+
+{
+  const { verifiedSkillPlan } = require('./melvor-report.js');
+  const data = { skillingOptions: { Fishing: [
+    { recipe: 'Shrimp', abyssalLevel: 0, gathering: true, xpPerHour: 5000, runwayHours: null },
+    { recipe: 'Shark', abyssalLevel: 0, gathering: true, xpPerHour: 90000, runwayHours: null },
+  ] } };
+  assert.strictEqual(verifiedSkillPlan(data, { name: 'Fishing' }, false), 'Fishing: Shark; no materials needed; 90K XP/h', 'gathering plans pick the best XP/h with no runway limit');
+  assert.strictEqual(verifiedSkillPlan(data, { name: 'Fishing' }, true), null, 'no abyssal option, no abyssal plan');
+}

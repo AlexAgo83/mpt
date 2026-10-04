@@ -180,6 +180,7 @@
   };
 
   // Unlocked artisan recipes with enough information to prove their resource runway.
+  const GATHERING = ['Woodcutting', 'Fishing', 'Mining', 'Thieving', 'Astrology', 'Harvesting'];
   mh.skillingOptions = (skillName) => {
     const skill = game.skills.find(s => s.name === skillName);
     const actions = skill?.actions?.allObjects ?? skill?.recipes?.allObjects ?? [];
@@ -191,14 +192,16 @@
       const level = action.level ?? 1;
       const abyssalLevel = action.abyssalLevel ?? 0;
       const unlocked = skill.level >= level && (skill.abyssalLevel ?? 0) >= abyssalLevel;
-      if (!unlocked || !inputs.length) return [];
-      const maxActions = Math.min(...inputs.map(c => Math.floor(c.owned / c.perAction)));
-      const intervalMs = (() => { try { return skill.getActionInterval?.(action) ?? action.baseInterval ?? skill.baseInterval ?? null; } catch { return action.baseInterval ?? skill.baseInterval ?? null; } })();
+      if (!unlocked || (!inputs.length && !GATHERING.includes(skillName))) return [];
+      // gathering actions (trees, fish, rocks...) cost nothing: unlimited runway
+      const maxActions = inputs.length ? Math.min(...inputs.map(c => Math.floor(c.owned / c.perAction))) : Infinity;
+      const avgInterval = action.baseMinInterval && action.baseMaxInterval ? (action.baseMinInterval + action.baseMaxInterval) / 2 : null;
+      const intervalMs = (() => { try { return skill.getActionInterval?.(action) ?? action.baseInterval ?? avgInterval ?? skill.baseInterval ?? null; } catch { return action.baseInterval ?? avgInterval ?? skill.baseInterval ?? null; } })();
       const xp = (() => { try { return skill.getXPForAction?.(action) ?? action.baseExperience ?? null; } catch { return action.baseExperience ?? null; } })();
       const runwayHours = intervalMs ? maxActions * intervalMs / 3600000 : null;
       return [{
         recipe: action.name ?? action.product?.name ?? action.id?.split(':').pop() ?? 'unknown recipe',
-        level, abyssalLevel, inputs, maxActions, intervalMs, runwayHours,
+        level, abyssalLevel, inputs, maxActions: Number.isFinite(maxActions) ? maxActions : null, intervalMs, runwayHours: Number.isFinite(runwayHours) ? runwayHours : null, gathering: !inputs.length,
         xpPerHour: xp && intervalMs ? xp * 3600000 / intervalMs : null,
       }];
     }).sort((a, b) => (b.xpPerHour ?? 0) - (a.xpPerHour ?? 0) || (b.runwayHours ?? 0) - (a.runwayHours ?? 0));
@@ -340,7 +343,11 @@
     const values = value => value instanceof Map || value instanceof Set ? [...value.values()] : Array.isArray(value) ? value : value?.allObjects ?? [];
     const p = game.combat.player, combat = game.combat, attackType = p.attackType;
     const prefixes = { melee: ['stabAttackBonus','slashAttackBonus','blockAttackBonus','meleeStrengthBonus','meleeDefenceBonus','resistance'], ranged: ['rangedAttackBonus','rangedStrengthBonus','rangedDefenceBonus','resistance'], magic: ['magicAttackBonus','magicDamageBonus','magicDefenceBonus','resistance'] }[attackType] || [];
-    const score = item => prefixes.reduce((sum, key) => sum + Math.max(0, ...Object.entries(statsOf(item)).filter(([name]) => name.startsWith(key)).map(([, value]) => value)), 0);
+    // Resistance only counts for the realm being fought (normal vs abyssal) and weighs x10: it is a % next to bonuses in the hundreds.
+    const realmResistance = 'resistance' + (p.damageType?.localID && p.damageType.localID !== 'Normal' ? ':' + p.damageType.localID : '');
+    // a slower attack outweighs raw bonuses: such items never count as upgrades
+    const slows = item => passivesOf(item).some(text => /\+[\d.]+s Attack Interval|\+[\d.]+% Attack Interval/i.test(text));
+    const score = item => { if (slows(item)) return -Infinity; const stats = statsOf(item); return prefixes.reduce((sum, key) => sum + (key === 'resistance' ? 10 * Math.max(0, stats[realmResistance] ?? 0) : Math.max(0, ...Object.entries(stats).filter(([name]) => name.startsWith(key)).map(([, value]) => value))), 0); };
     const meets = r => r.type === 'SkillLevel' ? r.skill?.level >= r.level : r.type === 'AbyssalLevel' ? (r.skill?.abyssalLevel ?? 0) >= r.level : r.type === 'DungeonCompletion' ? (combat.getDungeonCompleteCount?.(r.dungeon) ?? 0) >= r.count : r.type === 'AbyssDepthCompletion' ? false : r.type === 'ShopPurchase' ? false : false;
     const requirement = r => r.type === 'SkillLevel' ? `${r.skill?.name || 'skill'} ${r.level}` : r.type === 'AbyssalLevel' ? `Abyssal ${r.skill?.name || 'skill'} ${r.level}` : r.type === 'DungeonCompletion' ? `${r.dungeon?.name || 'dungeon'} x${r.count ?? 1}` : r.type === 'AbyssDepthCompletion' ? `${r.depth?.name || r.abyssDepth?.name || 'Abyss depth'} completion` : r.type === 'ShopPurchase' ? `purchase ${r.purchase?.name || 'required'}` : r.type || 'unknown requirement';
     const craft = new Map();
@@ -348,14 +355,22 @@
       const item = action.product ?? action.item ?? action.outputs?.[0]?.item;
       if (item?.id) craft.set(item.id, { skill: skill.name, recipe: action.name ?? item.name });
     }
+    // the monster with the best chance per kill, not the first one found
     const drops = new Map();
-    for (const monster of values(game.monsters)) for (const drop of values(monster.lootTable?.drops ?? monster.lootTable)) {
-      const item = drop.item ?? drop.drop ?? drop.itemToDrop;
-      if (item?.id && !drops.has(item.id)) drops.set(item.id, monster.name);
+    for (const monster of values(game.monsters)) {
+      const table = values(monster.lootTable?.drops ?? monster.lootTable);
+      const total = table.reduce((sum, drop) => sum + (drop.weight ?? 0), 0);
+      for (const drop of table) {
+        const item = drop.item ?? drop.drop ?? drop.itemToDrop;
+        if (!item?.id) continue;
+        const chance = total && drop.weight ? (drop.weight / total) * ((monster.lootChance ?? 100) / 100) * 100 : null;
+        const known = drops.get(item.id);
+        if (!known || (chance ?? 0) > (known.chance ?? 0)) drops.set(item.id, { monster: monster.name, chance });
+      }
     }
     const equipped = Object.fromEntries(p.equipment.equippedArray.filter(slot => !slot.isEmpty).map(slot => [slot.slot.localID, slot.item]));
     const damageType = equipped.Weapon?.damageType?.name ?? null;
-    const itemView = item => ({ name: item.name, id: item.id, realm: String(item.id || '').split(':')[0] || null, score: score(item), damageType: item.damageType?.name ?? null, craft: craft.get(item.id) ?? null, loot: drops.get(item.id) ?? null, blocked: (item.equipRequirements ?? []).filter(r => !meets(r)).map(requirement) });
+    const itemView = item => ({ name: item.name, id: item.id, realm: String(item.id || '').split(':')[0] || null, score: score(item), damageType: item.damageType?.name ?? null, craft: craft.get(item.id) ?? null, loot: drops.get(item.id)?.monster ?? null, lootChance: drops.get(item.id)?.chance ?? null, owned: game.bank.items.get(item)?.quantity ?? 0, passives: passivesOf(item).filter(Boolean).slice(0, 2), blocked: (item.equipRequirements ?? []).filter(r => !meets(r)).map(requirement) });
     const compatible = (item, slot) => item.validSlots?.[0]?.localID === slot && (!item.attackType || item.attackType === attackType) && !(slot === 'Weapon' && damageType && damageType !== 'Normal' && item.damageType?.name !== damageType);
     const activeSkill = game.activeAction?.name ?? null;
     if (activeSkill && activeSkill !== 'Combat') {
@@ -377,9 +392,12 @@
     const slots = {};
     for (const [slot, current] of Object.entries(equipped)) {
       const candidates = values(game.items).filter(item => item !== current && compatible(item, slot) && score(item) > score(current)).map(itemView).sort((a, b) => a.blocked.length - b.blocked.length || b.score - a.score || a.name.localeCompare(b.name));
-      const pick = kind => candidates.filter(item => item[kind]).slice(0, 4).map(item => ({ ...item, source: kind === 'craft' ? `craft: ${item.craft.skill} / ${item.craft.recipe}` : `loot: ${item.loot}` }));
+      // an equippable item already in the bank beats anything to loot or craft
+      const inBank = candidates.filter(item => item.owned && !item.blocked.length).slice(0, 4).map(item => ({ ...item, source: `in bank x${item.owned}` }));
+      const pick = kind => candidates.filter(item => item[kind] && !(item.owned && !item.blocked.length)).slice(0, 4).map(item => ({ ...item, source: kind === 'craft' ? `craft: ${item.craft.skill} / ${item.craft.recipe}` : `loot: ${item.loot}` }));
       const loot = pick('loot'), crafting = pick('craft');
-      if (loot.length || crafting.length) slots[slot] = { current: itemView(current), loot: loot[0] ? { primary: loot[0], alternatives: loot.slice(1, 4) } : null, craft: crafting[0] ? { primary: crafting[0], alternatives: crafting.slice(1, 4) } : null };
+      const lane = list => list[0] ? { primary: list[0], alternatives: list.slice(1, 4) } : null;
+      if (inBank.length || loot.length || crafting.length) slots[slot] = { current: itemView(current), bank: lane(inBank), loot: lane(loot), craft: lane(crafting) };
     }
     const area = combat.selectedArea;
     const dungeon = values(game.dungeons).find(entry => entry === area);
