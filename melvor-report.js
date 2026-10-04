@@ -1914,13 +1914,13 @@ function renderDashboard(snap) {
 <html lang="fr">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" type="image/png" href="/assets/favicon.png">
+<link rel="icon" type="image/svg+xml" href="/assets/mpt-mark.svg">
 <title>MelvorPT</title>
 <style>
 ${DASHBOARD_CSS}
 </style>
 <body>
-<header class="topbar"><div class="brand"><img src="/assets/mpt-crest.png" alt=""><h1>MelvorPT</h1></div>
+<header class="topbar"><div class="brand"><img src="/assets/mpt-mark.svg" alt=""><h1>MelvorPT</h1></div>
 <div class="top-actions"><span id="scanTime" class="muted"></span>
 <div class="split" aria-label="Refresh journal"><button id="refreshCharacter" type="button" class="split-pick" aria-haspopup="menu" aria-label="Character to refresh"><span>All</span><svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button><button id="refreshButton" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg><span>Refresh</span></button></div>
 <button id="todoButton" class="todo-pill" type="button" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><b id="todoCount">0</b><span class="tab-label">To do</span></button>
@@ -2016,8 +2016,8 @@ function runJournalServer() {
         ? send(res, 200, renderDashboard({ ...snapshot, goals: readGoals() }), 'text/html; charset=utf-8')
         : send(res, 404, JSON.stringify({ error: 'journal missing; run journal --record first' }));
     }
-    if (req.method === 'GET' && ['/assets/mpt-crest.png', '/assets/favicon.png'].includes(url.pathname)) {
-      try { return send(res, 200, fs.readFileSync(path.join(__dirname, url.pathname)), 'image/png'); } catch { return send(res, 404, JSON.stringify({ error: 'not found' })); }
+    if (req.method === 'GET' && url.pathname === '/assets/mpt-mark.svg') {
+      try { return send(res, 200, fs.readFileSync(path.join(__dirname, url.pathname)), 'image/svg+xml'); } catch { return send(res, 404, JSON.stringify({ error: 'not found' })); }
     }
     if (req.method === 'GET' && /^\/[A-Za-z0-9_-]+\.md$/.test(url.pathname)) {
       const name = path.basename(url.pathname, '.md');

@@ -1,6 +1,6 @@
 # MelvorPT
 
-<p align="center"><img src="assets/mpt-crest.png" width="160" alt="MelvorPT crest"></p>
+<p align="center"><img src="assets/mpt-mark.svg" width="120" alt="MelvorPT"></p>
 
 <p align="center"><b>Your whole Melvor Idle account, one private dashboard, with an AI co-pilot that never risks your save.</b></p>
 

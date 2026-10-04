@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MelvorPT">
+  <!-- shield -->
+  <path d="M32 4 L56 12 V30 C56 45 46 55 32 60 C18 55 8 45 8 30 V12 Z" fill="#171d1b" stroke="#e2b95f" stroke-width="3" stroke-linejoin="round"/>
+  <!-- sword, bottom-left to top-right -->
+  <g stroke="#edf1ee" stroke-width="3" stroke-linecap="round">
+    <line x1="21" y1="43" x2="41" y2="21"/>
+    <line x1="17" y1="39" x2="25" y2="47" stroke="#e2b95f"/>
+    <line x1="16" y1="48" x2="20" y2="44" stroke="#e2b95f"/>
+  </g>
+  <!-- pickaxe, bottom-right to top-left -->
+  <g fill="none" stroke-linecap="round">
+    <line x1="44" y1="45" x2="25" y2="24" stroke="#66b5a1" stroke-width="3"/>
+    <path d="M17 34 Q20 20 35 17" stroke="#edf1ee" stroke-width="3.5"/>
+  </g>
+</svg>
