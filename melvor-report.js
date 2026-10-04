@@ -2323,13 +2323,14 @@ if (require.main === module) (async () => {
         setNumber = best.setIndex; potion = best.potion;
         plans = [{ setIndex: best.setIndex, style: best.style, equipment: best.equipment, prayers: best.prayers, best: best.best }];
       }
-      const timeout = Number(process.env.MELVOR_COMBAT_RUN_TIMEOUT_MS || 20 * 60 * 1000);
+      // an Abyss depth took over 20 min for Edalbraw (Depths of Woe): give abyssal areas an hour
+      const timeout = Number(process.env.MELVOR_COMBAT_RUN_TIMEOUT_MS || (check.abyssal ? 60 : 20) * 60 * 1000);
       const r = await withCharacterWrite(who, async client => {
         const out = {};
         out.prev = await evalExpr(client, `(() => {
           const p = game.combat.player, a = game.activeAction, task = game.combat.slayerTask;
           const active = [...game.potions.activePotions].find(([action]) => action === game.combat || action?.name === 'Combat')?.[1]?.item?.name ?? null;
-          self.__mptPrev = { action: a, name: a?.name ?? null, set: p.selectedEquipmentSet, onTask: a === game.combat && task?.active && game.combat.selectedMonster === task.monster,
+          self.__mptPrev = { action: a, name: a?.name ?? null, set: p.selectedEquipmentSet, onTask: a === game.combat && Boolean(task?.active) && (game.combat.enemy?.monster === task.monster || game.combat.selectedMonster === task.monster), taskMonster: task?.monster ?? null,
             monster: game.combat.selectedMonster, area: game.combat.selectedArea, potion: active, trees: a === game.woodcutting ? [...game.woodcutting.activeTrees] : null };
           return { name: self.__mptPrev.name, set: p.selectedEquipmentSet + 1, onTask: self.__mptPrev.onTask, potion: active, trees: self.__mptPrev.trees?.map(t => t.name) ?? null };
         })()`);
@@ -2347,13 +2348,20 @@ if (require.main === module) (async () => {
           out.resume = await evalExpr(client, `(async () => {
             const s = self.__mptPrev, p = game.combat.player, sleep = ms => new Promise(r => setTimeout(r, ms));
             p.changeEquipmentSet(s.set);
-            if (s.onTask) game.combat.slayerTask.jumpToTaskOnClick();
+            if (s.onTask) {
+              // the jump does not leave a dungeon and sometimes does nothing: stop, jump, then select the monster directly
+              if (game.combat.isActive) { game.combat.stop(); await sleep(500); }
+              game.combat.slayerTask.jumpToTaskOnClick(); await sleep(2000);
+              if (game.combat.enemy?.monster !== s.taskMonster) { const area = [...game.combatAreas.allObjects, ...game.slayerAreas.allObjects].find(x => x.monsters.includes(s.taskMonster)); if (area) game.combat.selectMonster(s.taskMonster, area); }
+            }
             else if (s.action === game.combat && s.monster) game.combat.selectMonster(s.monster, s.area);
             else if (s.trees?.length) { if (game.activeAction) game.activeAction.stop(); for (const t of s.trees) if (!game.woodcutting.activeTrees.has(t)) game.woodcutting.selectTree(t); }
             else if (s.action) s.action.start();
             else if (game.activeAction) game.activeAction.stop();
             await sleep(1500);
-            return { wanted: s.name, now: game.activeAction?.name ?? null, set: p.selectedEquipmentSet + 1, ok: (game.activeAction?.name ?? null) === s.name,
+            const onMonster = !s.onTask || game.combat.enemy?.monster === s.taskMonster || game.combat.selectedMonster === s.taskMonster;
+            return { wanted: s.name, now: game.activeAction?.name ?? null, set: p.selectedEquipmentSet + 1, wantedSet: s.set + 1, area: game.combat.selectedArea?.name ?? null,
+              ok: (game.activeAction?.name ?? null) === s.name && p.selectedEquipmentSet === s.set && onMonster,
               trees: game.activeAction === game.woodcutting ? [...game.woodcutting.activeTrees].map(t => t.name) : null };
           })()`, 60000);
         }
@@ -2365,7 +2373,7 @@ if (require.main === module) (async () => {
       for (const o of run.rewardOptions || []) console.log(`  pending option: ${o.label}`);
       if (r.restore) console.log(`  gear back: ${r.restore.applied ? 'yes' : 'NO: ' + (r.restore.left || []).join('; ')}`);
       if (r.potionBack) console.log(`  potion back: ${r.potionBack.final ?? r.potionBack.error}`);
-      console.log(`  previous activity: ${r.prev.name}${r.prev.trees ? ' (' + r.prev.trees.join(', ') + ')' : ''}${r.prev.onTask ? ' (Slayer task)' : ''} -> now ${r.resume.now}${r.resume.trees ? ' (' + r.resume.trees.join(', ') + ')' : ''} on S${r.resume.set}: ${r.resume.ok ? 'resumed' : 'NOT resumed'}`);
+      console.log(`  previous activity: ${r.prev.name}${r.prev.trees ? ' (' + r.prev.trees.join(', ') + ')' : ''}${r.prev.onTask ? ' (Slayer task)' : ''} -> now ${r.resume.now}${r.resume.trees ? ' (' + r.resume.trees.join(', ') + ')' : ''} on S${r.resume.set} (was S${r.resume.wantedSet})${r.resume.area ? ' in ' + r.resume.area : ''}: ${r.resume.ok ? 'resumed' : 'NOT resumed'}`);
       console.log(`  saved: ${r.saved} | source ${r.sourceBefore} -> ${r.sourceAfter}`);
       fs.appendFileSync(path.join(JOURNAL_DIR, `${who}.md`), `## ${new Date().toISOString()} - ${who} dungeon-clear\n\n- Dungeon: ${check.dungeon}\n- Status: ${r.status}, set S${setNumber}${plans.length ? ' with the plan' : ''}\n- Lowest HP: ${Math.min(...(run.samples || []).map(s => s.hp))}\n- Back to: ${r.resume.now} (${r.resume.ok ? 'resumed' : 'not resumed'})\n\n`);
       if (!r.resume.ok || (r.restore && !r.restore.applied)) throw Error('dungeon-clear did not put everything back: see above');
@@ -2548,8 +2556,17 @@ if (require.main === module) (async () => {
         const slot = ${requestedSlot - 1};
         if (!player.equipmentSets?.[slot]) return { error: 'equipment set ${requestedSlot} does not exist' };
         player.changeEquipmentSet(slot);
+        // jumping to the task does not leave a dungeon in progress: stop the fight first
+        if (game.combat.isActive) { game.combat.stop(); await new Promise(resolve => setTimeout(resolve, 500)); }
         task.jumpToTaskOnClick();
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        // the jump does nothing in some cases (Dash, Adventure Mode): select the task monster in its area directly
+        if (game.combat.enemy?.monster !== task.monster) {
+          const area = [...game.combatAreas.allObjects, ...game.slayerAreas.allObjects].find(a => a.monsters.includes(task.monster));
+          if (area) { game.combat.selectMonster(task.monster, area); await new Promise(resolve => setTimeout(resolve, 2000)); }
+        }
+        if (game.combat.selectedMonster !== task.monster && game.combat.enemy?.monster !== task.monster)
+          return { error: 'not on the task monster after the jump: ' + (game.combat.selectedArea?.name ?? 'no area') + ' / ' + (game.combat.enemy?.monster?.name ?? 'no monster') };
         return {
           name: game.characterName, task: task.monster.name, remaining: task.killsLeft,
           slot: slot + 1, style: player.attackType, area: game.combat.selectedArea?.name ?? null,
