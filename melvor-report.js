@@ -1775,7 +1775,7 @@ function readDungeonChecks() {
       const plan = fs.existsSync(planFile) ? JSON.parse(fs.readFileSync(planFile, 'utf8')) : null;
       const v = dungeonVerdict(check);
       (out[check.character] ||= {})[check.dungeon] = {
-        at: check.at, checks: check.checks, threshold: v.threshold, ready: v.ready,
+        at: check.at, checks: check.checks, threshold: v.threshold, ready: v.ready, event: EVENT_DUNGEONS.includes(check.id),
         fights: v.fights.map(f => ({ label: f.label, ready: f.ready, best: f.best && { set: f.best.set, role: f.best.role, death: f.best.deathRate, kill: f.best.killTimeS, trials: f.best.trials ?? null } })),
         lastClear: clears.filter(c => c.character === check.character && c.dungeon === check.dungeon).at(-1) || null,
         plan: plan && { at: plan.at, results: [...plan.results].sort((a, b) => a.setIndex - b.setIndex).map(r => ({ style: r.style, label: r.label, setIndex: r.setIndex, start: r.start, best: r.best, potion: r.potion, prayers: r.prayers,
@@ -2026,7 +2026,10 @@ function chooseIdModifier(offers) {
   return known.length ? { ...known[0], unknown: ranked.filter(r => r.rank === null).map(r => r.offer) } : { error: 'no offer recognised', unknown: offers };
 }
 
+// event dungeons need choices and style rerolls that dungeon-clear does not make: never run them automatically
+const EVENT_DUNGEONS = ['melvorF:Impending_Darkness', 'melvorF:Into_the_Mist'];
 function chooseClearPlan(check, planResults = []) {
+  if (EVENT_DUNGEONS.includes(check.id)) return { error: 'event dungeon (choices and style rerolls), not run automatically' };
   if (check.hardcore) return { error: 'Hardcore character, not run automatically' };
   const verdict = dungeonVerdict(check);
   if (verdict.ready) {

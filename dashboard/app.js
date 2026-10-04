@@ -47,31 +47,46 @@ const saveGoal = async (name, patch) => {
 // Plans > Dungeon path: a "Clear <dungeon>" line gains the last dungeon-check verdict and the dungeon-optimize plan
 const pct = v => (v * 100).toFixed(1) + '%';
 const dungeonRow = (name, line, cls) => {
-  const row = detailRow(line, cls);
   const dc = snap.dungeonChecks?.[name]?.[/^Clear ([^;]+)/.exec(line)?.[1]];
-  if (!dc) return row;
-  const limit = dc.threshold, ready = dc.ready, prereqOk = dc.checks.every(x => x.ok);
+  if (!dc) return detailRow(line, cls);
+  const [headline, ...details] = line.split('; ');
+  const limit = dc.threshold, prereqOk = dc.checks.every(x => x.ok);
   // the fight that blocks: never simulated first, then the highest death rate
   const worstFight = dc.fights.filter(f => !f.ready).sort((a, b) => (b.best ? b.best.death : 2) - (a.best ? a.best.death : 2))[0];
-  const planWorst = dc.plan?.results.length ? Math.max(...dc.plan.results.map(r => r.best.death)) : null;
-  const verdict = el('div', 'insight-chips');
-  verdict.append(el('span', ready ? 'chip-good' : 'chip-warn', ready ? 'Ready' : !prereqOk ? 'Not ready: prerequisites missing' : !worstFight ? 'Not ready: not simulated' : 'Not ready: ' + worstFight.label + (worstFight.best ? ' ' + pct(worstFight.best.death) + ' deaths' : ' not simulated')));
-  if (!ready && planWorst != null) verdict.append(el('span', planWorst <= limit ? 'chip-good' : 'chip-warn', 'with the plan: worst ' + pct(planWorst)));
-  verdict.append(el('span', '', 'limit ' + pct(limit) + ' · checked ' + new Date(dc.at).toLocaleString()));
+  // the plan dungeon-clear would use: safest then fastest under the limit
+  const chosen = dc.ready || dc.event ? null : (dc.plan?.results || []).filter(r => r.best.death <= limit).sort((a, b) => a.best.death - b.best.death || a.best.kill - b.best.kill)[0] || null;
+  const state = dc.event ? ['no', 'Event: not automated'] : dc.ready ? ['ok', 'Ready'] : chosen ? ['plan', 'Ready with plan'] : ['no', 'Not ready'];
+  const row = el('div', 'insight dg ' + (cls || ''));
+  const top = el('div', 'dg-top'); const title = el('div'); title.append(wikiText(headline)); top.append(title, el('span', 'dg-pill ' + state[0], state[1])); row.append(top);
+  const blocker = !prereqOk ? 'missing: ' + dc.checks.filter(x => !x.ok).map(x => x.label).join(', ')
+    : worstFight ? 'blocks: ' + worstFight.label + (worstFight.best ? ' ' + pct(worstFight.best.death) : ' (not simulated)') : null;
+  const plan = chosen ? 'plan S' + chosen.setIndex + ' ' + chosen.style + ': ' + pct(chosen.best.death) : null;
+  row.append(el('p', 'dg-meta', [...details, blocker, plan, 'checked ' + relative(dc.at)].filter(Boolean).join(' · ')));
   const lc = dc.lastClear;
-  if (lc) verdict.append(el('span', lc.status === 'completed' && lc.back ? 'chip-good' : 'chip-warn', 'last clear: ' + lc.status + ' ' + new Date(lc.at).toLocaleString() + (lc.lowestHP != null && lc.maxHP ? ' · lowest HP ' + Math.round(lc.lowestHP / lc.maxHP * 100) + '%' : '') + (lc.back ? ' · back to ' + lc.now : ' · NOT back to its activity')));
-  const more = el('details', 'bank-group'); more.append(el('summary', '', 'Check and plan'));
-  const sub = (title, nodes) => { const g = el('div', 'insight'); g.append(el('strong', '', title), ...nodes); return g; };
-  more.append(sub('Prerequisites', dc.checks.map(x => el('div', x.ok ? '' : 'sev-warning', (x.ok ? '✓ ' : '✗ ') + x.label + (x.detail ? ' · ' + x.detail : '')))));
-  more.append(sub('Best current set per fight', dc.fights.map(f => el('div', f.ready ? '' : 'sev-warning', f.label + (f.best ? ' · S' + f.best.set + ' ' + f.best.role + ' · deaths ' + pct(f.best.death) + (f.best.trials ? ' over ' + f.best.trials + ' trials' : '') + ' · kill ' + Math.round(f.best.kill) + ' s' : ' · not simulated')))));
-  for (const r of dc.plan?.results || []) {
-    const chips = el('div', 'insight-chips');
-    for (const ch of r.changes) chips.append(el('span', '', ch.slot + ': ' + ch.from + ' → ' + ch.to));
-    if (r.potion) chips.append(el('span', '', 'Potion: ' + r.potion));
-    if (r.prayers?.length) chips.append(el('span', '', 'Prayers: ' + r.prayers.join(' + ')));
-    more.append(sub('Plan S' + r.setIndex + ' ' + r.style + ' vs ' + r.label + ': ' + pct(r.start.death) + ' → ' + pct(r.best.death), [chips]));
+  if (lc) {
+    const good = lc.status === 'completed' && lc.back;
+    const hp = lc.lowestHP != null && lc.maxHP ? 'lowest HP ' + Math.round(lc.lowestHP / lc.maxHP * 100) + '%' : null;
+    row.append(el('p', 'dg-last' + (good ? '' : ' warn'), (good ? '✓ ' : '⚠ ') + [(lc.status === 'completed' ? 'cleared ' : lc.status + ' ') + relative(lc.at), hp, lc.back ? 'back to ' + lc.now : 'not back to its activity'].filter(Boolean).join(' · ')));
   }
-  row.append(verdict, more);
+  const more = el('details', 'dg-more'); more.append(el('summary', '', 'Details'));
+  const section = title => el('h4', 'dg-sec', title);
+  const table = (heads, rows) => { const wrap = el('div', 'dg-wrap'); const t = el('table', 'dg-table'); const hr = el('tr'); for (const h of heads) hr.append(el('th', h.endsWith('#') ? 'num' : '', h.replace('#', ''))); t.append(hr); for (const r of rows) t.append(r); wrap.append(t); return wrap; };
+  const tr = (cells, rowCls) => { const r = el('tr', rowCls || ''); for (const [text, c] of cells) r.append(el('td', c || '', text)); return r; };
+  const prereq = el('div', 'dg-prereq'); for (const x of dc.checks) { const sp = el('span', x.ok ? '' : 'bad', (x.ok ? '✓ ' : '✗ ') + x.label); if (x.detail) sp.title = x.detail; prereq.append(sp); }
+  more.append(section('Prerequisites'), prereq);
+  more.append(section('Fights, best current set (limit ' + pct(limit) + ')'), table(['Fight', 'Set', 'Deaths#', 'Kill#'], dc.fights.map(f => {
+    const r = tr([[f.label], [f.best ? 'S' + f.best.set + ' ' + f.best.role : '-'], [f.best ? pct(f.best.death) : 'not simulated', 'num' + (f.ready ? '' : ' bad')], [f.best ? Math.round(f.best.kill) + ' s' : '-', 'num']]);
+    if (f.best?.trials) r.title = f.best.trials + ' trials'; return r;
+  })));
+  for (const r of dc.plan?.results || []) {
+    const h = section('Plan S' + r.setIndex + ' ' + r.style + ' · ' + pct(r.start.death) + ' → ' + pct(r.best.death));
+    if (r === chosen) h.append(el('span', 'dg-chosen', 'used by dungeon-clear'));
+    const rows = r.changes.map(ch => tr([[ch.slot], [ch.from, 'muted'], [ch.to]]));
+    if (r.potion) rows.push(tr([['Potion'], ['', 'muted'], [r.potion]]));
+    if (r.prayers?.length) rows.push(tr([['Prayers'], ['', 'muted'], [r.prayers.join(' + ')]]));
+    more.append(h, table(['Slot', 'Now', 'Plan'], rows));
+  }
+  row.append(more);
   return row;
 };
 const goalLines = (c, goal) => goal === 'progression' ? null : c.analysis.goals?.[goal] || null;

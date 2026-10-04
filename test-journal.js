@@ -347,6 +347,8 @@ console.log('journal self-check ok');
   assert.strictEqual(dungeonVerdict({ ...hc, sims: [sim('a', 1, 0), sim('boss', 1, 0)] }).ready, true, 'Hardcore: 0% over 1000 trials is ready');
   assert.match(chooseClearPlan({ ...hc, sims: [sim('a', 1, 0), sim('boss', 1, 0)] }).error, /Hardcore/, 'Hardcore is never run automatically');
   assert.strictEqual(dungeonVerdict({ ...ready, checks: [{ label: 'Map', ok: false }] }).ready, false, 'a missing prerequisite blocks');
+  assert.match(chooseClearPlan({ ...notReady, id: 'melvorF:Impending_Darkness' }, plans).error, /event dungeon/, 'Impending Darkness is never run by dungeon-clear, even with a plan under the limit');
+  assert.match(chooseClearPlan({ ...ready, id: 'melvorF:Into_the_Mist' }).error, /event dungeon/, 'Into the Mist is never run by dungeon-clear');
   assert.strictEqual(dungeonVerdict({ ...ready, simulated: false }).ready, false, 'no simulation is never ready');
 }
 console.log('dungeon verdict and clear choice ok');
