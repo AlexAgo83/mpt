@@ -1848,10 +1848,14 @@ body {
 h1 { margin: 0; color: var(--accent); font-size: 1.55rem; letter-spacing: 0; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .9rem; }
 .top-actions { display: flex; align-items: center; gap: .6rem; }
-.split { display: flex; }
-.split select { width: auto; border-radius: 6px 0 0 6px; border-right: 0; }
-.split button { width: auto; display: flex; align-items: center; gap: .35rem; border-radius: 0 6px 6px 0; color: #101413; background: var(--accent); border-color: var(--accent); font-weight: 600; }
-.icon-button { width: auto; display: grid; place-items: center; padding: .45rem; border-radius: 6px; }
+.split { display: flex; align-items: stretch; height: 2.25rem; border: 1px solid #6b5a33; border-radius: 999px; background: #1d1a13; overflow: hidden; }
+.split select { width: auto; border: 0; border-radius: 0; background: transparent; color: var(--muted); padding: 0 .3rem 0 .9rem; font-size: .85rem; cursor: pointer; }
+.split select:hover { color: var(--ink); }
+.split button { width: auto; display: flex; align-items: center; gap: .4rem; margin: 3px; padding: 0 .85rem; border: 0; border-radius: 999px; color: #101413; background: var(--accent); font-weight: 650; font-size: .85rem; }
+.split button:hover { filter: brightness(1.08); }
+.split button:disabled { opacity: .6; }
+.icon-button { width: 2.25rem; height: 2.25rem; display: grid; place-items: center; padding: 0; border-radius: 999px; color: var(--muted); }
+.icon-button:hover { color: var(--accent); }
 .topbar svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 #refreshStatus { margin: -.5rem 0 .6rem; text-align: right; }
 #refreshStatus:empty { display: none; }
@@ -1995,6 +1999,21 @@ a:hover { text-decoration: underline; }
 .insight.compact .insight-chips, .insight.compact .meter-row { display: none; }
 .insight.status-stale { opacity: .75; }
 .controls { display: flex; gap: .5rem; }
+.inventory { display: grid; gap: .6rem; }
+.inv-cats { flex-wrap: wrap; }
+.inv-cats select { width: auto; border: 0; background: transparent; color: var(--muted); padding: .3rem .5rem; }
+.bank-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.2rem, 1fr)); gap: .35rem; }
+.bank-tile { position: relative; display: grid; justify-items: center; gap: .15rem; padding: .45rem .3rem .35rem; border: 1px solid var(--line); border-radius: 8px; background: #111614; color: var(--ink); text-decoration: none; }
+.bank-tile:hover { border-color: var(--accent); text-decoration: none; }
+.bank-icon { display: grid; place-items: center; width: 40px; height: 40px; }
+.bank-icon img { width: 40px; height: 40px; object-fit: contain; }
+.bank-icon .wiki-icon { width: 36px; height: 36px; margin: 0; }
+.bank-qty { color: var(--accent); font-size: .78rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.bank-name { width: 100%; overflow: hidden; color: var(--muted); font-size: .7rem; text-align: center; white-space: nowrap; text-overflow: ellipsis; }
+.bank-tile.low { border-color: var(--warning); }
+.bank-group > summary { cursor: pointer; padding: .3rem 0; }
+.bank-group > summary strong { color: var(--accent); font-size: .84rem; }
+.bank-group[open] > summary { margin-bottom: .35rem; }
 .controls input { flex: 1; }
 .controls select { width: auto; }
 .history { display: grid; gap: .8rem; }
@@ -2165,7 +2184,7 @@ const TAB_INTRO = {
   completion: 'Completion Log progress (as in game) for the whole game, per expansion and per category, and how it moved over time.',
   equipment: 'Gear worn in the current set and the saved sets, with the active style, damage type and accuracy.',
   upgrades: 'Better gear for what this character is doing now: items to loot or craft, and owned items worth equipping.',
-  inventory: 'Everything in the bank, searchable and sortable by quantity or name.',
+  inventory: 'Everything in the bank, grouped by kind and worth (sell price). In use shows what the current activity consumes.',
   skills: 'Every skill with its level, abyssal level, XP to the next level and mastery pool.',
   plans: 'Suggested next activities (lowest skills first, only with materials for 8 h or more) and open gear decisions.',
   history: 'What changed between journal scans: activity, total level, maxed skills and GP.',
@@ -2317,19 +2336,71 @@ function skillsSheet(c) {
   panel.append(grid);
   return panel;
 }
+// Bank view in the game's style: icon tiles grouped by item type, "In use" first, value from the sell price.
 function inventorySheet(c) {
-  const panel = el('section', 'panel'); panel.dataset.panel = 'inventory';
+  const panel = el('section', 'panel inventory'); panel.dataset.panel = 'inventory';
   const inventory = c.observed.inventory || [];
   if (!inventory.length) { panel.append(el('p', 'muted', 'Refresh this character to load inventory.')); return panel; }
-  const filter = document.createElement('input'); filter.type = 'search'; filter.placeholder = 'Filter inventory…'; filter.setAttribute('aria-label', 'Filter inventory');
-  const sort = document.createElement('select'); sort.setAttribute('aria-label', 'Sort inventory'); sort.append(new Option('Quantity', 'quantity'), new Option('Name', 'name'));
-  const grid = el('div', 'inventory-grid');
-  const show = () => { grid.replaceChildren(); for (const item of [...inventory].sort(sort.value === 'name' ? (a, b) => a.name.localeCompare(b.name) : (a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name))) { const cell = el('div', 'inventory-item'); cell.dataset.inventoryName = item.name.toLowerCase(); const name = el('small'); name.append(wiki(item.name)); cell.append(name, el('span', 'inventory-qty', '×' + item.quantity.toLocaleString('en-US'))); grid.append(cell); } loadWikiIcons(); };
+  const value = item => item.currency === 'GP' ? item.sell * item.quantity : 0;
+  const gp = inventory.reduce((sum, item) => sum + value(item), 0);
+  const ap = inventory.reduce((sum, item) => sum + (item.currency === 'AP' ? item.sell * item.quantity : 0), 0);
+  // ~10 families over the game's 80-odd item types; the raw type stays in the tile tooltip
+  const FAMILIES = [['Equipment', /armour|weapon|amulet|ring|cape|glove|boot|helm|shield|equipment|quiver|arrow|bolt|javelin|knife|gem/i], ['Resources', /logs|ore|bar|herb|fish|hide|shard|bone|essence|leather|plank|thread|fibre|ash|dust|crystal|soul/i], ['Food', /food|cooked/i], ['Potions', /potion/i], ['Runes', /rune/i], ['Seeds', /seed/i], ['Artefacts', /artefact/i], ['Familiars', /familiar|tablet/i], ['Scrolls', /scroll|consumable|token/i]];
+  const family = item => (FAMILIES.find(([, re]) => re.test(item.type || '')) || ['Other'])[0];
+  const types = new Map(); for (const item of inventory) { const t = family(item); types.set(t, (types.get(t) || []).concat(item)); }
+  const summary = el('div', 'insight-chips inv-summary');
+  summary.append(el('span', '', inventory.length.toLocaleString('en-US') + ' items'), el('span', '', types.size + ' groups'), el('span', '', 'bank value ' + fmtCompact(gp) + ' GP'));
+  if (ap) summary.append(el('span', '', fmtCompact(ap) + ' AP'));
+  if (!inventory[0].type) summary.append(el('span', 'chip-warn', 'refresh to load categories and values'));
+
+  const tile = (item, warn) => {
+    const t = el('a', 'bank-tile' + (warn ? ' low' : '')); t.href = 'https://wiki.melvoridle.com/w/' + encodeURIComponent(item.name.replace(/ /g, '_')); t.target = '_blank'; t.rel = 'noopener';
+    t.title = item.name + (item.type ? ' (' + item.type + ')' : '') + ' x' + item.quantity.toLocaleString('en-US') + (value(item) ? ' · ' + fmtCompact(value(item)) + ' GP' : '') + (warn ? ' · ' + warn : '');
+    t.dataset.name = item.name.toLowerCase();
+    const icon = el('span', 'bank-icon');
+    if (item.media) { const img = el('img'); img.src = item.media; img.alt = ''; img.loading = 'lazy'; icon.append(img); } else icon.dataset.wikiTitle = item.name;
+    t.append(icon, el('span', 'bank-qty', fmtCompact(item.quantity)), el('span', 'bank-name', item.name));
+    return t;
+  };
+  const grid = items => { const g = el('div', 'bank-grid'); g.append(...items); return g; };
+
+  // In use: equipped stackables and food, flagged when the runway is under a day
+  const byName = new Map(inventory.map(item => [item.name, item]));
+  const eq = c.observed.equipment || {};
+  const usedNames = [...new Set([eq.Quiver, eq.Consumable, eq.Summon1, eq.Summon2, c.observed.food].filter(Boolean))];
+  const runway = name => insights(c).find(i => i.type === 'resource_runway' && i.label.includes(name) && i.etaSeconds != null);
+  const equippedQty = name => name === c.observed.food ? c.observed.foodQty : Object.entries(eq).filter(([, n]) => n === name).reduce((q, [slot]) => q + ((c.observed.equipmentQuantities || {})[slot] || 0), 0);
+  const inUse = usedNames.map(name => { const r = runway(name); const item = { ...(byName.get(name) || { name }), quantity: equippedQty(name) || byName.get(name)?.quantity || 0 }; return tile(item, r && r.etaSeconds < 86400 ? 'runs out in ' + fmtEta(r.etaSeconds) : null); });
+
+  const filter = document.createElement('input'); filter.type = 'search'; filter.placeholder = 'Filter items…'; filter.setAttribute('aria-label', 'Filter inventory');
+  const sort = document.createElement('select'); sort.setAttribute('aria-label', 'Sort inventory'); sort.append(new Option('Sort: value', 'value'), new Option('Sort: quantity', 'quantity'), new Option('Sort: name', 'name'));
+  const cats = el('div', 'seg inv-cats'); let wanted = '';
+  const chip = (label, key) => { const b = el('button', '', label); b.type = 'button'; b.setAttribute('aria-pressed', String(key === wanted)); b.addEventListener('click', () => { wanted = key; for (const x of cats.children) x.setAttribute('aria-pressed', String(x === b)); show(); }); return b; };
+  const sortedTypes = [...types].sort((a, b) => b[1].length - a[1].length);
+  cats.append(chip('All', ''), ...sortedTypes.slice(0, 12).map(([t, items]) => chip(t + ' · ' + items.length, t)));
+  if (sortedTypes.length > 12) { const more = document.createElement('select'); more.setAttribute('aria-label', 'More categories'); more.append(new Option('More…', ''), ...sortedTypes.slice(12).map(([t, items]) => new Option(t + ' ' + items.length, t))); more.addEventListener('change', () => { wanted = more.value; for (const x of cats.children) if (x.tagName === 'BUTTON') x.setAttribute('aria-pressed', String(!wanted && x.textContent === 'All')); show(); }); cats.append(more); }
+
+  const sections = el('div', 'stack');
+  const order = { value: (a, b) => value(b) - value(a) || b.quantity - a.quantity, quantity: (a, b) => b.quantity - a.quantity, name: (a, b) => a.name.localeCompare(b.name) };
+  const show = () => {
+    const q = filter.value.toLowerCase(); sections.replaceChildren();
+    const groups = [...types].filter(([t]) => !wanted || t === wanted)
+      .map(([t, items]) => [t, items.filter(item => !q || item.name.toLowerCase().includes(q)).sort(order[sort.value])]).filter(([, items]) => items.length)
+      .sort((a, b) => sort.value === 'name' ? a[0].localeCompare(b[0]) : a[1].reduce((s2, i) => s2 + value(i), 0) < b[1].reduce((s2, i) => s2 + value(i), 0) ? 1 : -1);
+    for (const [t, items] of groups) {
+      const d = el('details', 'bank-group'); d.open = groups.indexOf(groups.find(g => g[0] === t)) < 3 || Boolean(q) || Boolean(wanted);
+      const head = el('summary'); head.append(el('strong', '', t), el('span', 'muted', ' ' + items.length + ' · ' + fmtCompact(items.reduce((s2, i) => s2 + value(i), 0)) + ' GP'));
+      d.append(head, grid(items.map(item => tile(item)))); sections.append(d);
+    }
+    if (!groups.length) sections.append(el('p', 'muted', 'No item matches.'));
+    loadWikiIcons();
+  };
   show();
-  filter.addEventListener('input', () => { const query = filter.value.toLowerCase(); for (const cell of grid.children) cell.hidden = query && !cell.dataset.inventoryName.includes(query); });
-  sort.addEventListener('change', show);
+  filter.addEventListener('input', show); sort.addEventListener('change', show);
   const controls = el('div', 'controls'); controls.append(filter, sort);
-  panel.append(controls, grid);
+  panel.append(summary, controls, cats);
+  if (inUse.length) { const b = el('section', 'group'); b.append(el('h3', '', 'In use'), grid(inUse)); panel.append(b); }
+  panel.append(sections);
   return panel;
 }
 function render() {
@@ -2535,7 +2606,7 @@ async function collectJournal(name, save, includeSaveBackup = false) {
       ...skills.filter(s => (s.abyssalLevel ?? 0) < (s.abyssalCap ?? 0)).sort((a, b) => a.abyssalLevel - b.abyssalLevel).slice(0, 6),
     ].map(s => s.name))];
     const equipmentSets = game.combat.player.equipmentSets.map((set, index) => ({ index, items: Object.fromEntries(set.equipment.equippedArray.filter(slot => !slot.isEmpty).map(slot => [slot.slot.localID, slot.item.name])) }));
-    const inventory = [...game.bank.items].map(([item, entry]) => ({ name: item.name, quantity: entry.quantity, media: item.media || null })).sort((a, b) => a.name.localeCompare(b.name));
+    const inventory = [...game.bank.items].map(([item, entry]) => ({ name: item.name, quantity: entry.quantity, media: item.media || null, type: item.type || item.category || 'Other', sell: item.sellsFor?.quantity ?? 0, currency: item.sellsFor?.currency?.id === 'melvorD:GP' ? 'GP' : item.sellsFor?.currency?.id === 'melvorItA:AbyssalPieces' ? 'AP' : null })).sort((a, b) => a.name.localeCompare(b.name));
     const values = value => value instanceof Map ? [...value.values()] : value instanceof Set ? [...value] : Array.isArray(value) ? value : value?.allObjects ?? [];
     const talents = game.skills.allObjects.flatMap(skill => values(skill.skillTrees).map(tree => ({ skill: skill.name, points: tree.points || 0, candidates: values(tree.nodes).filter(node => node.canUnlock && tree.canAffordNode(node) && !values(tree.unlockedNodes).includes(node)).map(node => ({ name: node.name, shortName: node.shortName })) }))).filter(tree => tree.points > 0);
     const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])), equipmentSets, inventory, talents, upgradePlan: mh.upgradePlan(), completion: ${completionScript} };
