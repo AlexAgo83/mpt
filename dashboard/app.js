@@ -32,6 +32,9 @@ const GOAL_ICONS = {
   capes: '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
   shop: '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>',
 };
+// Viewer settings (sort, filters, skills and inventory views): per browser, survive reloads and journal refreshes.
+const prefs = (() => { try { return JSON.parse(localStorage.getItem('mpt-prefs') || '{}'); } catch { return {}; } })();
+const savePref = (key, value) => { prefs[key] = value; try { localStorage.setItem('mpt-prefs', JSON.stringify(prefs)); } catch {} };
 const goalStore = (() => { try { return JSON.parse(localStorage.getItem('mpt-goals') || '{}'); } catch { return {}; } })();
 // served pages trust journal/goals.json (shared by every browser); a page opened from disk keeps its own choice
 const served = location.protocol.startsWith('http');
@@ -224,7 +227,7 @@ stat('due within 1 h', (operations.nearTermCompletions || []).length, 'soon'); s
 stat('save risks', snap.account.saveRisks.length, 'risk', 'warn');
 if (completions.length) stat('avg completion', (completions.reduce((a, b) => a + b, 0) / completions.length).toFixed(1) + '%', null, 'plain');
 let quick = 'all';
-const setQuick = value => { quick = value; for (const b of document.querySelectorAll('#quick [data-quick]')) b.setAttribute('aria-pressed', String(b.dataset.quick === value)); render(); loadWikiIcons(); };
+const setQuick = value => { quick = value; savePref('quick', value); for (const b of document.querySelectorAll('#quick [data-quick]')) b.setAttribute('aria-pressed', String(b.dataset.quick === value)); render(); loadWikiIcons(); };
 document.addEventListener('click', e => { const b = e.target.closest('[data-quick]'); if (b) setQuick(b.dataset.quick); });
 
 const fAction = document.getElementById('fAction');
@@ -447,7 +450,7 @@ function skillsSheet(c, charName) {
   const pending = (c.analysis.progressEtas || []).find(line => line.startsWith('ETA pending'));
   const planned = (() => { const goal = goalOf(charName, c); const line = goalLines(c, goal)?.[0] || (c.analysis.standardPlan || [])[0] || (c.analysis.afterTaskPlan || [])[0] || ''; return line.replace(/^(Switch to |abyssal )+/, '').split(':')[0]; })();
   const kinds = ['All', 'Not maxed', 'Combat', 'Gathering', 'Artisan', 'Support'];
-  let kind = 'All', sortBy = 'name', desc = false;
+  let { kind = 'All', sortBy = 'name', desc = false } = prefs.skills || {};
   const meter = (value, text, title, cls) => { const m = el('div', 'st-meter ' + (cls || '')); const bar = el('progress'); bar.max = 100; bar.value = value; m.append(bar, el('span', '', text)); if (title) m.title = title; return m; };
   const levelCell = s => (s.levelCap ?? 120) <= 1 ? el('span', 'muted', '—') : s.level >= (s.levelCap ?? 120) ? el('span', 'st-done', '✓ ' + s.level)
     : meter(pct(s.xp, s.xpLevelStart, s.xpNextLevel) ?? 0, s.level + '/' + s.levelCap, fmtCompact(s.xp - (s.xpLevelStart || 0)) + ' / ' + fmtCompact((s.xpNextLevel || 0) - (s.xpLevelStart || 0)) + ' XP to the next level');
@@ -485,6 +488,7 @@ function skillsSheet(c, charName) {
   const list = el('div', 'st-list');
   const order = { eta: s => -(etaOf(s.name) ? 1 : 0), name: s => skills.indexOf(s), level: s => s.level + pct(s.xp, s.xpLevelStart, s.xpNextLevel) / 100, abyssal: s => (s.abyssalLevel ?? 0) / (s.abyssalCap || 1), pool: s => Math.min(...(s.masteryPools || []).map(p => p.cap ? p.xp / p.cap : 2), 2) };
   const draw = () => {
+    savePref('skills', { kind, sortBy, desc });
     for (const b of filters.children) b.setAttribute('aria-pressed', String(b.textContent.startsWith(kind)));
     for (const b of head.children) b.classList.toggle('sorted', b.dataset.sort === sortBy);
     const shown = skills.filter(s => kind === 'All' || (kind === 'Not maxed' ? !maxed(s) : SKILL_KIND[s.name] === kind));
@@ -494,6 +498,7 @@ function skillsSheet(c, charName) {
     loadWikiIcons();
   };
   for (const k of kinds) { const n = skills.filter(s => k === 'All' || (k === 'Not maxed' ? !maxed(s) : SKILL_KIND[s.name] === k)).length; if (!n) continue; const b = el('button', '', k + ' · ' + n); b.type = 'button'; b.addEventListener('click', () => { kind = k; draw(); }); filters.append(b); }
+  if (![...filters.children].some(b => b.textContent.startsWith(kind))) kind = 'All';
   panel.classList.toggle('no-abyss', !abyss);
   panel.append(filters);
   if (pending) panel.append(el('p', 'muted st-pending', 'Measured XP/h needs two scans with play in between (' + pending.replace('ETA pending: ', '') + '). Italic values are estimates for the current or best action.'));
@@ -551,15 +556,17 @@ function inventorySheet(c) {
 
   const filter = document.createElement('input'); filter.type = 'search'; filter.placeholder = 'Filter items…'; filter.setAttribute('aria-label', 'Filter inventory');
   const sort = document.createElement('select'); sort.setAttribute('aria-label', 'Sort inventory'); sort.append(new Option('Sort: value', 'value'), new Option('Sort: quantity', 'quantity'), new Option('Sort: name', 'name'));
-  const cats = el('div', 'seg inv-cats'); let wanted = '';
+  const cats = el('div', 'seg inv-cats'); let wanted = types.has(prefs.inventory?.category) ? prefs.inventory.category : '';
+  if (prefs.inventory?.sort) sort.value = prefs.inventory.sort;
   const chip = (label, key) => { const b = el('button', '', label); b.type = 'button'; b.setAttribute('aria-pressed', String(key === wanted)); b.addEventListener('click', () => { wanted = key; for (const x of cats.children) x.setAttribute('aria-pressed', String(x === b)); show(); }); return b; };
   const sortedTypes = [...types].sort((a, b) => b[1].length - a[1].length);
   cats.append(chip('All', ''), ...sortedTypes.slice(0, 12).map(([t, items]) => chip(t + ' · ' + items.length, t)));
-  if (sortedTypes.length > 12) { const more = document.createElement('select'); more.setAttribute('aria-label', 'More categories'); more.append(new Option('More…', ''), ...sortedTypes.slice(12).map(([t, items]) => new Option(t + ' ' + items.length, t))); more.addEventListener('change', () => { wanted = more.value; for (const x of cats.children) if (x.tagName === 'BUTTON') x.setAttribute('aria-pressed', String(!wanted && x.textContent === 'All')); show(); }); cats.append(more); }
+  if (sortedTypes.length > 12) { const more = document.createElement('select'); more.setAttribute('aria-label', 'More categories'); more.append(new Option('More…', ''), ...sortedTypes.slice(12).map(([t, items]) => new Option(t + ' ' + items.length, t))); more.value = wanted; more.addEventListener('change', () => { wanted = more.value; for (const x of cats.children) if (x.tagName === 'BUTTON') x.setAttribute('aria-pressed', String(!wanted && x.textContent === 'All')); show(); }); cats.append(more); }
 
   const sections = el('div', 'stack');
   const order = { value: (a, b) => value(b) - value(a) || b.quantity - a.quantity, quantity: (a, b) => b.quantity - a.quantity, name: (a, b) => a.name.localeCompare(b.name) };
   const show = () => {
+    savePref('inventory', { sort: sort.value, category: wanted });
     const q = filter.value.toLowerCase(); sections.replaceChildren();
     const groups = [...types].filter(([t]) => !wanted || t === wanted)
       .map(([t, items]) => [t, items.filter(item => !q || item.name.toLowerCase().includes(q)).sort(order[sort.value])]).filter(([, items]) => items.length)
@@ -715,7 +722,14 @@ async function loadWikiIcons() {
     } catch { /* Wiki unavailable: the item name remains visible. */ }
   }
 }
-for (const id of ['q', 'sort', 'fAction', 'fRisk', 'fStatus', 'fPriority', 'fAttention']) document.getElementById(id).addEventListener('input', () => { render(); loadWikiIcons(); });
+// search text stays per visit; sort and filters come back (a value no longer offered falls back to "all")
+const FILTER_IDS = ['sort', 'fAction', 'fRisk', 'fStatus', 'fPriority', 'fAttention'];
+for (const id of FILTER_IDS) { const v = prefs.filters?.[id], node = document.getElementById(id); if (v === undefined) continue; if (node.type === 'checkbox') node.checked = v; else if ([...node.options].some(o => o.value === v)) node.value = v; }
+if (prefs.quick && document.querySelector(`#quick [data-quick="${prefs.quick}"]`)) { quick = prefs.quick; for (const b of document.querySelectorAll('#quick [data-quick]')) b.setAttribute('aria-pressed', String(b.dataset.quick === quick)); }
+for (const id of ['q', ...FILTER_IDS]) document.getElementById(id).addEventListener('input', () => {
+  savePref('filters', Object.fromEntries(FILTER_IDS.map(f => { const n = document.getElementById(f); return [f, n.type === 'checkbox' ? n.checked : n.value]; })));
+  render(); loadWikiIcons();
+});
 cards.addEventListener('click', e => {
   const set = e.target.closest('[data-equipment-set]');
   if (set) { const sheet = set.closest('.equipment-sheet'); for (const button of sheet.querySelectorAll('[data-equipment-set]')) button.setAttribute('aria-selected', String(button === set)); for (const grid of sheet.querySelectorAll('.equipment-grid')) grid.hidden = grid.dataset.equipmentSet !== set.dataset.equipmentSet; loadWikiIcons(); return; }
