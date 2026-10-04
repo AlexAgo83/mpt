@@ -170,7 +170,7 @@ assert.ok(/abyssal next level ETA/.test(abyssSnap.characters.AbyssEtaChar.analys
 
 // latest.json shape
 const snap = buildLatest([c], first.latest, null, now);
-assert.deepStrictEqual(Object.keys(snap).sort(), ['account', 'actionsSummary', 'characters', 'generatedAt', 'goals']);
+assert.deepStrictEqual(Object.keys(snap).sort(), ['account', 'actionsSummary', 'characters', 'dungeonChecks', 'generatedAt', 'goals']);
 const cc = snap.characters.TestChar;
 assert.ok(cc.observed && cc.analysis && cc.decisions, 'observed/analysis/decisions present');
 assert.strictEqual(cc.decisions.proposed.length, 1);

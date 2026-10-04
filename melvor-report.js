@@ -1742,6 +1742,28 @@ function structuredInsights(entry) {
   return insights.sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]);
 }
 
+// dungeon-check / dungeon-optimize results (journal/dungeons/), by character then dungeon name, for Plans > Dungeon path
+function readDungeonChecks() {
+  const dir = path.join(JOURNAL_DIR, 'dungeons'), out = {};
+  let files = []; try { files = fs.readdirSync(dir).filter(f => f.endsWith('.json') && !f.endsWith('-plan.json')); } catch { return out; }
+  for (const f of files) {
+    try {
+      const check = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+      const planFile = path.join(dir, f.replace(/\.json$/, '-plan.json'));
+      const plan = fs.existsSync(planFile) ? JSON.parse(fs.readFileSync(planFile, 'utf8')) : null;
+      const v = dungeonVerdict(check);
+      (out[check.character] ||= {})[check.dungeon] = {
+        at: check.at, checks: check.checks, threshold: v.threshold, ready: v.ready,
+        fights: v.fights.map(f => ({ label: f.label, ready: f.ready, best: f.best && { set: f.best.set, role: f.best.role, death: f.best.deathRate, kill: f.best.killTimeS } })),
+        plan: plan && { at: plan.at, results: [...plan.results].sort((a, b) => a.setIndex - b.setIndex).map(r => ({ style: r.style, label: r.label, setIndex: r.setIndex, start: r.start, best: r.best, potion: r.potion, prayers: r.prayers,
+          // final choice per slot, from the original item (the greedy search may improve a slot twice)
+          changes: Object.values(r.changes.reduce((m, c) => ({ ...m, [c.slot]: { ...c, from: m[c.slot]?.from ?? c.from } }), {})).filter(c => c.slot !== 'Prayers') })) },
+      };
+    } catch {}
+  }
+  return out;
+}
+
 function buildLatest(chars, latest, previous, now) {
   const characters = { ...(previous?.characters || {}) };
   const scannedNames = new Set(chars.map(c => c.name));
@@ -1778,6 +1800,7 @@ function buildLatest(chars, latest, previous, now) {
   return {
     generatedAt: now,
     goals: readGoals(),
+    dungeonChecks: readDungeonChecks(),
     account: {
       roster: CHARS, // save order, for the natural sort
       name: ACCOUNT,

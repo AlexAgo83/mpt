@@ -41,6 +41,34 @@ const saveGoal = async (name, patch) => {
   if (patch.goal) { goalStore[name] = patch.goal; try { localStorage.setItem('mpt-goals', JSON.stringify(goalStore)); } catch {} }
   if (location.protocol.startsWith('http')) { try { await fetch('/goal', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ character: name, ...patch }) }); } catch {} }
 };
+// Plans > Dungeon path: a "Clear <dungeon>" line gains the last dungeon-check verdict and the dungeon-optimize plan
+const pct = v => (v * 100).toFixed(1) + '%';
+const dungeonRow = (name, line, cls) => {
+  const row = detailRow(line, cls);
+  const dc = snap.dungeonChecks?.[name]?.[/^Clear ([^;]+)/.exec(line)?.[1]];
+  if (!dc) return row;
+  const limit = dc.threshold, ready = dc.ready, prereqOk = dc.checks.every(x => x.ok);
+  // the fight that blocks: never simulated first, then the highest death rate
+  const worstFight = dc.fights.filter(f => !f.ready).sort((a, b) => (b.best ? b.best.death : 2) - (a.best ? a.best.death : 2))[0];
+  const planWorst = dc.plan?.results.length ? Math.max(...dc.plan.results.map(r => r.best.death)) : null;
+  const verdict = el('div', 'insight-chips');
+  verdict.append(el('span', ready ? 'chip-good' : 'chip-warn', ready ? 'Ready' : !prereqOk ? 'Not ready: prerequisites missing' : !worstFight ? 'Not ready: not simulated' : 'Not ready: ' + worstFight.label + (worstFight.best ? ' ' + pct(worstFight.best.death) + ' deaths' : ' not simulated')));
+  if (!ready && planWorst != null) verdict.append(el('span', planWorst <= limit ? 'chip-good' : 'chip-warn', 'with the plan: worst ' + pct(planWorst)));
+  verdict.append(el('span', '', 'limit ' + pct(limit) + ' · checked ' + new Date(dc.at).toLocaleString()));
+  const more = el('details', 'bank-group'); more.append(el('summary', '', 'Check and plan'));
+  const sub = (title, nodes) => { const g = el('div', 'insight'); g.append(el('strong', '', title), ...nodes); return g; };
+  more.append(sub('Prerequisites', dc.checks.map(x => el('div', x.ok ? '' : 'sev-warning', (x.ok ? '✓ ' : '✗ ') + x.label + (x.detail ? ' · ' + x.detail : '')))));
+  more.append(sub('Best current set per fight', dc.fights.map(f => el('div', f.ready ? '' : 'sev-warning', f.label + (f.best ? ' · S' + f.best.set + ' ' + f.best.role + ' · deaths ' + pct(f.best.death) + ' · kill ' + Math.round(f.best.kill) + ' s' : ' · not simulated')))));
+  for (const r of dc.plan?.results || []) {
+    const chips = el('div', 'insight-chips');
+    for (const ch of r.changes) chips.append(el('span', '', ch.slot + ': ' + ch.from + ' → ' + ch.to));
+    if (r.potion) chips.append(el('span', '', 'Potion: ' + r.potion));
+    if (r.prayers?.length) chips.append(el('span', '', 'Prayers: ' + r.prayers.join(' + ')));
+    more.append(sub('Plan S' + r.setIndex + ' ' + r.style + ' vs ' + r.label + ': ' + pct(r.start.death) + ' → ' + pct(r.best.death), [chips]));
+  }
+  row.append(verdict, more);
+  return row;
+};
 const goalLines = (c, goal) => goal === 'progression' ? null : c.analysis.goals?.[goal] || null;
 let keepOpen = null; // reopen this card on this tab after a re-render
 const GOAL_SHORT = { progression: 'Lowest skills first', dungeons: 'Next dungeon, what blocks the rest', completion: 'Cheapest Completion Log gains', target: 'The path to one item', mastery: 'Pools near a checkpoint', profit: 'Best GP per hour', afk: 'Runs long without you', slayer: 'Task, coins, locked areas', safe: 'Fights at 0% deaths', capes: 'Capes and pets left', shop: 'Affordable upgrades' };
@@ -286,7 +314,7 @@ function plansPanel(name, c, actions, hidden) {
   const lines = goalLines(c, goal);
   const goalBox = goal === 'progression'
     ? [box('Standard plan', (c.analysis.standardPlan || []).map(line => detailRow(line))), box('Abyssal plan', (c.analysis.abyssalPlan || []).map(line => detailRow(line))), box('After the Slayer task', (c.analysis.afterTaskPlan || []).map(line => detailRow(line))), (c.analysis.standardPlan || []).length || (c.analysis.abyssalPlan || []).length || (c.analysis.afterTaskPlan || []).length ? null : box('Next activities', [el('p', 'muted', c.observed.action === 'Combat' && c.observed.combat?.slayerTask ? 'Paused while a Slayer task runs: skill plans come back when it ends.' : 'Nothing to switch to: no low skill has materials for 8 h or more.')])]
-    : [spanAll(box(GOAL_LABELS[goal], lines ? (lines.length ? lines.map(line => detailRow(line, /^(Risky|Unlock)/.test(line) ? 'sev-warning' : /^(Safe|Clear|Buy|Craft|Kill|Farm)/.test(line) ? 'p-high' : '')) : [el('p', 'muted', 'Nothing found for this goal.')]) : [el('p', 'muted', 'Refresh this character to build this plan.')]))];
+    : [spanAll(box(GOAL_LABELS[goal], lines ? (lines.length ? lines.map(line => (goal === 'dungeons' ? dungeonRow.bind(null, name) : detailRow)(line, /^(Risky|Unlock)/.test(line) ? 'sev-warning' : /^(Safe|Clear|Buy|Craft|Kill|Farm)/.test(line) ? 'p-high' : '')) : [el('p', 'muted', 'Nothing found for this goal.')]) : [el('p', 'muted', 'Refresh this character to build this plan.')]))];
   for (const node of [...goalBox, box('Decisions', actions), box('Risk notes', (c.analysis.riskNotes || []).map(line => detailRow(line, 'sev-warning')))].filter(Boolean)) body.append(node);
   return body;
 }
