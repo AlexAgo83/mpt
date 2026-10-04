@@ -43,6 +43,12 @@ recommendations, current-action plan, standard plan, abyssal plan, proposed acti
   (closest checkpoint), Profit (GP/h), AFK (no deaths, 12 h+ of materials), Slayer, Hardcore safe
   (fights simulated at 0% deaths; default for Hardcore characters), Capes & pets and Shop. Into the
   Abyss content only appears once the character is in the Abyss (`mh.abyssOpen`).
+  A Dungeon path line with a `dungeon-check` result shows Ready / Not ready (the worst fight and its
+  death rate against the threshold), the worst rate once the `dungeon-optimize` plan is applied, and a
+  fold with prerequisites, the best current set per fight and the plan per set.
+- `Skills`: every skill in game order (click a column to sort, `Not maxed` hides finished skills).
+- Viewer settings (sort, filters, quick filter, Skills and Inventory views) are remembered per browser;
+  the search text is not.
 - Progression plan: for the lowest skills, the best-XP recipe with materials for 8 h or more, and for
   gathering skills (Woodcutting, Fishing, Mining, Thieving, Astrology, Harvesting) the best
   unlocked action; when the ETA mod is installed its XP/h (all modifiers) replaces the base rate,

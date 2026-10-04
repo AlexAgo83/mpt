@@ -21,7 +21,7 @@ npm run source
 ./melvor-report.js agility [all|character]
 ./melvor-report.js talents <character>
 ./melvor-report.js combat-setup <character>
-./melvor-report.js combat-run <character> <dungeon>
+./melvor-report.js combat-run <character> <dungeon> [--slot N]
 ./melvor-report.js magic-setup <character> [--slot 6] [--apply]
 ./melvor-report.js slayer-abyssal <character>
 ./melvor-report.js slayer-start <character> [--slot 6]
@@ -32,6 +32,9 @@ npm run source
 ./melvor-report.js config-set <character> <potion|prayers|poi|style> <value>
 ./melvor-report.js completion [all|character] [--record]
 ./melvor-report.js dungeon-guide "<dungeon name>"
+./melvor-report.js dungeon-check <character> "<dungeon name>"
+./melvor-report.js dungeon-optimize <character> "<dungeon name>" [--style melee|ranged|magic] [--cape "<cape>"]
+./melvor-report.js dungeon-setup <character> "<dungeon name>"
 ./melvor-report.js export-state all > /tmp/melvor-state.json
 ./melvor-report.js save-backup all
 ./melvor-report.js journal <character>
@@ -48,6 +51,10 @@ Report commands, including `config`, are read-only. `combat-setup`, `combat-run`
 preview-only until the same command is repeated with `--apply`; they accept one character
 only, load the newest save source, save, and verify the requested result. There is no bulk
 or apply-all command.
+
+`dungeon-check`, `dungeon-optimize` and `dungeon-setup` are read-only: the fights are simulated in
+[Myth] Combat Simulator's own copy of the game. `combat-run --slot N` uses the set `dungeon-check`
+validated, flees below 35% HP, and refuses to start when the game offers no way to flee.
 
 `brief` is the preferred command for AI account triage. It returns one compact JSON object
 per character with:

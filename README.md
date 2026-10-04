@@ -29,6 +29,9 @@ assistant read, plan and act for you, one reviewed change at a time.
   gaps and skilling plans, ranked per character.
 - **Pick a goal per character.** Progression, dungeon path, completion, a target item, profit, AFK,
   Hardcore safe and more: the plan, the Next column and To do follow it.
+- **Clear dungeons with a plan.** Every fight is simulated with each of your sets before you go:
+  a Ready / Not ready verdict, the gear from your bank that closes the gap, and a run that flees
+  before a death.
 - **Track your completion.** Completion Log progress per expansion and category, with the
   gain since your last check.
 - **Ask your AI.** "Who runs out of scrolls first?", "Is Kang ready for Into the Abyss?"
@@ -51,6 +54,7 @@ Log in once through the official Melvor page if asked. Then try:
 ./melvor-report.js brief all          # what every character is doing and what's next
 ./melvor-report.js completion all     # Completion Log progress
 ./melvor-report.js combat-plan <name> # next dungeons and the set to use
+./melvor-report.js dungeon-check <name> "Frozen Cove"   # ready or not, fight by fight
 ```
 
 ## Documentation

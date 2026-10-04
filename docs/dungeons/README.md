@@ -8,6 +8,18 @@ Two sources, read before preparing any dungeon:
   consumables, mechanics, choices). `./melvor-report.js dungeon-guide "<dungeon>"` fetches both through the
   wiki API and keeps a cleaned copy in `journal/guides/`.
 
+## From check to run
+
+1. `dungeon-check <character> "<dungeon>"`: entry requirements and the hardest fights simulated with each
+   combat set (S1-S3, or S5-S7 in the Abyss), against the death threshold (0% Hardcore, 1% otherwise,
+   `MELVOR_DEATH_THRESHOLD`). The verdict also shows in Plans > Dungeon path.
+2. `dungeon-optimize <character> "<dungeon>"`: owned gear, potion and prayers that bring the hardest fight
+   under the threshold, per style. Read-only.
+3. `dungeon-setup <character> "<dungeon>"`: the plan against each set it targets, and the items several
+   sets would need at once. Preview only for now.
+4. `combat-run <character> "<dungeon>" --slot N`: runs the dungeon with the checked set and flees on low HP.
+   The game repeats the dungeon afterwards; `slayer-start` puts the character back on its task.
+
 Event dungeons do not behave like a monster list and get their own notes here:
 
 - [Into the Mist](into-the-mist.md): 20 Afflicted waves, then a 3-phase boss that only takes damage from its own style.
