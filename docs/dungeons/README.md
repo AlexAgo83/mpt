@@ -18,7 +18,9 @@ Two sources, read before preparing any dungeon:
 3. `dungeon-setup <character> "<dungeon>" [--style melee,ranged]`: the plan against each set it targets and
    the items several sets would need at once; `--apply` equips it (refused on any shortage) and records the
    replaced gear. The combat potion is shared by every set: it is not changed.
-4. `combat-run <character> "<dungeon>" --slot N`: runs the dungeon with the checked set and flees on low HP.
+4. `dungeon-clear <character> "<dungeon>"` does steps 3 to 5 in one go: plan (if needed), potion, one clear,
+   then everything back and the previous activity restarted. Run limit: 20 min, 60 min for Abyss depths.
+   By hand: `combat-run <character> "<dungeon>" --slot N` runs the dungeon with the checked set and flees on low HP.
    The game repeats the dungeon afterwards: `dungeon-setup ... --restore --apply` puts the daily gear back,
    then `slayer-start --slot N` puts the character back on its task.
 

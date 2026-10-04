@@ -35,6 +35,7 @@ npm run source
 ./melvor-report.js dungeon-check <character> "<dungeon name>"
 ./melvor-report.js dungeon-optimize <character> "<dungeon name>" [--style melee|ranged|magic] [--cape "<cape>"]
 ./melvor-report.js dungeon-setup <character> "<dungeon name>" [--style melee,ranged] [--apply] [--restore --apply]
+./melvor-report.js dungeon-clear <character> "<dungeon name>"
 ./melvor-report.js export-state all > /tmp/melvor-state.json
 ./melvor-report.js save-backup all
 ./melvor-report.js journal <character>
@@ -57,6 +58,9 @@ or apply-all command.
 validated, flees below 35% HP, and refuses to start when the game offers no way to flee; it also runs
 Abyss depths. `dungeon-setup` writes only with `--apply`: it equips each plan into its own set, records
 the gear it replaces, and `--restore --apply` puts that gear back (the daily Slayer sets).
+`dungeon-clear` writes immediately: one clear for the completion, then the gear, the potion and the previous
+activity (Slayer task, combat target, Woodcutting trees or any skill) come back, checked by activity, set and
+task monster. It refuses Hardcore characters and characters not ready with or without a plan.
 
 `brief` is the preferred command for AI account triage. It returns one compact JSON object
 per character with:
