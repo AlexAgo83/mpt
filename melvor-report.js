@@ -2490,7 +2490,7 @@ function render() {
       upgradeSheet(c),
       inventorySheet(c),
       skillsSheet(c),
-      panel('plans', [box('Standard plan', (c.analysis.standardPlan || []).map(line => detailRow(line))), box('Abyssal plan', (c.analysis.abyssalPlan || []).map(line => detailRow(line))), (c.analysis.standardPlan || []).length || (c.analysis.abyssalPlan || []).length ? null : box('Next activities', [el('p', 'muted', 'Nothing to switch to: no low skill has materials for 8 h or more.')]), box('Decisions', actions.length || !hidden ? actions : [el('p', 'muted', 'No open decision (' + hidden + ' closed or stale hidden).')]), box('Risk notes', (c.analysis.riskNotes || []).map(line => detailRow(line, 'sev-warning')))]),
+      panel('plans', [box('Standard plan', (c.analysis.standardPlan || []).map(line => detailRow(line))), box('Abyssal plan', (c.analysis.abyssalPlan || []).map(line => detailRow(line))), (c.analysis.standardPlan || []).length || (c.analysis.abyssalPlan || []).length ? null : box('Next activities', [el('p', 'muted', c.observed.action === 'Combat' && c.observed.combat?.slayerTask ? 'Paused while a Slayer task runs: skill plans come back when it ends.' : 'Nothing to switch to: no low skill has materials for 8 h or more.')]), box('Decisions', actions.length || !hidden ? actions : [el('p', 'muted', 'No open decision (' + hidden + ' closed or stale hidden).')]), box('Risk notes', (c.analysis.riskNotes || []).map(line => detailRow(line, 'sev-warning')))]),
       history.children.length ? history : null,
     ].filter(Boolean);
     const tabs = el('div', 'tab-switch'); tabs.setAttribute('role', 'tablist');
