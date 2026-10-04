@@ -2,296 +2,66 @@
 
 <p align="center"><img src="assets/mpt-crest.png" width="160" alt="Melvor CP crest"></p>
 
-Local character dashboard for Melvor Idle: inspect progress, equipment sets, skills, inventory, and save safety from one private page.
+<p align="center"><b>Your whole Melvor Idle account, one private command post — with an AI co-pilot that never risks your save.</b></p>
+
+<p align="center">
 
 [![Last Commit](https://img.shields.io/github/last-commit/AlexAgo83/mpt/main)](https://github.com/AlexAgo83/mpt/commits/main)
 [![CI](https://github.com/AlexAgo83/mpt/actions/workflows/ci.yml/badge.svg)](https://github.com/AlexAgo83/mpt/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-4C8BF5)](./LICENSE)
 [![Melvor Idle](https://img.shields.io/badge/Melvor%20Idle-tooling-1f6feb)](https://melvoridle.com/)
 [![Runtime](https://img.shields.io/badge/runtime-Node.js-339933?logo=node.js&logoColor=white)](./melvor-report.js)
-[![Workflow](https://img.shields.io/badge/workflow-Logics-4C8BF5)](./logics/)
 
-## Start here
-
-```bash
-./melvor-report.js journal-serve
-```
-
-Open [http://127.0.0.1:8787](http://127.0.0.1:8787). The dashboard is the product entry point; the CLI is its local read-only engine. Sign in through the official Melvor page if needed — MPT never collects or stores credentials.
+</p>
 
 ![Dashboard overview](docs/dashboard-overview.png)
 
-MPT is a local AI-assistant toolkit for operating a Melvor Idle account through a logged-in Chrome profile.
+Running seven characters across Standard, Hardcore, Adventure and Ancient Relics means
+seven Slayer tasks, seven sets of scrolls running dry and seven saves that can drift between
+local and cloud. Melvor CP puts all of them on one page and lets Claude, Codex or any MCP
+assistant read, plan and act for you — one reviewed change at a time.
 
-It gives Codex, Claude, or any MCP-capable assistant a small, documented surface for reading account state, auditing characters, planning equipment swaps, and safely handling cloud/local save drift.
+## Why you'll like it
 
-## Overview
+- **See everything at once.** Current action, Slayer ETA, food, ammo and scroll runway,
+  level ETAs and idle alerts for every character on one dashboard.
+- **Know what to do next.** Gear upgrade plans with real passives, dungeon targets, abyssal
+  gaps and skilling plans, ranked per character.
+- **Track your completion.** Completion Log progress per expansion and category, with the
+  gain since your last check.
+- **Ask your AI.** "Who runs out of scrolls first?", "Is Kang ready for Into the Abyss?" —
+  your assistant reads the live account instead of guessing.
+- **Never lose a save.** The newest save, local or cloud, always wins. Every change is a
+  preview first, applies to one character only and is verified after the save.
+- **Stays private.** Runs on your machine, uses your own logged-in browser and never sees
+  your credentials. No server, no dependencies, no build step.
 
-```mermaid
-flowchart LR
-    User[User request] --> Assistant[AI assistant]
-    Assistant --> CLI[melvor-report.js]
-    Assistant --> Helpers[melvor-helpers.js]
-    CLI --> Chrome[Headless Chrome profile]
-    Helpers --> Game[Melvor Idle game page]
-    Chrome --> Saves[Local and cloud saves]
-    Game --> State[Character state]
-    State --> Audit[Reports and recommendations]
-    Saves --> Source[Newest-save source of truth]
-    Audit --> User
-    Source --> User
-```
-
-## What it does
-
-- Reads Melvor Idle character slots from the shared Chrome profile
-- Compares local and cloud saves before risky work
-- Resolves the source of truth as the newest save
-- Generates account summaries, audits, gear views, skilling views, and plans
-- Generates compact `brief` JSON with source-of-truth, current-action, standard, and abyssal recommendations
-- Estimates current-action status, including idle/stopped actions, skill intervals, Slayer ETA, and equipped consumable/ammo runway
-- Exports structured state for deeper AI recommendations
-- Tracks Completion Log progress (total, per expansion, per category) with deltas between records
-- Keeps an append-only character journal with a structured snapshot, action ledger, Melvor-themed offline dashboard, and recent recommendation history
-- Records assistant-improvement reports after messy sessions
-- Documents the live browser workflow for Codex and Claude handoff
-
-## Safety model
-
-Source of truth is the newest save, local or cloud.
-
-Before any write:
+## Get started
 
 ```bash
-./melvor-report.js slots
-./melvor-report.js source-of-truth
+cp .env.example .env.local        # list your characters: MELVOR_CHARACTERS=Main,Alt1
+./melvor-report.js journal-serve  # then open http://127.0.0.1:8787
 ```
 
-Rules:
-
-- Treat local/cloud disagreement as a stop sign until the intended source is clear.
-- Never open the same character in two tabs.
-- Do not load an older cloud save over a newer local save unless explicitly requested.
-- Use `mh.equipSlot(item, slot)` for manual equipment changes.
-- After approved writes, save, wait for cloud push, reload, and verify.
-- After confusing behavior, run `./melvor-report.js improve --record`.
-- CLI failures are sanitized into private `journal/incidents.jsonl` events. `improve` groups
-  repeated signatures; only explicit `improve --record` creates an idempotent Logics request.
-  The loop never changes code or game state automatically.
-
-## Commands
+Log in once through the official Melvor page if asked. Then try:
 
 ```bash
-npm run slots
-npm run source
-./melvor-report.js smoke
-./melvor-report.js login-smoke
-./melvor-report.js slots
-./melvor-report.js diff-slots
-./melvor-report.js source-of-truth
-./melvor-report.js improve
-./melvor-report.js improve --record
-./melvor-report.js brief all
-./melvor-report.js brief <character>
-./melvor-report.js summary all
-./melvor-report.js audit all
-./melvor-report.js plan all
-./melvor-report.js combat-plan all
-./melvor-report.js combat-plan <character> --abyssal
-./melvor-report.js gear <character>
-./melvor-report.js skilling <character>
-./melvor-report.js config [all|character]
-./melvor-report.js agility [all|character]
-./melvor-report.js talents <character>
-./melvor-report.js combat-setup <character>
-./melvor-report.js combat-run <character> <dungeon>
-./melvor-report.js magic-setup <character> [--slot 6] [--apply]
-./melvor-report.js slayer-abyssal <character>
-./melvor-report.js slayer-start <character> [--slot 6]
-./melvor-report.js save-push <character> [--local-source]
-./melvor-report.js equip <character> <item> <slot>
-./melvor-report.js skill-start <character> <skill> <recipe>
-./melvor-report.js talent-unlock <character> <skill> <node>
-./melvor-report.js config-set <character> <potion|prayers|poi|style> <value>
-./melvor-report.js completion [all|character] [--record]
-./melvor-report.js export-state all > /tmp/melvor-state.json
-./melvor-report.js save-backup all
-./melvor-report.js journal <character>
-./melvor-report.js journal all --record --save-backup
-./melvor-report.js journal-serve
-./melvor-report.js journal-status all
-./melvor-report.js journal-diff all
-./melvor-report.js journal-action <id> dismissed
+./melvor-report.js brief all          # what every character is doing and what's next
+./melvor-report.js completion all     # Completion Log progress
+./melvor-report.js combat-plan <name> # next dungeons and the set to use
 ```
 
-Report commands, including `config`, are read-only. `combat-setup`, `combat-run`, `slayer-start`,
-`save-push`, and `magic-setup --apply` write immediately and need explicit approval first. `equip`, `skill-start`, `talent-unlock`, and `config-set` are
-preview-only until the same command is repeated with `--apply`; they accept one character
-only, load the newest save source, save, and verify the requested result. There is no bulk
-or apply-all command.
+## Documentation
 
-`brief` is the preferred command for AI account triage. It returns one compact JSON object
-per character with:
+| Guide | What's inside |
+|---|---|
+| [Setup and safety](docs/setup.md) | Browser profile, login, `.env.local`, save rules |
+| [Commands](docs/commands.md) | Every command, read-only vs. guarded writes, the `brief` format |
+| [Journal and dashboard](docs/journal.md) | History, action ledger, level ETAs, save backups |
+| [AI operating manual](MELVOR.md) | How assistants drive the game safely |
+| [Runbooks](MELVOR_RUNBOOK.md) | Step-by-step procedures (dungeons, gear, saves…) |
+| [Development](docs/development.md) | Repository layout, validation, CI |
 
-- `source`: newest-save source and write-block risk
-- `currentAction`: current task, action-specific recommendations, rough intervals, Slayer
-  ETA, equipped food, and ammo/scroll/summon/consumable runway when the game exposes enough
-  data; `estimate.runways` exposes structured slot/item/quantity/unit/ETA entries for
-  cheaper downstream reporting; when `journal/latest.json` exists it also includes
-  `levelEtas` with either ready ETA lines or the pending reason
-- `standard`: standard-level gaps, accessible standard dungeons, and standard next steps
-- `abyssal`: abyssal-level gaps, abyssal dungeons such as `Into the Abyss`, and abyssal next
-  steps; Cartography and Archaeology are intentionally excluded because they do not have
-  trainable Abyssal Levels
-- `risks` and `next`: short top-level prompts for the assistant/user
+## License
 
-## Journal
-
-`journal [all|character]` prints a Markdown entry per character (state, save-risk context,
-recommendations, current-action plan, standard plan, abyssal plan, proposed actions, history).
-`--record` writes into the git-ignored `journal/` directory:
-
-- `journal/<Character>.md`: append-only Markdown journal per character
-- `journal/latest.json`: structured snapshot; per character it separates `observed` (game
-  state), `previousObserved` (minimal prior snapshot for diffs), `analysis` (assistant
-  interpretation, including deduplicated typed `insights`), and `decisions` (user/session
-  decisions). Account `operations` counts alerts, idle characters, near-term completions,
-  open decisions, and stale decisions.
-- `journal/actions.jsonl`: append-only action ledger with stable action ids, status,
-  risk, reason, timestamps, and a context hash
-- `journal/saves/`: private save-string backups. `*.latest.txt` contains the latest raw
-  export per character, dated archives keep recent history, and `manifest.jsonl` stores
-  only metadata (timestamp, source, byte size, hash, relative path)
-- `journal/index.html`: offline decision cockpit with account indicators, priority/attention
-  filtering, a responsive character comparison view, and Now/Progress/Equipment/Upgrade plans/Plans/History
-  detail tabs. It opens directly from disk and links to the full Markdown journals.
-  Run `./melvor-report.js journal-serve` and open `http://127.0.0.1:8787` to enable the
-  dashboard's read-only refresh button for one character or the whole account. It never
-  changes game state; it only runs `journal <character> --record` locally.
-- `Upgrade plans`: per equipped slot, the next loot and craft candidates plus up to three
-  alternatives. Compatibility comes from live game metadata (style, active damage type,
-  and requirements); a fixed dungeon may show an official-wiki guide link, while a Slayer
-  task is explicitly refreshed when its target changes.
-- `Level ETA`: projected time to next level, next 10-level milestone, and current cap when
-  two journal snapshots have enough standard or abyssal XP gain to estimate a rate; abyssal
-  thresholds come from the game `abyssalExp.levelToXP` table; otherwise it explains what
-  data is still missing
-
-`journal-status` and `journal-diff` are offline, compact views over `journal/latest.json`.
-Use them before asking for a full scan: they summarize current actions, ETA lines, alerts,
-save risks, backups, XP deltas, and consumed equipment quantities without opening Chrome.
-
-The dashboard highlights stopped/idle characters. If a character was previously doing a
-task and is now idle, the next journal refresh records a recommendation such as "current
-action stopped after Smithing; check resources/recipe inputs before restarting".
-Level ETA is intentionally snapshot-based: the first scan records XP, and later scans show
-projections only when enough time and XP changed to produce a useful estimate.
-
-Action lifecycle statuses: `proposed` → `approved` → `done`, or `blocked` / `dismissed`;
-an open action becomes `done` automatically when the observed equipment matches it, or
-`stale` when the observed state no longer produces the recommendation. Change a status
-manually with `journal-action <id> <approved|dismissed|done|blocked>` (offline, no browser).
-Dismissed/done/blocked actions are not re-proposed unless their context hash changes.
-Journal generation is read-only against the game and never writes local profile paths.
-Save backups are opt-in with `save-backup` or `journal --save-backup`; the raw save strings
-stay under git-ignored `journal/saves/` and are not embedded into `latest.json` or the
-dashboard. `journal/` is private local player data and must never be committed. Executing
-actions stays out of scope — any future apply-action flow still requires `source-of-truth`
-checks and explicit user approval.
-
-## Browser setup
-
-The tooling uses Chrome DevTools against the shared profile:
-
-```text
-~/.cache/chrome-devtools-mcp/chrome-profile
-```
-
-That profile must stay logged into Melvor Cloud. Chrome locks the profile, so only one assistant/browser driver should use it at a time.
-
-If login expires, open the same profile visibly, let the user log in, then return to headless operation.
-
-Local account settings can live in `.env.local`, copied from [`.env.example`](./.env.example).
-That file is git-ignored. Put the private character roster there as
-`MELVOR_CHARACTERS=Main,Alt1,Alt2`. It supports both the main profile and a separate test profile:
-
-```bash
-cp .env.example .env.local
-npm run slots
-npm run test:slots
-```
-
-## Repository layout
-
-- [`melvor-report.js`](./melvor-report.js): read-only CLI reports and source-of-truth checks
-- [`melvor-helpers.js`](./melvor-helpers.js): injected `window.mh` browser helper library
-- [`test-journal.js`](./test-journal.js): offline self-check for the journal logic (part of `npm run check`)
-- [`package.json`](./package.json): standard local command aliases, no dependencies
-- `journal/` (git-ignored): generated player journal, private incident history, promotion ledger, and dashboard
-- [`.env.example`](./.env.example): local-only account/profile configuration template
-- [`MELVOR.md`](./MELVOR.md): full operating manual for AI assistants
-- [`logics/runbook/`](./logics/runbook/): operational Melvor runbook library
-- [`AI_IMPROVEMENTS.md`](./AI_IMPROVEMENTS.md): ledger for repeated assistant failures and improvements
-- [`CONTRIBUTING.md`](./CONTRIBUTING.md): contribution and validation workflow
-- [`changelogs/`](./changelogs/): release notes
-- [`SECURITY.md`](./SECURITY.md): local security model and reporting policy
-- [`LICENSE`](./LICENSE): MIT license
-- [`logics/`](./logics/): product and workflow context
-- [`AGENTS.md`](./AGENTS.md), [`CLAUDE.md`](./CLAUDE.md): assistant entrypoints
-
-## Validation
-
-```bash
-npm run check
-npm run help
-```
-
-For workflow docs:
-
-```bash
-logics-manager status
-logics-manager lint --require-status
-logics-manager audit --group-by-doc
-```
-
-## CI
-
-GitHub Actions runs the dependency-free syntax check on pushes and pull requests:
-
-```bash
-npm run check
-```
-
-The workflow also has a manual `workflow_dispatch` smoke for the live Melvor test account.
-It expects these GitHub secrets when enabled:
-
-- `MELVOR_TEST_EMAIL`
-- `MELVOR_TEST_PASSWORD`
-
-The live smoke is read-only. It can log into the test account with GitHub secrets, but it
-does not create characters or mutate saves.
-
-## Project status
-
-This is local-first tooling for one Melvor account, not a public mod or hosted service.
-
-Current focus:
-
-- reliable save-source detection
-- safe assistant handoff between Codex and Claude
-- compact account audits and recommendations
-- promoting repeated manual browser scripts into CLI commands only when they keep recurring
-
-## Framework decision
-
-The project intentionally stays as plain Node.js scripts: no build step, no runtime
-dependencies, no custom framework. `package.json` only provides standard command aliases.
-
-## References
-
-- [Melvor operating manual](./MELVOR.md)
-- [Runbook](./MELVOR_RUNBOOK.md)
-- [AI improvement ledger](./AI_IMPROVEMENTS.md)
-- [Contributing](./CONTRIBUTING.md)
-- [Security policy](./SECURITY.md)
-- [Product brief](./logics/product/prod_001_melvin_ai_assistant_for_melvor_idle.md)
+MIT — see [LICENSE](./LICENSE). A fan-made tool, not affiliated with Games by Malcs.
