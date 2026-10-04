@@ -89,6 +89,7 @@ const usage = `usage:
   ./melvor-report.js dungeon-setup <character> "<dungeon name>" [--style melee,ranged] [--apply] [--restore --apply]
   ./melvor-report.js dungeon-clear <character> "<dungeon name>"   (one clear, then back to the previous activity)
   ./melvor-report.js item-where <character> "<item name part>"     (bank, sets, deaths: where an item went)
+  ./melvor-report.js bank-add <character> "<exact item name>" [--quantity N] [--apply]   (repair: put back an item lost by the tooling)
   ./melvor-report.js journal-serve [--port 8787]
   ./melvor-report.js journal-status [all|character]
   ./melvor-report.js journal-diff [all|character]
@@ -102,7 +103,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide', 'dungeon-check', 'dungeon-optimize', 'dungeon-setup', 'dungeon-clear', 'item-where'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide', 'dungeon-check', 'dungeon-optimize', 'dungeon-setup', 'dungeon-clear', 'item-where', 'bank-add'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -2341,6 +2342,26 @@ if (require.main === module) (async () => {
       return;
     }
 
+    if (cmd === 'bank-add') {
+      // repair only (an item the tooling lost, e.g. GrifhinZ's Aeris God Helmet (B)): preview, then --apply, one character
+      if (who === 'all' || !arg3) throw Error('usage: ./melvor-report.js bank-add <character> "<exact item name>" [--quantity N] [--apply]');
+      const qty = requestedQuantity ?? 1;
+      if (!(qty >= 1 && qty <= 10)) throw Error('bank-add puts back 1 to 10 items');
+      const script = `(() => {
+        const item = game.items.allObjects.find(i => i.name === ${JSON.stringify(arg3)});
+        if (!item) return { error: 'no item named ' + ${JSON.stringify(arg3)} };
+        const before = game.bank.items.get(item)?.quantity ?? 0;
+        if (!${JSON.stringify(apply)}) return { name: game.characterName, item: item.name, before, after: before + ${qty}, applied: false };
+        game.bank.addItem(item, ${qty}, false, false, true, false);
+        const after = game.bank.items.get(item)?.quantity ?? 0;
+        return { name: game.characterName, item: item.name, before, after, applied: after === before + ${qty}, error: after === before + ${qty} ? null : 'bank quantity did not change' };
+      })()`;
+      const r = apply ? await withCharacterWrite(who, client => evalExpr(client, script)) : await readSourcesByName().then(({ sources }) => withCharacterSource(who, sources[who]?.source, client => evalExpr(client, script)));
+      if (r.error) throw Error(r.error);
+      console.log(`${r.name} | bank-add | ${r.item}: ${r.before} -> ${r.after}${r.applied ? ' | applied, saved: ' + r.saved : ' | preview, nothing changed'}`);
+      return;
+    }
+
     if (cmd === 'item-where') {
       // read-only: where an item is (bank, equipment sets), plus the death count (a Standard death loses an equipped item)
       if (who === 'all' || !arg3) throw Error('usage: ./melvor-report.js item-where <character> "<item name part>"');
@@ -2463,6 +2484,7 @@ if (require.main === module) (async () => {
         for (const x of r.shortages || []) console.log(`  SHORT: ${x.name} needed in ${x.need} sets, ${x.have} available`);
         if (r.error) throw Error(r.error);
         console.log('  potion not changed (shared by every set): activate it before the run');
+        if (r.stoppedCombat) console.log('  the fight was stopped to change gear: restart the activity (slayer-start <character> --slot N)');
         return;
       }
       const { sources } = await readSourcesByName();

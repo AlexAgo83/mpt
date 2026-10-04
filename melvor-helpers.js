@@ -637,10 +637,17 @@
     // what the plans replace, so --restore can put the daily (Slayer) gear back; an empty slot is not restored
     const before = preview.sets.map(s => ({ setIndex: s.setIndex, style: s.style, equipment: (s.swaps || []).filter(w => w.from).map(w => [w.slot, w.from]), prayers: s.prayersNow }));
     const p = game.combat.player, original = p.selectedEquipmentSet, log = [];
+    // gear and set changes are refused in a dungeon and in areas that reject a set's damage type: leave the fight first
+    // and say so (the caller restarts the activity: dungeon-clear does, by hand it is slayer-start)
+    let stoppedCombat = false;
+    if (game.combat.isActive) { game.combat.stop(); await new Promise(r => setTimeout(r, 1000)); stoppedCombat = !game.combat.isActive; log.push('left the fight to change gear'); }
     const nameIn = (slot) => { const e = p.equipment.equippedArray.find(x => x.slot.localID === slot); return e && e.item !== game.emptyEquipmentItem ? e.item.name : null; };
     for (let pass = 0; pass < 2; pass++) {
       for (const plan of plans) {
         p.changeEquipmentSet(plan.setIndex - 1);
+        // the game can refuse the switch (an area that rejects the set's damage type, a dungeon): never equip into the
+        // set that happens to be active instead (GrifhinZ's S6 got the S2 helmet that way)
+        if (p.selectedEquipmentSet !== plan.setIndex - 1) { p.changeEquipmentSet(original); return { name: game.characterName, applied: false, log, left: ['could not switch to S' + plan.setIndex + ' (in combat in an area or dungeon that refuses it): leave the fight first'], before, backTo: original + 1, error: 'set switch refused' }; }
         const todo = plan.equipment.filter(([slot, name]) => name && nameIn(slot) !== name);
         for (const [slot, name] of todo) {
           // a stack (tablets, ammo, scrolls) wanted by several sets is split between them
@@ -659,7 +666,7 @@
     const after = mh.dungeonSetupPreview(plans);
     const left = after.sets.flatMap(s => (s.swaps || []).map(w => 'S' + s.setIndex + ' ' + w.slot + ' is ' + (w.from || 'empty') + ', not ' + w.to)
       .concat(s.prayers?.length && s.prayers.join() !== s.prayersNow.join() ? ['S' + s.setIndex + ' prayers are ' + (s.prayersNow.join(' + ') || 'none')] : []));
-    return { name: game.characterName, applied: !left.length, log, left, before, backTo: original + 1, error: left.length ? 'not fully applied' : null };
+    return { name: game.characterName, applied: !left.length, log, left, before, backTo: original + 1, stoppedCombat, error: left.length ? 'not fully applied' : null };
   };
 
   mh.simUpgrades = async (plan, maxSims = 30) => {

@@ -6,7 +6,7 @@
 > Related backlog: (none yet)
 > Related task: (none yet)
 > Reminder: Update status, category, verification, and linked refs when you edit this doc.
-> Indicators reviewed: 2026-10-04 17:39:57
+> Indicators reviewed: 2026-10-04 18:29:22
 
 # Trigger
 - A character's next dungeon (Plans > Dungeon path) is Ready, or Ready with its plan, and the operator wants the completion without leaving the character's daily activity for long.
@@ -34,6 +34,8 @@
 - `resumed` used to compare only the action name ("Combat"): it now also requires the same set and the task monster.
 - Abyss depths are long: 60 min run limit (Depths of Woe did not finish in 20); dungeons 20 min (`MELVOR_COMBAT_RUN_TIMEOUT_MS`).
 - The combat potion is shared by every set: the plan potion is only active during the run.
+- The game refuses a set switch or a gear change inside a dungeon and in areas that reject a set's damage type (Fractured Spires rejects Normal damage). `dungeon-setup --apply` once equipped GrifhinZ's S2 gear into the active S5/S6 that way; it now leaves the fight first and refuses to equip when the switch did not happen. After any gear repair, compare every set with the last scan before the change (`journal <character> --record`, `observed.equipmentSets`).
+- An abyssal Slayer task may only accept some sets (damage type): `slayer-start` reports the game popup; try the abyssal sets.
 
 # References
 - `run_010` (combat-run), `run_011` (prepare a dungeon), `docs/dungeons/README.md`
