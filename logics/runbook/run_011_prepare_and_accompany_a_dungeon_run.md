@@ -6,7 +6,7 @@
 > Related backlog: (none yet)
 > Related task: (none yet)
 > Reminder: Update status, category, verification, and linked refs when you edit this doc.
-> Indicators reviewed: 2026-10-04 15:49:45
+> Indicators reviewed: 2026-10-04 15:57:28
 
 # Trigger
 - The operator wants a character to clear a dungeon, Abyss depth or stronghold (Plans goal "Dungeon path", or a named target).
@@ -22,7 +22,7 @@
 1. **Read the target** (read-only): requirements still missing (`Plans > Dungeon path`), monsters and mechanics from the guide, recommended sets, prayers, potions, familiars, Agility obstacles, Astrology and Cartography point of interest.
 2. **Simulate** with `dungeon-check <character> "<dungeon>"` (prerequisites + hardest fights per style set, saved in `journal/dungeons/`), then `dungeon-optimize <character> "<dungeon>" [--style melee|ranged|magic]` (greedy search over owned gear, potion and prayers for the hardest fight; writes `<character>-<dungeon>-plan.json`, applies nothing; a `--style` run replaces only that style). Per monster or per phase, in the style the fight imposes. A dungeon the simulator cannot run (event dungeons) is simulated boss by boss in the required style.
 3. **Close the gap** until every fight is at or under the threshold: owned gear first (Upgrades > Equip from your bank), then gear to loot or craft, then prayers/potion/food, then Agility, Cartography and Astrology modifiers. Re-simulate after each change.
-4. **Set up** with guarded commands, one at a time, preview then `--apply`: `equip` per slot into the role's set, `config-set <character> potion|prayers|poi|style`, `combat-setup`. Agility course changes are not automated yet: do them in game or by hand through MCP, then re-read with `config`.
+4. **Set up**: `dungeon-setup <character> "<dungeon>"` previews every plan against the set it targets (S1/S2/S3, not the selected set) and flags items several sets need (one Maximum Skillcape cannot sit in three sets). `equip` and `config-set` act on the selected set only: select the target set first. Then guarded commands, one at a time, preview then `--apply`: `equip` per slot into the role's set, `config-set <character> potion|prayers|poi|style`, `combat-setup`. Agility course changes are not automated yet: do them in game or by hand through MCP, then re-read with `config`.
 5. **Run**: `combat-run <character> "<dungeon>"` starts and follows the dungeon (10 min default timeout). Pending reward or level-cap choices are reported, never taken blindly: decide them from the guide and the character's goal, then click.
 6. **Record**: `journal <character> --record` and note the result (clear, death, loot) in the character journal.
 

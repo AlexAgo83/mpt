@@ -83,6 +83,7 @@ const usage = `usage:
   ./melvor-report.js dungeon-guide "<dungeon name>"
   ./melvor-report.js dungeon-check <character> "<dungeon name>"
   ./melvor-report.js dungeon-optimize <character> "<dungeon name>" [--style melee|ranged|magic]
+  ./melvor-report.js dungeon-setup <character> "<dungeon name>"   (preview of the plans against their sets; no --apply yet)
   ./melvor-report.js journal-serve [--port 8787]
   ./melvor-report.js journal-status [all|character]
   ./melvor-report.js journal-diff [all|character]
@@ -96,7 +97,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide', 'dungeon-check', 'dungeon-optimize'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide', 'dungeon-check', 'dungeon-optimize', 'dungeon-setup'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -2277,6 +2278,29 @@ if (require.main === module) (async () => {
         console.log(completionLine(row, lastCompletion(name)));
         if (record) fs.appendFileSync(COMPLETION_LOG, JSON.stringify(row) + '\n');
       }
+      return;
+    }
+
+    if (cmd === 'dungeon-setup') {
+      if (who === 'all' || !arg3) throw Error('usage: ./melvor-report.js dungeon-setup <character> "<dungeon name>"');
+      if (apply) throw Error('dungeon-setup is preview only for now: nothing was changed');
+      const planFile = path.join(JOURNAL_DIR, 'dungeons', `${safeFilePart(who)}-${safeFilePart(arg3)}-plan.json`);
+      if (!fs.existsSync(planFile)) throw Error(`run dungeon-optimize ${who} "${arg3}" first`);
+      const plan = JSON.parse(fs.readFileSync(planFile, 'utf8'));
+      const plans = [...plan.results].sort((a, b) => a.setIndex - b.setIndex).map(r => ({ setIndex: r.setIndex, style: r.style, equipment: r.equipment, potion: r.potion, prayers: r.prayers, best: r.best }));
+      const { sources } = await readSourcesByName();
+      const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, `mh.dungeonSetupPreview(${JSON.stringify(plans)})`, 60000));
+      if (r.error) throw Error(r.error);
+      console.log(`${r.name} | ${plan.dungeon} | setup preview (plans from ${new Date(plan.at).toLocaleString()}); nothing changed`);
+      for (const s of r.sets) {
+        const p = plans.find(x => x.setIndex === s.setIndex);
+        console.log(`  S${s.setIndex} ${s.style} (target deaths ${(p.best.death * 100).toFixed(1)}%)${s.error ? ': ' + s.error : ''}`);
+        for (const w of s.swaps || []) console.log(`    ${w.slot}: ${w.from || 'empty'} -> ${w.to}`);
+        if (s.prayers?.length && s.prayers.join() !== s.prayersNow.join()) console.log(`    Prayers: ${s.prayersNow.join(' + ') || 'none'} -> ${s.prayers.join(' + ')}`);
+        if (s.potion) console.log(`    Potion: ${s.potion} (${r.potionOwned[s.potion]} in bank)`);
+      }
+      for (const x of r.shortages) console.log(`  SHORT: ${x.name} needed in ${x.need} sets, ${x.have} available`);
+      if (!r.shortages.length) console.log('  every planned item is available for every set');
       return;
     }
 

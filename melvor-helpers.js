@@ -586,6 +586,26 @@
     return { setIndex, style, monsterId, start, best, changes, sims, equipment: [...current.equipment].map(([k, v]) => [k.split(':').pop(), game.items.getObjectByID(v)?.name ?? null]), potion: game.items.getObjectByID(current.potionID)?.name ?? null, prayers: (current.prayerSelected || []).map(id => game.prayers.getObjectByID(id)?.name) };
   };
 
+  // Read-only preview of dungeon-optimize plans against the sets they target (plan.setIndex), not the selected set.
+  // Several plans may want the same item: copies are counted across sets (bank + items the plans take out of a set).
+  mh.dungeonSetupPreview = (plans) => {
+    const sets = game.combat.player.equipmentSets;
+    const nameIn = (set, slot) => { const e = set.equipment.equippedArray.find(x => x.slot.localID === slot); return e && e.item !== game.emptyEquipmentItem ? e.item.name : null; };
+    const bankQty = name => { const item = game.items.allObjects.find(i => i.name === name); return item ? game.bank.items.get(item)?.quantity ?? 0 : 0; };
+    const out = plans.map(p => {
+      const set = sets[p.setIndex - 1];
+      if (!set) return { setIndex: p.setIndex, style: p.style, error: 'no equipment set ' + p.setIndex };
+      const swaps = p.equipment.filter(([slot, name]) => name && nameIn(set, slot) !== name).map(([slot, name]) => ({ slot, from: nameIn(set, slot), to: name }));
+      const prayers = [...set.prayerSelection].map(x => x.name);
+      return { setIndex: p.setIndex, style: p.style, swaps, prayersNow: prayers, prayers: p.prayers, potion: p.potion };
+    });
+    // copies needed per item vs bank + copies freed by the swaps; stackable slots (tablets, ammo) share one stack
+    const need = {}, freed = {};
+    for (const s of out) for (const w of s.swaps || []) { need[w.to] = (need[w.to] || 0) + 1; if (w.from) freed[w.from] = (freed[w.from] || 0) + 1; }
+    const shortages = Object.entries(need).map(([name, n]) => ({ name, need: n, have: bankQty(name) + (freed[name] || 0) })).filter(x => x.have < x.need);
+    return { name: game.characterName, sets: out, shortages, potionOwned: Object.fromEntries([...new Set(out.map(s => s.potion).filter(Boolean))].map(n => [n, bankQty(n)])) };
+  };
+
   mh.simUpgrades = async (plan, maxSims = 30) => {
     const session = await simSession(); if (session.error) return { error: session.error };
     const monster = game.combat.enemy?.monster ?? game.combat.selectedMonster;
