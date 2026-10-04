@@ -2011,6 +2011,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .tab-switch button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
 .tab-intro { margin: -.2rem 0 .7rem; color: var(--muted); font-size: .84rem; }
 .goal-switch { flex-wrap: wrap; }
+.goal-pick { width: auto; margin-bottom: .2rem; padding: .05rem .4rem; border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .03em; cursor: pointer; }
+.goal-pick:hover, .goal-pick:focus-visible { border-color: var(--line); color: var(--accent); }
 .goal-intro { margin: -.3rem 0 0; font-size: .84rem; }
 .panel-grid > .tab-intro { margin-bottom: -.4rem; }
 .tab-switch .tab-link { margin-left: auto; flex: 0 0 auto; display: flex; align-items: center; gap: .4rem; padding: .6rem .7rem; color: var(--muted); }
@@ -2172,8 +2174,11 @@ const GOAL_INTRO = {
   shop: 'Permanent shop upgrades you can afford right now.',
 };
 const goalStore = (() => { try { return JSON.parse(localStorage.getItem('mpt-goals') || '{}'); } catch { return {}; } })();
-const goalOf = (name, c) => goalStore[name] || snap.goals?.[name]?.goal || (c && c.observed.mode === 'Hardcore Mode' ? 'safe' : 'progression');
+// served pages trust journal/goals.json (shared by every browser); a page opened from disk keeps its own choice
+const served = location.protocol.startsWith('http');
+const goalOf = (name, c) => (served ? snap.goals?.[name]?.goal : goalStore[name] || snap.goals?.[name]?.goal) || (c && c.observed.mode === 'Hardcore Mode' ? 'safe' : 'progression');
 const saveGoal = async (name, patch) => {
+  snap.goals = { ...(snap.goals || {}), [name]: { ...(snap.goals?.[name] || {}), ...patch } };
   if (patch.goal) { goalStore[name] = patch.goal; try { localStorage.setItem('mpt-goals', JSON.stringify(goalStore)); } catch {} }
   if (location.protocol.startsWith('http')) { try { await fetch('/goal', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ character: name, ...patch }) }); } catch {} }
 };
@@ -2611,6 +2616,12 @@ function render() {
     const goal = goalOf(name, c), gl = goalLines(c, goal);
     const next = gl?.length ? short(planLine(gl[0]) || gl[0].split('; ').slice(0, 2).join(' · '), 72) : nextAction(decision);
     const nextCell = cell('Next', wikiText(next)); if (/^(Nothing|ETA pending)/.test(next)) nextCell.classList.add('idle');
+    // discreet goal picker: changing it rewrites Next without opening the card
+    const picker = el('select', 'goal-pick'); picker.title = 'Plan goal for ' + name; picker.setAttribute('aria-label', 'Plan goal for ' + name);
+    for (const [id, label] of Object.entries(GOAL_LABELS)) picker.append(new Option(label, id, false, id === goal));
+    for (const type of ['click', 'keydown', 'mousedown']) picker.addEventListener(type, e => e.stopPropagation());
+    picker.addEventListener('change', async () => { await saveGoal(name, { goal: picker.value }); keepOpen = details.open ? { name, tab: body.querySelector('[data-tab][aria-selected=true]')?.dataset.tab || 'now' } : null; render(); loadWikiIcons(); });
+    nextCell.querySelector('.cell-label').after(picker);
     const done = c.observed.completion?.total;
     const completionCell = cell('Completion', null); completionCell.classList.add('completion-cell');
     if (done != null) { const bar = el('progress'); bar.max = 100; bar.value = done; completionCell.querySelector('.cell-value').replaceChildren(el('span', '', done.toFixed(1) + '%'), bar); }
