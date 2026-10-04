@@ -41,7 +41,8 @@ recommendations, current-action plan, standard plan, abyssal plan, proposed acti
   Completion (items never found that one action makes, monsters never killed, near-max masteries,
   pets), Target item (sources, drop chance and average farm time with `--sim`), Mastery pools
   (closest checkpoint), Profit (GP/h), AFK (no deaths, 12 h+ of materials), Slayer, Hardcore safe
-  (fights simulated at 0% deaths; default for Hardcore characters), Capes & pets and Shop. Into the
+  (fights simulated at 0% deaths; default for Hardcore characters), Capes, Pets (every missing pet and how it is found), Monsters (every monster never
+  killed, reachable ones first, then the areas to unlock) and Shop. Into the
   Abyss content only appears once the character is in the Abyss (`mh.abyssOpen`).
   A Dungeon path line with a `dungeon-check` result shows Ready / Not ready (the worst fight and its
   death rate against the threshold), the worst rate once the `dungeon-optimize` plan is applied, and a
