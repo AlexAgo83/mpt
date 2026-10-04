@@ -1,5 +1,5 @@
 ## run_004_configure_abyssal_magic_equipment_set - Configure Abyssal Magic and restore Abyssal Ranged
-> Status: Active
+> Status: Archived
 > Category: support
 > Verified: 2026-08-15. GrifhinZ slot 6 configured and re-read with Abyssal Staff, Abyssal Blast, Damage Reduction Potion IV, Mystic Lore, and Augury.
 > Related request: (none yet)

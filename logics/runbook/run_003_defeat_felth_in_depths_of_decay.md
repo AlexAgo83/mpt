@@ -1,5 +1,5 @@
 ## run_003_defeat_felth_in_depths_of_decay - Defeat Felth in Depths of Decay
-> Status: Active
+> Status: Archived
 > Category: support
 > Verified: 2026-08-15. Dash live audit identified Felth, Toxin protection, melee hit chance, and equipped-item passives.
 > Related request: (none yet)

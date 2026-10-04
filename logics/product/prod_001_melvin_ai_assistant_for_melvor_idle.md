@@ -8,7 +8,7 @@
 > Reminder: Update status, linked refs, scope, decisions, success signals, and open questions when you edit this doc.
 
 # Overview
-Melvin (working title, project codename MPT) is an AI assistant for the browser game
+MelvorPT (working title Melvin, project codename MPT) is an AI assistant for the browser game
 Melvor Idle. The player talks to the assistant in a chat session (Claude Code today) and the
 assistant reads and manipulates the live game directly through the browser console: auditing
 gear, equipping items, switching characters, and eventually driving every in-game activity
@@ -90,7 +90,7 @@ flowchart TD
   open tabs, cloud-save metadata from the selection screen for the rest.
 - Build order: 1) `mh.backupSave()` safety net, 2) action helpers, 3) account dashboard.
 - Iterate helper-by-helper, each one validated live in the real game before being persisted.
-- Working name "Melvin" (final name TBD; candidates: Melvin, Sage, Overseer, Atlas).
+- Name: **MelvorPT** (decided 2026-10-04). "Melvin" was the working title and stays in the Logics doc slugs.
 
 # Success signals
 - Any game action the player asks for in chat completes without the player touching the game.
