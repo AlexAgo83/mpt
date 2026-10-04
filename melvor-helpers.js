@@ -484,6 +484,27 @@
     return { monster: monster.name, baseline, results, sims };
   };
 
+  // XP/h per skill without waiting for two scans: the action being trained, else the best one you can run
+  // (ETA mod rates when installed). Standard XP until the level cap, then abyssal XP once in the Abyss.
+  mh.skillRates = () => {
+    const out = {};
+    const active = game.activeAction;
+    for (const skill of game.skills.allObjects) {
+      const capped = skill.level >= (skill.levelCap ?? 120);
+      const wantAbyssal = capped && mh.abyssOpen() && (skill.abyssalLevel ?? 0) < (skill.currentAbyssalLevelCap ?? skill.abyssalLevelCap ?? 0);
+      if (capped && !wantAbyssal) continue;
+      let options = [];
+      try { options = (mh.skillingOptions(skill.name) || []).filter(o => Boolean(o.abyssalLevel) === wantAbyssal && o.xpPerHour > 0 && (o.gathering || o.runwayHours > 0)); } catch {}
+      if (!options.length) continue;
+      // some getters throw when nothing is selected (Cooking.activeRecipe): only ask the skill being trained
+      let selected = null; if (active === skill) { try { selected = skill.activeTrees ? [...skill.activeTrees][0] ?? null : null; } catch {} for (const key of selected ? [] : ['selectedRecipe', 'activeRecipe', 'selectedAction']) { try { selected = skill[key] ?? null; } catch { selected = null; } if (selected) break; } }
+      const current = active === skill ? options.find(o => o.recipe === (selected?.name ?? selected?.product?.name)) : null;
+      const pick = current || options[0];
+      out[skill.name] = { xpPerHour: pick.xpPerHour, action: pick.recipe, abyssal: wantAbyssal, current: Boolean(current), source: pick.rateSource || 'base' };
+    }
+    return out;
+  };
+
   // Raw data for the Plans goals (dungeon path, completion, target item, mastery, profit, slayer, capes, shop, quick wins).
   mh.goalData = (targetName = null) => {
     const abyss = mh.abyssOpen();

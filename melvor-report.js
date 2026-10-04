@@ -1396,6 +1396,7 @@ function buildCharacterJournal(name, data, save) {
     observed: {
       at: new Date().toISOString(),
       abyss: data.abyss ?? null,
+      skillRates: data.skillRates || {},
       action: report.action,
       mode: report.mode,
       gp: report.gp,
@@ -2127,6 +2128,7 @@ a:hover { text-decoration: underline; }
 .st-row { display: grid; grid-template-columns: minmax(9rem, 1.2fr) minmax(7rem, 1fr) minmax(9rem, 1.3fr) minmax(9rem, 1.3fr) 8.5rem; align-items: center; gap: .8rem; padding: .35rem .6rem; border-left: 3px solid var(--skill-color, var(--line)); border-radius: 0 8px 8px 0; background: #111614; }
 .no-abyss .st-row { grid-template-columns: minmax(9rem, 1.2fr) minmax(7rem, 1fr) minmax(9rem, 1.3fr) 8.5rem; }
 .st-pending { margin: 0; font-size: .82rem; }
+.st-next.estimate { font-style: italic; }
 .st-head { background: transparent; border-left-color: transparent; padding-top: 0; padding-bottom: 0; }
 .st-head button { width: auto; padding: .2rem 0; border: 0; background: transparent; color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; text-align: left; }
 .st-head button.sorted { color: var(--accent); }
@@ -2642,7 +2644,12 @@ function skillsSheet(c, charName) {
     else if (s.name === planned) name.append(el('span', 'st-tag plan', 'plan'));
     r.append(name, levelCell(s));
     if (abyss) r.append(abyssCell(s));
-    r.append(poolCell(s), el('span', 'st-next muted', [rateOf(s.name), etaOf(s.name) ? 'next ' + etaOf(s.name) : null].filter(Boolean).join(' · ')));
+    const est = c.observed.skillRates?.[s.name];
+    const estEta = est ? (() => { const need = est.abyssal ? (s.abyssalXPNextLevel ?? 0) - (s.abyssalXP ?? 0) : (s.xpNextLevel ?? 0) - (s.xp ?? 0); const h = need > 0 ? need / est.xpPerHour : null; return h == null ? null : h < 1 ? Math.max(1, Math.round(h * 60)) + ' min' : h < 48 ? h.toFixed(1) + ' h' : Math.round(h / 24) + ' d'; })() : null;
+    const nextCell = el('span', 'st-next muted');
+    if (rateOf(s.name) || etaOf(s.name)) nextCell.textContent = [rateOf(s.name), etaOf(s.name) ? 'next ' + etaOf(s.name) : null].filter(Boolean).join(' · ');
+    else if (est) { nextCell.textContent = fmtCompact(est.xpPerHour) + '/h' + (estEta ? ' · next ' + estEta : ''); nextCell.title = (est.current ? 'Current action: ' : 'If you train ') + est.action + (est.abyssal ? ' (abyssal XP)' : '') + ' · rate from ' + (est.source === 'ETA' ? 'the ETA mod' : 'base game values') + ', not measured'; nextCell.classList.add('estimate'); }
+    r.append(poolCell(s), nextCell);
     return r;
   };
   const filters = el('div', 'seg st-filters');
@@ -2666,7 +2673,7 @@ function skillsSheet(c, charName) {
   for (const k of kinds) { const n = skills.filter(s => k === 'All' || (k === 'Not maxed' ? !maxed(s) : SKILL_KIND[s.name] === k)).length; if (!n) continue; const b = el('button', '', k + ' · ' + n); b.type = 'button'; b.addEventListener('click', () => { kind = k; draw(); }); filters.append(b); }
   panel.classList.toggle('no-abyss', !abyss);
   panel.append(filters);
-  if (pending) panel.append(el('p', 'muted st-pending', pending.replace('ETA pending: ', 'XP/h and next-level times: ')));
+  if (pending) panel.append(el('p', 'muted st-pending', 'Measured XP/h needs two scans with play in between (' + pending.replace('ETA pending: ', '') + '). Italic values are estimates for the current or best action.'));
   panel.append(head, list, folded); draw();
   return panel;
 }
@@ -2977,6 +2984,8 @@ function runJournalServer() {
 async function collectJournal(name, save, includeSaveBackup = false) {
   return withCharacterSource(name, save?.source, async client => {
     const target = readGoals()[name]?.target || null;
+    // the ETA mod registers its API a moment after the game loads; give it a few seconds (XP/h estimates use it)
+    await waitFor(client, "typeof mod !== 'undefined' && mod.api.ETA !== undefined", 5000).catch(() => null);
     const data = await evalExpr(client, journalScript(includeSaveBackup, target));
     // --sim: replay the current target with each upgrade candidate in [Myth] Combat Simulator
     if (simulate && data.report?.action === 'Combat' && data.upgradePlan?.slots) data.upgradeSim = await evalExpr(client, `mh.simUpgrades(${JSON.stringify(data.upgradePlan)})`, 240000);
@@ -3003,7 +3012,7 @@ const journalScript = (includeSaveBackup, target) => `(() => {
     const inventory = [...game.bank.items].map(([item, entry]) => ({ name: item.name, quantity: entry.quantity, media: item.media || null, type: item.type || item.category || 'Other', kind: item.constructor?.name ?? null, slot: item.validSlots?.[0]?.localID ?? null, sell: item.sellsFor?.quantity ?? 0, currency: item.sellsFor?.currency?.id === 'melvorD:GP' ? 'GP' : item.sellsFor?.currency?.id === 'melvorItA:AbyssalPieces' ? 'AP' : null })).sort((a, b) => a.name.localeCompare(b.name));
     const values = value => value instanceof Map ? [...value.values()] : value instanceof Set ? [...value] : Array.isArray(value) ? value : value?.allObjects ?? [];
     const talents = game.skills.allObjects.flatMap(skill => values(skill.skillTrees).map(tree => ({ skill: skill.name, points: tree.points || 0, candidates: values(tree.nodes).filter(node => node.canUnlock && tree.canAffordNode(node) && !values(tree.unlockedNodes).includes(node)).map(node => ({ name: node.name, shortName: node.shortName })) }))).filter(tree => tree.points > 0);
-    const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])), equipmentSets, inventory, talents, abyss: mh.abyssOpen(), upgradePlan: mh.upgradePlan(), goals: mh.goalData(${JSON.stringify(target)}), completion: ${completionScript} };
+    const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])), equipmentSets, inventory, talents, abyss: mh.abyssOpen(), skillRates: mh.skillRates(), upgradePlan: mh.upgradePlan(), goals: mh.goalData(${JSON.stringify(target)}), completion: ${completionScript} };
     if (${JSON.stringify(includeSaveBackup)}) out.saveExport = mh.exportSaveString();
     return out;
   })()`;
