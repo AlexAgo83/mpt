@@ -2150,6 +2150,7 @@ const wikiText = text => {
   fragment.append(document.createTextNode(value.slice(last))); return fragment;
 };
 const list = items => { const ul = el('ul', 'plain-list'); for (const item of [...new Set(items)].filter(Boolean)) { const row = el('li'); row.append(wikiText(item)); ul.append(row); } return ul; };
+const spanAll = node => { node?.classList.add('span-all'); return node; };
 const box = (title, nodes) => { nodes = nodes.filter(Boolean); if (!nodes.length) return null; const b = el('section', 'group'); const stack = el('div', 'stack'); stack.append(...nodes); b.append(el('h3', '', title), stack); return b; };
 const group = (title, items) => { if (!items.length) return null; const box = el('section', 'group'); box.append(el('h3', '', title), list(items)); return box; };
 // Icon-only tab switch: the label stays in title/aria-label. Static Lucide-style paths, no user data.
@@ -2172,13 +2173,15 @@ const completionSheet = c => {
   const delta = (v, p) => p == null || v === p ? '' : ' ' + (v > p ? '+' : '') + (v - p).toFixed(2);
   const names = { base: 'Base game', toth: 'Throne of the Herald', aod: 'Atlas of Discovery', ita: 'Into the Abyss', skills: 'Skills', mastery: 'Mastery', items: 'Items', monsters: 'Monsters', pets: 'Pets' };
   const rows = key => Object.entries(now[key] || {}).map(([k, v]) => meterRow(names[k] || k, v, 100, v.toFixed(1) + '%' + delta(v, prev?.[key]?.[k]), key === 'expansions' && k !== 'base'));
-  const total = el('div', 'hero-stat'); total.append(el('b', '', now.total.toFixed(2) + '%'), el('span', '', 'Completion Log' + (prev ? delta(now.total, prev.total) + ' since ' + new Date(prev.at).toLocaleString() : '')));
+  const total = el('div', 'hero-stat'); const hist = c.analysis.completionHistory || []; let since = hist.length - 1; while (since > 0 && hist[since - 1].total === now.total) since--;
+  const moved = prev && prev.total !== now.total;
+  total.append(el('b', '', now.total.toFixed(2) + '%'), el('span', '', 'Completion Log · ' + (moved ? delta(now.total, prev.total).trim() + ' since ' + new Date(prev.at).toLocaleString() : hist.length > 1 ? 'unchanged since ' + new Date(hist[since].at).toLocaleString() : 'first record')));
   const bar = el('progress'); bar.max = 100; bar.value = now.total; total.append(bar);
   return panel('completion', [
     box('Total', [total]),
     box('Expansions', rows('expansions')),
     box('Categories', rows('categories')),
-    box('History', (c.analysis.completionHistory || []).slice().reverse().map(h => meterRow(new Date(h.at).toLocaleString(), h.total, 100, h.total.toFixed(2) + '%'))),
+    box('History', (c.analysis.completionHistory || []).filter((h, i, all) => i === 0 || h.total !== all[i - 1].total).reverse().map((h, i, shown) => meterRow(new Date(h.at).toLocaleString(), h.total, 100, h.total.toFixed(2) + '%' + (shown[i + 1] ? delta(h.total, shown[i + 1].total) : ' · first record')))),
   ]);
 };
 const panel = (name, groups) => { const body = el('div', 'panel panel-grid'); body.dataset.panel = name; for (const item of groups.filter(Boolean)) body.append(item); return body.children.length ? body : null; };
@@ -2215,7 +2218,7 @@ function equipmentSheet(c) {
   const combat = c.observed.combat || {};
   const summary = el('div', 'equipment-summary');
   for (const [label, value] of [['style', combat.playerAttackType], ['damage', combat.playerDamageType], ['accuracy', Number.isFinite(combat.hitChance) ? Math.round(combat.hitChance) + '%' : null]]) {
-    if (value) { const stat = el('span'); stat.append(document.createTextNode(label + ' : '), el('strong', '', value)); summary.append(stat); }
+    if (value) { const stat = el('span'); stat.append(document.createTextNode(label + ': '), el('strong', '', value)); summary.append(stat); }
   }
   if (summary.children.length) equipment.append(summary);
   const renderSet = (items, key, hidden) => { const grid = el('div', 'equipment-grid'); grid.dataset.equipmentSet = key; grid.hidden = hidden; for (const [slot, label] of equipmentSlots) { const item = items[slot]; if (!item || item === 'Empty' || (slot === 'Shield' && item === items.Weapon)) continue; const row = el('div', 'equipment-slot ' + (slot === 'Weapon' ? 'weapon' : slot === 'Shield' ? 'offhand' : slot.toLowerCase())); row.append(el('small', '', label), wiki(String(item))); grid.append(row); } return grid; };
@@ -2231,9 +2234,9 @@ function upgradeSheet(c) {
   const body = el('section', 'panel panel-grid'); body.dataset.panel = 'upgrades';
   const context = plan.context || {};
   const contextRow = el('section', 'group'); contextRow.append(el('h3', '', 'Context'));
-  const contextText = context.kind === 'non_combat_skill' ? ['Non-combat skill: ', wiki(context.target || 'unknown'), document.createTextNode('; combat upgrades deferred until it stops')] : context.kind === 'slayer_task' ? ['Slayer task: ', wiki(context.target || 'unknown'), document.createTextNode(' · ' + (context.remaining ?? '?') + ' kills left · ' + context.refresh)] : context.kind === 'dungeon' ? ['Dungeon: ', wiki(context.target || 'unknown'), document.createTextNode('; strategy guide: '), wiki(context.target || 'unknown')] : ['Activity: ' + (context.target || 'unknown')];
-  const contextLine = el('div'); contextLine.append(...contextText); const build = el('div', 'insight-chips'); build.append(el('span', '', 'build: ' + (plan.attackType || 'unknown') + (plan.damageType ? ' / ' + plan.damageType : ''))); const ctx = el('div', 'insight'); ctx.append(contextLine, build); contextRow.append(ctx); contextRow.classList.add('span-all'); body.append(contextRow);
-  const source = (item, kind) => kind === 'craft' && item.craft ? [document.createTextNode('craft: ' + item.craft.skill + ' / '), wiki(item.craft.recipe)] : item.loot ? [document.createTextNode('loot: '), wiki(item.loot)] : [document.createTextNode(item.source || 'source unknown')];
+  const contextText = context.kind === 'non_combat_skill' ? ['Skilling: ', wiki(context.target || 'unknown'), document.createTextNode(' · combat upgrades wait until it stops')] : context.kind === 'slayer_task' ? ['Slayer task: ', wiki(context.target || 'unknown'), document.createTextNode(' · ' + (context.remaining ?? '?') + ' kills left · ' + context.refresh)] : context.kind === 'dungeon' ? ['Dungeon: ', wiki(context.target || 'unknown'), document.createTextNode(' · strategy guide: '), wiki(context.target || 'unknown')] : ['Activity: ' + (context.target || 'unknown')];
+  const contextLine = el('div'); contextLine.append(...contextText); const build = el('div', 'insight-chips'); build.append(el('span', '', 'build: ' + (plan.attackType || 'unknown') + (plan.damageType ? ' / ' + plan.damageType : ''))); const ctx = el('div', 'insight'); ctx.append(contextLine); if (context.kind !== 'non_combat_skill') ctx.append(build); contextRow.append(ctx); contextRow.classList.add('span-all'); body.append(contextRow);
+  const source = (item, kind) => kind === 'craft' && item.craft ? (item.craft.recipe === item.name ? [document.createTextNode('craft: ' + item.craft.skill)] : [document.createTextNode('craft: ' + item.craft.skill + ' / '), wiki(item.craft.recipe)]) : item.loot ? [document.createTextNode('loot: '), wiki(item.loot)] : [document.createTextNode(item.source || 'source unknown')];
   const section = (title, kind) => {
     const tiles = Object.entries(plan.slots || {}).filter(([, entry]) => entry[kind]).map(([slot, entry]) => {
       const choice = entry[kind]; const tile = el('div', 'tile' + (choice.primary.blocked?.length ? ' blocked' : ''));
@@ -2247,8 +2250,18 @@ function upgradeSheet(c) {
     if (!tiles.length) return null;
     const b = el('section', 'group span-all'); const grid = el('div', 'tile-grid'); grid.append(...tiles); b.append(el('h3', '', title), grid); return b;
   };
-  const skilling = Object.keys(plan.skilling || {}).length ? group('Skilling equipment upgrades', Object.entries(plan.skilling).map(([slot, entry]) => slot + ': ' + entry.current + ' → ' + entry.candidates.map(item => item.name + ' (owned x' + item.available + '; ' + item.passives.join('; ') + ')').join(' | '))) : null;
-  const activity = plan.activity?.length ? group('Current activity upgrades', plan.activity.map(a => a.slot + ': ' + a.current + ' → ' + a.item + ' (owned x' + a.available + '; ' + a.reason + ')')) : null;
+  // same tile as loot/craft: slot, best owned swap, why, other owned options
+  const swapTile = (slot, current, item, owned, why, others) => {
+    const tile = el('div', 'tile'); const name = el('div', 'tile-title'); name.append(wiki(item));
+    const meta = el('div', 'insight-chips'); meta.append(el('span', '', 'owned x' + owned.toLocaleString('en-US'))); for (const w of why) meta.append(el('span', '', w));
+    const from = el('div', 'tile-alt'); from.append(document.createTextNode('replaces '), wiki(current || 'empty'));
+    tile.append(el('small', '', slot), name, meta, from);
+    if (others.length) { const alt = el('div', 'tile-alt'); alt.append(document.createTextNode('or ')); others.forEach((o, i) => { if (i) alt.append(document.createTextNode(', ')); alt.append(wiki(o)); }); tile.append(alt); }
+    return tile;
+  };
+  const tileGroup = (title, tiles) => { if (!tiles.length) return null; const b = el('section', 'group span-all'); const grid = el('div', 'tile-grid'); grid.append(...tiles); b.append(el('h3', '', title), grid); return b; };
+  const skilling = tileGroup('Skilling gear in your bank', Object.entries(plan.skilling || {}).map(([slot, entry]) => swapTile(slot, entry.current, entry.candidates[0].name, entry.candidates[0].available, entry.candidates[0].passives, entry.candidates.slice(1).map(item => item.name))));
+  const activity = tileGroup('For the current activity', (plan.activity || []).map(a => swapTile(a.slot, a.current, a.item, a.available, [a.reason], [])));
   body.append(...[skilling, activity, section('Next loot', 'loot'), section('Next craft', 'craft')].filter(Boolean));
   return body;
 }
@@ -2358,6 +2371,7 @@ function render() {
       const gp = num(/GP ([\\d.]+[KMBT]?)/); const mult = { K: 1e3, M: 1e6, B: 1e9, T: 1e12 };
       return { action: num(/Action: ([^(\\n]+?) \\(/), total: +num(/Total level (\\d+)/), maxed: num(/maxed (\\d+\\/\\d+)/), combat: +num(/combat (\\d+)/), gp: gp ? parseFloat(gp) * (mult[gp.slice(-1)] || 1) : null }; };
     const entries = c.history || [];
+    let quiet = null;
     for (const [i, h] of entries.slice(0, 5).entries()) {
       const now = stateOf(h), before = entries[i + 1] ? stateOf(entries[i + 1]) : null;
       const changes = !before ? ['first journal entry' + (now.action ? ' · ' + now.action : '')] : [
@@ -2367,8 +2381,12 @@ function render() {
         now.combat > before.combat ? 'combat level +' + (now.combat - before.combat) : null,
         now.gp != null && before.gp != null && Math.abs(now.gp - before.gp) >= 1e6 ? 'GP ' + (now.gp > before.gp ? '+' : '−') + fmtCompact(Math.abs(now.gp - before.gp)) : null,
       ].filter(Boolean);
-      const row = el('div', 'history-entry'); row.append(el('time', '', new Date(h.at).toLocaleString()));
+      if (!changes.length) { // fold a run of unchanged scans into one line
+        if (quiet) { quiet.count++; quiet.time.textContent = new Date(h.at).toLocaleString() + ' → ' + quiet.last; quiet.chip.textContent = 'no change · ' + quiet.count + ' scans'; continue; }
+      } else quiet = null;
+      const row = el('div', 'history-entry'); const time = el('time', '', new Date(h.at).toLocaleString()); row.append(time);
       const chips = el('div', 'insight-chips'); for (const change of changes.length ? changes : ['no change']) chips.append(el('span', '', change));
+      if (!changes.length) quiet = { count: 1, time, chip: chips.firstChild, last: new Date(h.at).toLocaleString() };
       const box = el('div', 'insight'); box.append(chips); row.append(box); history.append(row);
     }
     const hidden = ['stale', 'done', 'dismissed'].reduce((n, s) => n + (c.decisions[s] || []).length, 0);
@@ -2376,7 +2394,7 @@ function render() {
     const panels = [
       insightPanel(insights(c).filter(i => i.source !== 'progress_eta' && i.type !== 'status' && !planLine(i.label))),
       panel('progress', [
-        box('Level ETA', (c.analysis.progressEtas || []).map(line => detailRow(line))),
+        spanAll(box('Level ETA', (c.analysis.progressEtas || []).map(line => detailRow(line)))),
         box('Standard lows', (c.observed.standard?.lowest || []).slice(0, 6).map(s => meterRow(s.name, s.level, s.cap, s.level + '/' + s.cap, true))),
         box('Abyssal lows', (c.observed.abyssal?.lowest || []).slice(0, 6).map(s => meterRow(s.name, s.abyssalLevel, s.abyssalCap, s.abyssalLevel + '/' + s.abyssalCap, true))),
       ]),

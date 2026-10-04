@@ -80,9 +80,9 @@ const upgrades = buildCharacterJournal('UpgradeChar', {
 assert.strictEqual(upgrades.observed.upgradePlan.slots.Weapon.loot.alternatives.length, 1, 'upgrade alternatives survive journal generation');
 const skillingUpgrade = buildCharacterJournal('SkillingUpgrade', { ...data, upgradePlan: { context: { kind: 'non_combat_skill', target: 'Fletching' }, attackType: 'melee', slots: {}, skilling: { Gloves: { current: 'Leather Gloves', candidates: [{ name: 'Sharp Fletcher Gloves', available: 1, passives: ['+5% Fletching XP'] }] } } } }, save);
 assert.strictEqual(skillingUpgrade.observed.upgradePlan.context.kind, 'non_combat_skill', 'non-combat work defers combat upgrade planning');
-assert.match(renderDashboard(buildLatest([skillingUpgrade], new Map(), null, now)), /combat upgrades deferred until it stops/, 'dashboard explains why combat upgrades are deferred');
-assert.match(renderDashboard(buildLatest([skillingUpgrade], new Map(), null, now)), /Skilling equipment upgrades/, 'dashboard renders non-combat equipment upgrades');
-assert.match(renderDashboard(buildLatest([c], new Map(), null, now)), /Current activity upgrades/, 'dashboard lists owned active-skill upgrades');
+assert.match(renderDashboard(buildLatest([skillingUpgrade], new Map(), null, now)), /combat upgrades wait until it stops/, 'dashboard explains why combat upgrades are deferred');
+assert.match(renderDashboard(buildLatest([skillingUpgrade], new Map(), null, now)), /Skilling gear in your bank/, 'dashboard renders non-combat equipment upgrades');
+assert.match(renderDashboard(buildLatest([c], new Map(), null, now)), /For the current activity/, 'dashboard lists owned active-skill upgrades');
 
 // same state twice -> stable id, no duplicate event on rerun
 const c2 = buildCharacterJournal('TestChar', data, save);
