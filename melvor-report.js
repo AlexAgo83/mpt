@@ -2333,13 +2333,18 @@ if (require.main === module) (async () => {
       const timeout = Number(process.env.MELVOR_COMBAT_RUN_TIMEOUT_MS || (check.abyssal ? 60 : 20) * 60 * 1000);
       const r = await withCharacterWrite(who, async client => {
         const out = {};
-        out.prev = await evalExpr(client, `(() => {
-          const p = game.combat.player, a = game.activeAction, task = game.combat.slayerTask;
+        // right after loading, the game may still be paused (offline progress): the activity then sits in pausedAction
+        // and activeAction is null (Edalbraw's return went to 'nothing'); wait for the loop, read both
+        out.prev = await evalExpr(client, `(async () => {
+          for (let i = 0; i < 60 && !game.loopStarted; i++) await new Promise(r => setTimeout(r, 1000));
+          const p = game.combat.player, a = game.activeAction ?? game.pausedAction ?? null, task = game.combat.slayerTask;
           const active = [...game.potions.activePotions].find(([action]) => action === game.combat || action?.name === 'Combat')?.[1]?.item?.name ?? null;
           self.__mptPrev = { action: a, name: a?.name ?? null, set: p.selectedEquipmentSet, onTask: a === game.combat && Boolean(task?.active) && (game.combat.enemy?.monster === task.monster || game.combat.selectedMonster === task.monster), taskMonster: task?.monster ?? null,
             monster: game.combat.selectedMonster, area: game.combat.selectedArea, potion: active, trees: a === game.woodcutting ? [...game.woodcutting.activeTrees] : null };
-          return { name: self.__mptPrev.name, set: p.selectedEquipmentSet + 1, onTask: self.__mptPrev.onTask, potion: active, trees: self.__mptPrev.trees?.map(t => t.name) ?? null };
-        })()`);
+          return { name: self.__mptPrev.name, set: p.selectedEquipmentSet + 1, onTask: self.__mptPrev.onTask, potion: active, trees: self.__mptPrev.trees?.map(t => t.name) ?? null, paused: Boolean(game.isPaused) };
+        })()`, 90000);
+        // never leave a character idle because its activity could not be read
+        if (!out.prev.name) { out.status = 'previous activity unknown: not started'; out.resume = { wanted: null, now: null, set: out.prev.set, wantedSet: out.prev.set, ok: false }; return out; }
         try {
           if (plans.length) {
             out.setup = await evalExpr(client, `mh.dungeonSetupApply(${JSON.stringify(plans)})`, 120000);
