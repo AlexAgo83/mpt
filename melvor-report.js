@@ -2122,6 +2122,28 @@ a:hover { text-decoration: underline; }
 .insight.compact .insight-chips, .insight.compact .meter-row { display: none; }
 .insight.status-stale { opacity: .75; }
 .controls { display: flex; gap: .5rem; }
+.skills-table { display: grid; gap: .3rem; }
+.st-filters { flex-wrap: wrap; margin-bottom: .3rem; width: fit-content; }
+.st-row { display: grid; grid-template-columns: minmax(9rem, 1.2fr) minmax(7rem, 1fr) minmax(9rem, 1.3fr) minmax(9rem, 1.3fr) 6rem; align-items: center; gap: .8rem; padding: .35rem .6rem; border-left: 3px solid var(--skill-color, var(--line)); border-radius: 0 8px 8px 0; background: #111614; }
+.no-abyss .st-row { grid-template-columns: minmax(9rem, 1.2fr) minmax(7rem, 1fr) minmax(9rem, 1.3fr) 6rem; }
+.st-head { background: transparent; border-left-color: transparent; padding-top: 0; padding-bottom: 0; }
+.st-head button { width: auto; padding: .2rem 0; border: 0; background: transparent; color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; text-align: left; }
+.st-head button.sorted { color: var(--accent); }
+.st-list, .st-maxed { display: grid; gap: .3rem; }
+.st-name { display: flex; align-items: center; gap: .4rem; min-width: 0; font-weight: 600; }
+.st-tag { padding: 0 .4rem; border: 1px solid var(--teal); border-radius: 999px; color: var(--teal); font-size: .66rem; font-weight: 600; text-transform: uppercase; }
+.st-tag.plan { border-color: var(--accent); color: var(--accent); }
+.st-row.current { box-shadow: inset 0 0 0 1px #2d6255; }
+.st-row.planned { box-shadow: inset 0 0 0 1px #6b5a33; }
+.st-meter { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: .45rem; font-size: .78rem; font-variant-numeric: tabular-nums; }
+.st-meter progress { width: 100%; height: .4rem; accent-color: var(--skill-color, var(--teal)); }
+.st-meter.abyss progress { accent-color: #a579e6; }
+.st-meter.pool progress { accent-color: var(--accent); }
+.st-pools { display: grid; gap: .15rem; }
+.st-done { color: var(--muted); font-size: .8rem; }
+.st-next { font-size: .78rem; text-align: right; }
+.st-maxed > summary { cursor: pointer; padding: .35rem 0; }
+.st-maxed > summary strong { color: var(--accent); font-size: .84rem; }
 .inventory { display: grid; gap: .6rem; }
 .inv-cats { flex-wrap: wrap; }
 .inv-cats select { width: auto; border: 0; background: transparent; color: var(--muted); padding: .3rem .5rem; }
@@ -2150,6 +2172,9 @@ a:hover { text-decoration: underline; }
   .topbar { flex-wrap: wrap; }
   #scanTime { display: none; }
   .todo-pill .tab-label { display: none; }
+  .st-row, .no-abyss .st-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .3rem .6rem; }
+  .st-head { display: none; }
+  .st-next { text-align: left; }
   .goal-pop { grid-template-columns: minmax(0, 1fr); }
   .split button span { display: none; }
   .seg { overflow-x: auto; max-width: 100%; }
@@ -2406,7 +2431,7 @@ const TAB_INTRO = {
   equipment: 'Gear worn in the current set and the saved sets, with the active style, damage type and accuracy.',
   upgrades: 'Better gear for what this character is doing now: items to loot or craft, and owned items worth equipping.',
   inventory: 'Everything in the bank, grouped by kind and worth (sell price). In use shows what the current activity consumes.',
-  skills: 'Every skill with its level, abyssal level, XP to the next level and mastery pool.',
+  skills: 'What is left first: level, abyssal level and mastery pool per skill; maxed skills are folded at the bottom. Click a column to sort.',
   plans: 'The plan for the chosen goal; the Next column and To do follow it.',
   history: 'What changed between journal scans: activity, total level, maxed skills and GP.',
 };
@@ -2571,40 +2596,72 @@ function upgradeSheet(c) {
   body.append(...[skilling, activity, section('Equip from your bank', 'bank'), section('Next loot', 'loot'), section('Next craft', 'craft')].filter(Boolean));
   return body;
 }
-function skillsSheet(c) {
-  const panel = el('section', 'panel'); panel.dataset.panel = 'skills';
-  const skills = [...(c.observed.skills || [])].sort((a, b) => b.level - a.level || a.name.localeCompare(b.name));
+// Skills as a compact table: what is left first, maxed skills folded, filters and sortable columns.
+const SKILL_KIND = { Attack: 'Combat', Strength: 'Combat', Defence: 'Combat', Hitpoints: 'Combat', Ranged: 'Combat', Magic: 'Combat', Prayer: 'Combat', Slayer: 'Combat', Corruption: 'Combat',
+  Woodcutting: 'Gathering', Fishing: 'Gathering', Mining: 'Gathering', Thieving: 'Gathering', Farming: 'Gathering', Astrology: 'Gathering', Archaeology: 'Gathering', Harvesting: 'Gathering',
+  Firemaking: 'Artisan', Cooking: 'Artisan', Smithing: 'Artisan', Fletching: 'Artisan', Crafting: 'Artisan', Runecrafting: 'Artisan', Herblore: 'Artisan', Summoning: 'Artisan',
+  Agility: 'Support', Township: 'Support', Cartography: 'Support' };
+function skillsSheet(c, charName) {
+  const panel = el('section', 'panel skills-table'); panel.dataset.panel = 'skills';
+  const skills = (c.observed.skills || []).filter(s => (s.levelCap ?? 120) > 1 || (s.abyssalCap ?? 0) > 1);
   if (!skills.length) { panel.append(el('p', 'muted', 'Refresh this character to load skills.')); return panel; }
-  const grid = el('div', 'skills-grid');
-  const amount = value => Math.floor(value || 0).toLocaleString('en-GB');
-  const stat = (label, value) => { const row = el('div', 'skill-stat'); row.append(document.createTextNode(label), el('b', '', value)); return row; };
-  const meter = (kind, label, value, start, end) => {
-    if (!Number.isFinite(end) || end <= start) return null;
-    const row = el('div', 'skill-meter ' + kind); const progress = document.createElement('progress'); progress.max = 100; progress.value = Math.max(0, Math.min(100, (value - start) / (end - start) * 100));
-    row.append(el('span', '', label), el('span', 'skill-meter-value', Math.round(progress.value) + '% · ' + amount(value - start) + ' / ' + amount(end - start)), progress); return row;
+  const abyss = c.observed.abyss !== false;
+  const pct = (v, a, b) => Number.isFinite(b) && b > a ? Math.max(0, Math.min(100, (v - a) / (b - a) * 100)) : null;
+  const abyssOpen = s => abyss && (s.abyssalCap ?? 0) > 1;
+  const maxed = s => s.level >= (s.levelCap ?? 120) && (!abyssOpen(s) || (s.abyssalLevel ?? 0) >= s.abyssalCap);
+  // what is left: abyssal gap first once in the Abyss, then the standard gap
+  const gap = s => (abyssOpen(s) ? (s.abyssalCap - (s.abyssalLevel ?? 0)) / s.abyssalCap : 0) * 1000 + ((s.levelCap ?? 120) - s.level) / (s.levelCap ?? 120) * 100;
+  // next-level ETA from the Progress lines ("Skill: ...; next level ETA 9 h" or "abyssal next level ETA ...")
+  const etaOf = name => { for (const line of c.analysis.progressEtas || []) { if (!line.startsWith(name + ':')) continue; const p = line.split('; ').find(x => x.includes('next level ETA')); if (p) return p.split('ETA ')[1]; } return null; };
+  const planned = (() => { const goal = goalOf(charName, c); const line = goalLines(c, goal)?.[0] || (c.analysis.standardPlan || [])[0] || (c.analysis.afterTaskPlan || [])[0] || ''; return line.replace(/^(Switch to |abyssal )+/, '').split(':')[0]; })();
+  const kinds = ['All', 'Not maxed', 'Combat', 'Gathering', 'Artisan', 'Support'];
+  let kind = 'All', sortBy = 'gap', desc = true;
+  const meter = (value, text, title, cls) => { const m = el('div', 'st-meter ' + (cls || '')); const bar = el('progress'); bar.max = 100; bar.value = value; m.append(bar, el('span', '', text)); if (title) m.title = title; return m; };
+  const levelCell = s => (s.levelCap ?? 120) <= 1 ? el('span', 'muted', '—') : s.level >= (s.levelCap ?? 120) ? el('span', 'st-done', '✓ ' + s.level)
+    : meter(pct(s.xp, s.xpLevelStart, s.xpNextLevel) ?? 0, s.level + '/' + s.levelCap, fmtCompact(s.xp - (s.xpLevelStart || 0)) + ' / ' + fmtCompact((s.xpNextLevel || 0) - (s.xpLevelStart || 0)) + ' XP to the next level');
+  const abyssCell = s => !abyssOpen(s) ? el('span', 'muted', '—') : (s.abyssalLevel ?? 0) >= s.abyssalCap ? el('span', 'st-done', '✓ ' + s.abyssalLevel)
+    : (() => { const p = pct(s.abyssalXP, s.abyssalXPLevelStart, s.abyssalXPNextLevel); return meter(p ?? 0, s.abyssalLevel + '/' + s.abyssalCap + (p != null ? ' · ' + Math.round(p) + '%' : ''), p != null ? fmtCompact(s.abyssalXP - s.abyssalXPLevelStart) + ' / ' + fmtCompact(s.abyssalXPNextLevel - s.abyssalXPLevelStart) + ' abyssal XP to the next level' : null, 'abyss'); })();
+  const poolCell = s => {
+    const box = el('div', 'st-pools');
+    for (const pool of (s.masteryPools || []).filter(p => abyss || !/abyss/i.test(p.realm))) {
+      const tag = /abyss/i.test(pool.realm) ? 'abyss ' : '';
+      if (pool.cap > 0 && pool.xp >= pool.cap) box.append(el('span', 'st-done', '✓ ' + tag + 'full' + (pool.xp > pool.cap ? ' (+' + fmtCompact(pool.xp - pool.cap) + ')' : '')));
+      else if (pool.cap > 0) box.append(meter(pool.xp / pool.cap * 100, tag + Math.floor(pool.xp / pool.cap * 100) + '%', fmtCompact(pool.xp) + ' / ' + fmtCompact(pool.cap) + ' pool XP', 'pool'));
+    }
+    return box;
   };
-  for (const skill of skills) {
-    const card = el('div', 'skill-card');
-    card.style.setProperty('--skill-color', skill.color || SKILL_COLORS[skill.name] || 'var(--accent)');
-    const title = el('strong'); title.append(wiki(skill.name));
-    card.append(title, stat('Level ', skill.level + '/' + skill.levelCap));
-    const levelMeter = meter('xp', 'XP', skill.xp, skill.xpLevelStart, skill.xpNextLevel); if (levelMeter) card.append(levelMeter);
-    if (skill.abyssalLevel !== null && skill.abyssalLevel !== undefined && c.observed.abyss !== false) {
-      card.append(stat('Abyssal ', skill.abyssalLevel + '/' + skill.abyssalCap));
-      const abyssMeter = meter('abyss', 'Abyssal XP', skill.abyssalXP, skill.abyssalXPLevelStart, skill.abyssalXPNextLevel); if (abyssMeter) card.append(abyssMeter);
-    }
-    for (const pool of (skill.masteryPools || []).filter(pool => c.observed.abyss !== false || !/abyss/i.test(pool.realm))) {
-      const label = /abyss/i.test(pool.realm) ? 'Abyssal pool' : 'Mastery pool';
-      if (pool.xp >= pool.cap && pool.cap > 0) { // MasteryCanPoolOverflow lets the pool exceed its cap
-        const row = el('div', 'skill-meter mastery'); const bar = el('progress'); bar.max = 100; bar.value = 100;
-        row.append(el('span', '', label), el('span', 'skill-meter-value', 'Full' + (pool.xp > pool.cap ? ' (+' + fmtCompact(pool.xp - pool.cap) + ' overflow)' : '')), bar); row.title = amount(pool.xp) + ' / ' + amount(pool.cap) + ' pool XP'; card.append(row); continue;
-      }
-      const masteryMeter = meter('mastery', label, pool.xp, 0, pool.cap); if (masteryMeter) { masteryMeter.title = amount(pool.xp) + ' / ' + amount(pool.cap) + ' pool XP'; card.append(masteryMeter); }
-    }
-    if (!skill.masteryPools?.length) card.append(stat('Mastery ', 'not applicable'));
-    grid.append(card);
-  }
-  panel.append(grid);
+  const row = s => {
+    const r = el('div', 'st-row' + (s.name === c.observed.action ? ' current' : '') + (s.name === planned ? ' planned' : ''));
+    r.style.setProperty('--skill-color', s.color || SKILL_COLORS[s.name] || 'var(--accent)');
+    const name = el('div', 'st-name'); name.append(wiki(s.name));
+    if (s.name === c.observed.action) name.append(el('span', 'st-tag', 'training'));
+    else if (s.name === planned) name.append(el('span', 'st-tag plan', 'plan'));
+    r.append(name, levelCell(s));
+    if (abyss) r.append(abyssCell(s));
+    r.append(poolCell(s), el('span', 'st-next muted', etaOf(s.name) ? 'next ' + etaOf(s.name) : ''));
+    return r;
+  };
+  const filters = el('div', 'seg st-filters');
+  const head = el('div', 'st-row st-head');
+  const cols = [['name', 'Skill'], ['level', 'Level'], ...(abyss ? [['abyssal', 'Abyssal']] : []), ['pool', 'Mastery pool'], ['eta', 'Next level']];
+  for (const [key, label] of cols) { const b = el('button', '', label); b.type = 'button'; b.dataset.sort = key; b.addEventListener('click', () => { desc = sortBy === key ? !desc : key !== 'name'; sortBy = key; draw(); }); head.append(b); }
+  const list = el('div', 'st-list'); const folded = el('details', 'st-maxed');
+  const order = { gap, eta: s => -(etaOf(s.name) ? 1 : 0), name: s => s.name, level: s => s.level + pct(s.xp, s.xpLevelStart, s.xpNextLevel) / 100, abyssal: s => (s.abyssalLevel ?? 0) / (s.abyssalCap || 1), pool: s => Math.min(...(s.masteryPools || []).map(p => p.cap ? p.xp / p.cap : 2), 2) };
+  const draw = () => {
+    for (const b of filters.children) b.setAttribute('aria-pressed', String(b.textContent.startsWith(kind)));
+    for (const b of head.children) b.classList.toggle('sorted', b.dataset.sort === sortBy);
+    const shown = skills.filter(s => kind === 'All' || (kind === 'Not maxed' ? !maxed(s) : SKILL_KIND[s.name] === kind));
+    const key = order[sortBy]; const cmp = (a, b) => { const x = key(a), y = key(b); const d = typeof x === 'string' ? x.localeCompare(y) : x - y; return (desc ? -d : d) || a.name.localeCompare(b.name); };
+    const open = shown.filter(s => !maxed(s)).sort(cmp), done = shown.filter(maxed).sort((a, b) => a.name.localeCompare(b.name));
+    list.replaceChildren(...open.map(row));
+    if (!open.length) list.append(el('p', 'muted', 'Every skill here is maxed.'));
+    folded.replaceChildren(); folded.hidden = !done.length;
+    const sum = el('summary'); sum.append(el('strong', '', 'Maxed'), el('span', 'muted', ' ' + done.length)); folded.append(sum, ...done.map(row));
+    loadWikiIcons();
+  };
+  for (const k of kinds) { const n = skills.filter(s => k === 'All' || (k === 'Not maxed' ? !maxed(s) : SKILL_KIND[s.name] === k)).length; if (!n) continue; const b = el('button', '', k + ' · ' + n); b.type = 'button'; b.addEventListener('click', () => { kind = k; draw(); }); filters.append(b); }
+  panel.classList.toggle('no-abyss', !abyss);
+  panel.append(filters, head, list, folded); draw();
   return panel;
 }
 // Bank view in the game's style: icon tiles grouped by item type, "In use" first, value from the sell price.
@@ -2778,7 +2835,7 @@ function render() {
       equipment,
       upgradeSheet(c),
       inventorySheet(c),
-      skillsSheet(c),
+      skillsSheet(c, name),
       plansPanel(name, c, actions, hidden),
       history.children.length ? history : null,
     ].filter(Boolean);
