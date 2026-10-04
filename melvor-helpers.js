@@ -180,6 +180,17 @@
   };
 
   // Unlocked artisan recipes with enough information to prove their resource runway.
+  // Into the Abyss content only counts once the character is actually in the Abyss: an abyssal level above 1,
+  // Into the Abyss cleared, or abyssal Slayer coins. Owning the expansion is not enough.
+  mh.abyssOpen = () => {
+    try {
+      if (game.skills.allObjects.some(s => (s.abyssalLevel ?? 0) > 1)) return true;
+      const ita = game.dungeons.getObjectByID('melvorItA:Into_the_Abyss');
+      if (ita && (game.combat.getDungeonCompleteCount?.(ita) ?? 0) > 0) return true;
+      return (game.abyssalSlayerCoins?.amount ?? 0) > 0;
+    } catch { return true; }
+  };
+  const isAbyssal = thing => /^melvorItA:/.test(thing?.id || '') || thing?.realm?.id === 'melvorItA:Abyssal';
   const GATHERING = ['Woodcutting', 'Fishing', 'Mining', 'Thieving', 'Astrology', 'Harvesting'];
   mh.skillingOptions = (skillName) => {
     const skill = game.skills.find(s => s.name === skillName);
@@ -192,7 +203,7 @@
       const level = action.level ?? 1;
       const abyssalLevel = action.abyssalLevel ?? 0;
       const unlocked = skill.level >= level && (skill.abyssalLevel ?? 0) >= abyssalLevel;
-      if (!unlocked || (!inputs.length && !GATHERING.includes(skillName))) return [];
+      if (!unlocked || (!inputs.length && !GATHERING.includes(skillName)) || ((abyssalLevel > 0 || isAbyssal(action)) && !mh.abyssOpen())) return [];
       // gathering actions (trees, fish, rocks...) cost nothing: unlimited runway
       const maxActions = inputs.length ? Math.min(...inputs.map(c => Math.floor(c.owned / c.perAction))) : Infinity;
       const avgInterval = action.baseMinInterval && action.baseMaxInterval ? (action.baseMinInterval + action.baseMaxInterval) / 2 : null;
@@ -382,7 +393,8 @@
     const equipped = Object.fromEntries(p.equipment.equippedArray.filter(slot => !slot.isEmpty).map(slot => [slot.slot.localID, slot.item]));
     const damageType = equipped.Weapon?.damageType?.name ?? null;
     const itemView = item => ({ name: item.name, id: item.id, realm: String(item.id || '').split(':')[0] || null, score: score(item), damageType: item.damageType?.name ?? null, craft: craft.get(item.id) ?? null, loot: drops.get(item.id)?.monster ?? null, lootChance: drops.get(item.id)?.chance ?? null, owned: game.bank.items.get(item)?.quantity ?? 0, passives: passivesOf(item).filter(Boolean).slice(0, 2), blocked: (item.equipRequirements ?? []).filter(r => !meets(r)).map(requirement) });
-    const compatible = (item, slot) => item.validSlots?.[0]?.localID === slot && (!item.attackType || item.attackType === attackType) && !(slot === 'Weapon' && damageType && damageType !== 'Normal' && item.damageType?.name !== damageType);
+    const abyss = mh.abyssOpen();
+    const compatible = (item, slot) => (abyss || !isAbyssal(item)) && item.validSlots?.[0]?.localID === slot && (!item.attackType || item.attackType === attackType) && !(slot === 'Weapon' && damageType && damageType !== 'Normal' && item.damageType?.name !== damageType);
     const activeSkill = game.activeAction?.name ?? null;
     if (activeSkill && activeSkill !== 'Combat') {
       const skillScore = item => {
@@ -418,7 +430,8 @@
 
   // Simulate the current target with each upgrade candidate swapped in, using [Myth] Combat Simulator.
   // Needs the simulator in debug mode (self.mcs.global), set by a document-start script; read-only, the sim runs on its own copy.
-  mh.simUpgrades = async (plan, maxSims = 30) => {
+  // One simulator session: the selected set imported, a runner for any monster (optionally inside a dungeon).
+  const simSession = async () => {
     const G = self.mcs?.global, api = typeof mod !== 'undefined' ? mod.api?.mythCombatSimulator : null;
     if (!G?.simulation || !api) return { error: 'combat simulator not available' };
     const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -426,15 +439,34 @@
     const button = [...document.querySelectorAll('mcs-equipment-page button.mcs-button')].find(b => b.textContent.trim() === String(set + 1));
     if (!button) return { error: 'combat simulator UI not ready' };
     button.click(); await sleep(300);
+    const exported = api.export();
+    const runFor = async (monster, settings, entityId) => {
+      const task = game.combat.slayerTask;
+      api.import({ ...settings, isSlayerTask: Boolean(task?.active && task.monster === monster) }); await sleep(50);
+      const r = (await G.simulation.simulate({ monsterId: monster.id, entityId, saveString: G.game.generateSaveStringSimple(), trials: G.stores.simulator.state.trials, maxTicks: G.stores.simulator.state.ticks })).result;
+      return r.simSuccess ? { xpPerHour: Math.max(r.xpPerSecondAbyssal || 0, r.xpPerSecondMelvor || 0) * 3600, killTimeS: r.killTimeS, deathRate: r.deathRate, killsPerHour: (r.killsPerSecond || 0) * 3600, gpPerHour: Math.max(r.gpPerSecondMelvor || 0, r.gpPerSecondAbyssal || 0) * 3600, atePerHour: (r.atePerSecond || 0) * 3600 } : { failed: r.reason || 'simulation failed' };
+    };
+    return { api, exported, runFor };
+  };
+
+  // Simulate a list of { monsterId, entityId } with the current gear (dungeon bosses, never-killed monsters, farm spots).
+  mh.simTargets = async targets => {
+    const session = await simSession(); if (session.error) return { error: session.error };
+    const out = {};
+    for (const t of (targets || []).slice(0, 12)) {
+      const monster = game.monsters.getObjectByID(t.monsterId); if (!monster) continue;
+      out[t.key || t.monsterId] = await session.runFor(monster, session.exported, t.entityId);
+    }
+    session.api.import(session.exported);
+    return out;
+  };
+
+  mh.simUpgrades = async (plan, maxSims = 30) => {
+    const session = await simSession(); if (session.error) return { error: session.error };
     const monster = game.combat.enemy?.monster ?? game.combat.selectedMonster;
     if (!monster) return { error: 'no combat target' };
-    const task = game.combat.slayerTask;
-    const base = { ...api.export(), isSlayerTask: Boolean(task?.active && task.monster === monster) };
-    const run = async settings => {
-      api.import(settings); await sleep(50);
-      const r = (await G.simulation.simulate({ monsterId: monster.id, entityId: undefined, saveString: G.game.generateSaveStringSimple(), trials: G.stores.simulator.state.trials, maxTicks: G.stores.simulator.state.ticks })).result;
-      return r.simSuccess ? { xpPerHour: Math.max(r.xpPerSecondAbyssal || 0, r.xpPerSecondMelvor || 0) * 3600, killTimeS: r.killTimeS, deathRate: r.deathRate } : { failed: r.reason || 'simulation failed' };
-    };
+    const api = session.api, base = session.exported;
+    const run = settings => session.runFor(monster, settings);
     const baseline = await run(base);
     const results = {}; let sims = 0;
     for (const [slot, entry] of Object.entries(plan?.slots || {})) {
@@ -450,6 +482,84 @@
     }
     api.import(base);
     return { monster: monster.name, baseline, results, sims };
+  };
+
+  // Raw data for the Plans goals (dungeon path, completion, target item, mastery, profit, slayer, capes, shop, quick wins).
+  mh.goalData = (targetName = null) => {
+    const abyss = mh.abyssOpen();
+    const values = v => v instanceof Map || v instanceof Set ? [...v.values()] : Array.isArray(v) ? v : v?.allObjects ?? [];
+    const owned = item => item ? game.bank.items.get(item)?.quantity ?? 0 : 0;
+    const equipped = new Set(game.combat.player.equipmentSets.flatMap(set => set.equipment.equippedArray.filter(s => !s.isEmpty).map(s => s.item)));
+    const has = item => owned(item) > 0 || equipped.has(item);
+    const reqText = r => r.type === 'SkillLevel' ? `${r.skill?.name} ${r.level}` : r.type === 'AbyssalLevel' ? `Abyssal ${r.skill?.name} ${r.level}` : r.type === 'DungeonCompletion' ? `clear ${r.dungeon?.name}${(r.count ?? 1) > 1 ? ' x' + r.count : ''}` : r.type === 'AbyssDepthCompletion' ? `clear ${r.depth?.name || r.abyssDepth?.name || 'an Abyss depth'}` : r.type === 'ShopPurchase' ? `buy ${r.purchase?.name || 'a shop upgrade'}` : r.type === 'ItemFound' ? `find ${r.item?.name}` : r.type === 'MonsterKilled' ? `kill ${r.monster?.name}` : r.type === 'SlayerItem' ? `wear ${r.item?.name}` : r.type === 'CartographyPOIDiscovery' ? `discover ${(r.pois || []).map(p => p.name).join(', ') || 'a map location'} (Cartography)` : r.type === 'CartographyHexDiscovery' ? 'survey more Cartography hexes' : r.type || 'requirement';
+    const met = reqs => { try { return game.checkRequirements(reqs || [], false); } catch { return null; } };
+    const missing = reqs => (reqs || []).filter(r => { try { return !game.checkRequirements([r], false); } catch { return true; } }).map(reqText);
+    const clears = area => { const c = game.combat; for (const f of ['getDungeonCompleteCount', 'getAbyssDepthCompleteCount', 'getStrongholdCompleteCount']) { try { const n = c[f]?.(area); if (Number.isFinite(n)) return n; } catch {} } return null; };
+    const areaView = (area, kind) => ({ id: area.id, name: area.name, kind, realm: area.realm?.id?.split(':').pop() ?? null, clears: clears(area), unlocked: met(area.entryRequirements), missing: missing(area.entryRequirements), boss: values(area.monsters).at(-1)?.id ?? null, bossName: values(area.monsters).at(-1)?.name ?? null });
+    const dungeons = [...values(game.dungeons).map(d => areaView(d, 'dungeon')), ...values(game.abyssDepths).map(d => areaView(d, 'depth')), ...values(game.strongholds).map(d => areaView(d, 'stronghold'))];
+    const slayerAreas = values(game.slayerAreas).filter(a => abyss || !isAbyssal(a)).map(a => ({ ...areaView(a, 'slayer area'), slayerLevel: a.slayerLevelRequired ?? null }));
+
+    // completion quick wins
+    const craftMap = new Map();
+    for (const skill of values(game.skills)) for (const action of values(skill.actions).length ? values(skill.actions) : values(skill.recipes)) {
+      const item = action.product ?? action.item; if (!item?.id || craftMap.has(item.id)) continue;
+      const costs = action.itemCosts ?? action.costs?.items ?? [];
+      const unlocked = (skill.level ?? 0) >= (action.level ?? 1) && (skill.abyssalLevel ?? 0) >= (action.abyssalLevel ?? 0);
+      craftMap.set(item.id, { skill: skill.name, unlocked, affordable: costs.every(c => owned(c.item) >= (c.quantity ?? 0)) });
+    }
+    const findCount = item => { try { return game.stats.itemFindCount(item); } catch { return null; } };
+    const unfoundCraftable = values(game.items).filter(item => !item.ignoreCompletion && (abyss || !isAbyssal(item)) && findCount(item) === 0).map(item => ({ item, craft: craftMap.get(item.id) })).filter(x => x.craft?.unlocked && x.craft.affordable).slice(0, 15).map(x => ({ name: x.item.name, skill: x.craft.skill }));
+    const killCount = m => { try { return game.stats.monsterKillCount(m); } catch { return null; } };
+    const areaOf = new Map(); for (const a of [...values(game.combatAreas), ...values(game.slayerAreas)]) for (const m of values(a.monsters)) if (!areaOf.has(m.id)) areaOf.set(m.id, a);
+    const unkilled = values(game.monsters).filter(m => !m.ignoreCompletion && (abyss || !isAbyssal(m)) && killCount(m) === 0 && areaOf.has(m.id)).map(m => ({ id: m.id, name: m.name, area: areaOf.get(m.id).name, unlocked: met(areaOf.get(m.id).entryRequirements), combatLevel: m.combatLevel ?? null })).filter(m => m.unlocked).sort((a, b) => (a.combatLevel ?? 0) - (b.combatLevel ?? 0)).slice(0, 10);
+    const nearMastery = values(game.skills).filter(sk => sk.hasMastery).flatMap(sk => values(sk.actions).filter(a => abyss || !isAbyssal(a)).map(a => { let lvl = null; try { lvl = sk.getMasteryLevel(a); } catch {} return { skill: sk.name, action: a.name ?? a.product?.name, level: lvl, cap: sk.masteryLevelCap ?? 99 }; })).filter(x => x.level != null && x.level >= 90 && x.level < x.cap).sort((a, b) => b.level - a.level).slice(0, 10);
+    const petsMissing = values(game.pets).filter(p => !p.ignoreCompletion && (abyss || !isAbyssal(p)) && !game.petManager.isPetUnlocked(p)).map(p => ({ name: p.name, skill: p.skill?.name ?? null, how: (p.acquiredBy || p.description || '').toString().replace(/<[^>]+>/g, '').slice(0, 90) }));
+
+    // target item
+    let target = null;
+    if (targetName) {
+      const item = values(game.items).find(i => i.name.toLowerCase() === String(targetName).toLowerCase());
+      if (!item) target = { name: targetName, error: 'unknown item' };
+      else {
+        const sources = [];
+        for (const monster of values(game.monsters)) {
+          const table = values(monster.lootTable?.drops ?? monster.lootTable); const total = table.reduce((s, d) => s + (d.weight ?? 0), 0);
+          for (const d of table) if ((d.item ?? d.drop) === item && total) sources.push({ monsterId: monster.id, monster: monster.name, chance: (d.weight / total) * ((monster.lootChance ?? 100) / 100) * 100, area: areaOf.get(monster.id)?.name ?? null, unlocked: areaOf.has(monster.id) ? met(areaOf.get(monster.id).entryRequirements) : null });
+        }
+        sources.sort((a, b) => (b.unlocked === true) - (a.unlocked === true) || b.chance - a.chance);
+        const shop = values(game.shop.purchases).find(p => values(p.contains?.items).some(e => (e.item ?? e) === item));
+        target = { name: item.name, id: item.id, needsAbyss: isAbyssal(item) && !abyss, owned: owned(item), equipped: equipped.has(item), equipMissing: missing(item.equipRequirements), craft: craftMap.get(item.id) ?? null, monsters: sources.slice(0, 4), shop: shop ? { name: shop.name, missing: missing(shop.purchaseRequirements ?? shop.unlockRequirements) } : null };
+      }
+    }
+
+    // mastery pools: distance to the next checkpoint (10/25/50/95%)
+    const pools = values(game.skills).filter(sk => sk.hasMastery).flatMap(sk => values(game.realms).filter(realm => realm.id === 'melvorD:Melvor' || (abyss && realm.id === 'melvorItA:Abyssal')).map(realm => { let xp = null, cap = null; try { xp = sk.getMasteryPoolXP(realm); cap = sk.getMasteryPoolCap(realm); } catch {} return { skill: sk.name, realm: realm.name, xp, cap }; })).filter(p => p.cap > 0 && p.xp < p.cap).map(p => { const pct = p.xp / p.cap * 100; const next = [10, 25, 50, 95].find(c => c > pct); return next ? { ...p, pct, next, missing: p.cap * next / 100 - p.xp } : null; }).filter(Boolean).sort((a, b) => (a.next - a.pct) - (b.next - b.pct)).slice(0, 8);
+
+    // profit: sell value per hour of artisan and gathering actions you can run 8 h or more
+    const sell = item => item?.sellsFor?.currency?.id === 'melvorD:GP' ? item.sellsFor.quantity : 0;
+    const profit = [];
+    for (const name of ['Woodcutting', 'Fishing', 'Mining', 'Smithing', 'Fletching', 'Crafting', 'Cooking', 'Herblore', 'Runecrafting', 'Summoning', 'Firemaking']) {
+      for (const o of (mh.skillingOptions?.(name) || []).slice(0, 40)) {
+        if (!(o.gathering || o.runwayHours >= 8) || !o.intervalMs) continue;
+        const skill = game.skills.find(s => s.name === name); const action = values(skill.actions).find(a => (a.name ?? a.product?.name) === o.recipe);
+        const product = action?.product ?? action?.item; const qty = action?.baseQuantity ?? 1;
+        const inputCost = (o.inputs || []).reduce((sum, i) => sum + sell(values(game.items).find(x => x.name === i.item)) * i.perAction, 0);
+        const gph = (sell(product) * qty - inputCost) * 3600000 / o.intervalMs;
+        if (gph > 0) profit.push({ skill: name, recipe: o.recipe, gpPerHour: gph, runwayHours: o.runwayHours, gathering: o.gathering });
+      }
+    }
+    profit.sort((a, b) => b.gpPerHour - a.gpPerHour);
+
+    // capes and shop
+    const capes = values(game.items).filter(i => /Skillcape|Max Skillcape|Cape of Completion/i.test(i.name) && (abyss || !isAbyssal(i)) && !has(i)).map(i => { const p = values(game.shop.purchases).find(pp => values(pp.contains?.items).some(e => (e.item ?? e) === i)); return { name: i.name, missing: p ? missing(p.purchaseRequirements ?? p.unlockRequirements) : ['not sold in the shop'], gp: p?.costs?.currencies ? values(p.costs.currencies).find(c => c.currency?.id === 'melvorD:GP')?.quantity ?? null : null }; }).sort((a, b) => a.missing.length - b.missing.length).slice(0, 12);
+    const gp = game.gp.amount;
+    const shop = values(game.shop.purchases).filter(p => !values(p.contains?.items).length && !game.shop.isPurchaseAtBuyLimit?.(p) && met(p.unlockRequirements) !== false && met(p.purchaseRequirements) !== false).map(p => { const gpCost = values(p.costs?.currencies).find(c => c.currency?.id === 'melvorD:GP')?.quantity ?? 0; const items = values(p.costs?.items); return { name: p.name, gp: gpCost, items: items.map(e => (e.item?.name ?? '?') + ' x' + (e.quantity ?? 1)), affordable: gpCost <= gp && items.every(e => owned(e.item) >= (e.quantity ?? 1)) }; }).filter(p => p.affordable).sort((a, b) => a.gp - b.gp).slice(0, 10);
+
+    // slayer and quick wins
+    const task = game.combat.slayerTask;
+    const slayer = { active: Boolean(task?.active), monster: task?.monster?.name ?? null, killsLeft: task?.killsLeft ?? null, coins: game.slayerCoins?.amount ?? null, abyssalCoins: game.abyssalSlayerCoins?.amount ?? null, locked: slayerAreas.filter(a => !a.unlocked).slice(0, 6) };
+    let grown = null; try { grown = game.farming.isAnyPlotGrown; if (typeof grown === 'function') grown = grown.call(game.farming); } catch {}
+    return { abyss, dungeons, slayer, completion: { unfoundCraftable, unkilled, nearMastery, petsMissing: petsMissing.slice(0, 12), petsMissingCount: petsMissing.length }, target, pools, profit: profit.slice(0, 8), capes, shop, quick: { farmingReady: Boolean(grown), slayerTaskDone: game.activeAction?.name === 'Combat' && !task?.active } };
   };
 
   mh.equipSlot = (name, slotName, quantity) => {

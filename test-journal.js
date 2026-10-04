@@ -166,7 +166,7 @@ assert.ok(/abyssal next level ETA/.test(abyssSnap.characters.AbyssEtaChar.analys
 
 // latest.json shape
 const snap = buildLatest([c], first.latest, null, now);
-assert.deepStrictEqual(Object.keys(snap).sort(), ['account', 'actionsSummary', 'characters', 'generatedAt']);
+assert.deepStrictEqual(Object.keys(snap).sort(), ['account', 'actionsSummary', 'characters', 'generatedAt', 'goals']);
 const cc = snap.characters.TestChar;
 assert.ok(cc.observed && cc.analysis && cc.decisions, 'observed/analysis/decisions present');
 assert.strictEqual(cc.decisions.proposed.length, 1);
@@ -206,7 +206,7 @@ const html = renderDashboard(buildLatest([evil], first.latest, null, now));
 assert.ok(!/<script>alert/.test(html), 'embedded JSON escapes <');
 assert.ok(!/https?:\/\/(?!melvoridle|wiki\.melvoridle\.com)/.test(html), 'no untrusted external assets');
 assert.ok(html.includes('save risk') && html.includes('needs attention'), 'risk and attention controls present');
-assert.ok(html.includes('To do') && html.includes("cell('Next'") && html.includes("panel('progress'") && html.includes("panel('plans'"), 'cockpit focus and detail tabs present');
+assert.ok(html.includes('To do') && html.includes("cell('Next'") && html.includes("panel('progress'") && html.includes("dataset.panel = 'plans'"), 'cockpit focus and detail tabs present');
 assert.ok(!/Users\/|password|9223|chrome-profile/i.test(html), 'dashboard is sanitized');
 assert.match(html, /journal-serve/, 'offline dashboard explains how to enable refresh controls');
 assert.match(html, /\/refresh/, 'served dashboard can trigger a journal refresh');
@@ -300,4 +300,19 @@ console.log('journal self-check ok');
   ] } };
   assert.strictEqual(verifiedSkillPlan(data, { name: 'Fishing' }, false), 'Fishing: Shark; no materials needed; 90K XP/h', 'gathering plans pick the best XP/h with no runway limit');
   assert.strictEqual(verifiedSkillPlan(data, { name: 'Fishing' }, true), null, 'no abyssal option, no abyssal plan');
+}
+
+{
+  const { buildGoals } = require('./melvor-report.js');
+  const goals = buildGoals({
+    goals: {
+      dungeons: [{ id: 'a', name: 'Chicken Coop', kind: 'dungeon', clears: 3, unlocked: true, missing: [] }, { id: 'b', name: 'Frozen Cove', kind: 'dungeon', clears: 0, unlocked: true, missing: [], bossName: 'Protector of Ice' }, { id: 'c', name: 'The Abyssal Approach', kind: 'dungeon', clears: 0, unlocked: false, missing: ['clear Impending Darkness Event'] }],
+      target: { name: 'Hollow Reaper Scythe', owned: 0, equipMissing: [], monsters: [{ monsterId: 'm', monster: 'Hollow Reaper', chance: 0.1, area: 'Tendril Hollow', unlocked: true }] },
+      completion: {}, slayer: {}, pools: [], profit: [], capes: [], shop: [],
+    },
+    goalSim: { 'area:b': { deathRate: 0, killTimeS: 12 }, 'mon:m': { deathRate: 0, killTimeS: 14, killsPerHour: 250 } },
+  }, {}, {});
+  assert.match(goals.dungeons[0], /^Clear Frozen Cove; dungeon, boss Protector of Ice; sim deaths 0.0%/, 'next dungeon first, with its simulation');
+  assert.match(goals.dungeons[1], /^Unlock The Abyssal Approach; needs clear Impending Darkness Event/, 'locked dungeons say what blocks them');
+  assert.match(goals.target[0], /Farm Hollow Reaper; Tendril Hollow; 0.10% per kill; about 4.0 h on average/, 'target farm time from drop chance and simulated kills per hour');
 }

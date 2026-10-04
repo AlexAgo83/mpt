@@ -35,7 +35,15 @@ recommendations, current-action plan, standard plan, abyssal plan, proposed acti
   time and deaths, losers are dimmed and the bank lane is reordered by the simulated gain. It needs
   the simulator mod on the account, adds about 30 s per character, and the dashboard Refresh button
   uses it when one character is selected. A Slayer task is refreshed when its target changes.
-- `Plans`: for the lowest skills, the best-XP recipe with materials for 8 h or more, and for
+- `Plans` goals: one per character, picked in the Plans tab and saved in the git-ignored
+  `journal/goals.json` (the Next column and To do follow it). Progression (below), Dungeon path
+  (dungeons, Abyss depths and strongholds in game order, next to clear and what blocks the rest),
+  Completion (items never found that one action makes, monsters never killed, near-max masteries,
+  pets), Target item (sources, drop chance and average farm time with `--sim`), Mastery pools
+  (closest checkpoint), Profit (GP/h), AFK (no deaths, 12 h+ of materials), Slayer, Hardcore safe
+  (fights simulated at 0% deaths; default for Hardcore characters), Capes & pets and Shop. Into the
+  Abyss content only appears once the character is in the Abyss (`mh.abyssOpen`).
+- Progression plan: for the lowest skills, the best-XP recipe with materials for 8 h or more, and for
   gathering skills (Woodcutting, Fishing, Mining, Thieving, Astrology, Harvesting) the best
   unlocked action; when the ETA mod is installed its XP/h (all modifiers) replaces the base rate,
   marked (ETA). The skill already being trained is skipped. During a Slayer task the plans

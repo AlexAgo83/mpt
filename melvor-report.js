@@ -581,7 +581,8 @@ function briefFromData(name, data, save, previousEntry, now = new Date().toISOSt
   const standardOpen = skills
     .filter(s => (s.levelCap ?? 120) > 1 && s.level < (s.levelCap ?? 120) && s.name !== report.action)
     .sort(byLevelThenXp);
-  const abyssalSkills = skills.filter(hasTrainableAbyssalLevels);
+  // Into the Abyss content waits until the character is in the Abyss (data.abyss from mh.abyssOpen)
+  const abyssalSkills = data.abyss === false ? [] : skills.filter(hasTrainableAbyssalLevels);
   const abyssalOpen = abyssalSkills
     .filter(s => (s.abyssalLevel ?? 0) < s.abyssalCap)
     .sort(byAbyssalLevelThenXp);
@@ -1394,6 +1395,7 @@ function buildCharacterJournal(name, data, save) {
     name,
     observed: {
       at: new Date().toISOString(),
+      abyss: data.abyss ?? null,
       action: report.action,
       mode: report.mode,
       gp: report.gp,
@@ -1426,6 +1428,7 @@ function buildCharacterJournal(name, data, save) {
       abyssalPlan: activeSlayerTask ? [] : brief.abyssal.next,
       // kept out of Next/To do so the Slayer task is not interrupted; Plans shows it as "After the Slayer task"
       afterTaskPlan: activeSlayerTask ? [...brief.standard.next, ...brief.abyssal.next] : [],
+      goals: buildGoals(data, { standardPlan: activeSlayerTask ? [] : brief.standard.next, afterTaskPlan: activeSlayerTask ? [...brief.standard.next, ...brief.abyssal.next] : [] }, { foodQty: report.foodQty }),
       riskNotes: [
         saveRisk,
         report.mode === 'Hardcore Mode' ? 'Hardcore character: verify survivability before any combat change' : null,
@@ -1518,6 +1521,74 @@ function journalMd(c) {
 }
 
 const LEDGER = path.join(JOURNAL_DIR, 'actions.jsonl');
+// Plans goal per character ({ goal, target }), chosen in the dashboard; private like the rest of journal/.
+const GOALS_FILE = path.join(JOURNAL_DIR, 'goals.json');
+const GOAL_IDS = ['progression', 'dungeons', 'completion', 'target', 'mastery', 'profit', 'afk', 'slayer', 'safe', 'capes', 'shop'];
+const readGoals = () => { try { return JSON.parse(fs.readFileSync(GOALS_FILE, 'utf8')); } catch { return {}; } };
+const writeGoal = (name, patch) => { const all = readGoals(); all[name] = { ...(all[name] || {}), ...patch }; fs.mkdirSync(JOURNAL_DIR, { recursive: true }); fs.writeFileSync(GOALS_FILE, JSON.stringify(all, null, 2)); return all[name]; };
+
+// One list of "headline; chip; chip" lines per goal, from mh.goalData and the optional simulations.
+function buildGoals(data, analysis, observed) {
+  const g = data.goals; if (!g) return null;
+  const sim = data.goalSim && !data.goalSim.error ? data.goalSim : {};
+  const simChip = r => !r ? null : r.failed ? 'sim failed' : 'sim deaths ' + ((r.deathRate || 0) * 100).toFixed(1) + '% · kill ' + (r.killTimeS || 0).toFixed(1) + ' s';
+  const join = (...parts) => parts.filter(Boolean).join('; ');
+  const pct = n => (n >= 1 ? n.toFixed(1) : n.toPrecision(2)) + '%';
+  const areas = (g.dungeons || []).filter(d => d.name !== '???');
+  const cleared = areas.filter(d => d.clears > 0), next = areas.filter(d => !d.clears && d.unlocked), locked = areas.filter(d => !d.clears && !d.unlocked);
+  const dungeonLines = [
+    ...next.slice(0, 3).map(d => join('Clear ' + d.name, d.kind + (d.bossName ? ', boss ' + d.bossName : ''), simChip(sim['area:' + d.id]))),
+    ...locked.slice(0, 4).map(d => join('Unlock ' + d.name, 'needs ' + (d.missing.join(', ') || 'unknown requirement'))),
+    join(cleared.length + ' of ' + areas.length + ' dungeons, depths and strongholds cleared', cleared.at(-1) ? 'last: ' + cleared.at(-1).name : null),
+  ];
+  const c = g.completion || {};
+  const completionLines = [
+    ...(c.unfoundCraftable || []).slice(0, 5).map(i => join(({ Fishing: 'Fish', Woodcutting: 'Cut', Mining: 'Mine', Farming: 'Grow', Thieving: 'Steal', Harvesting: 'Harvest', Archaeology: 'Dig up' }[i.skill] || 'Craft') + ' ' + i.name, i.skill, 'never found')),
+    ...(c.unkilled || []).slice(0, 5).map(m => join('Kill ' + m.name, m.area, 'never killed', simChip(sim['mon:' + m.id]))),
+    ...(c.nearMastery || []).slice(0, 4).map(m => join(m.skill + ': ' + m.action, 'mastery ' + m.level + '/' + m.cap)),
+    c.petsMissingCount ? join('Pets missing: ' + c.petsMissingCount, ...(c.petsMissing || []).slice(0, 3).map(p => p.name + ' (' + (p.how || p.skill || '?') + ')')) : null,
+  ].filter(Boolean);
+  const t = g.target;
+  const targetLines = !t ? ['Pick a target item above: the plan is built at the next refresh of this character.'] : t.error ? [join(t.name, t.error)] : [
+    t.needsAbyss ? join(t.name + ' is Into the Abyss content', 'enter the Abyss first (clear Into the Abyss)') : null,
+    t.owned || t.equipped ? join(t.name + ': already yours', t.owned ? 'in bank x' + t.owned : 'equipped') : null,
+    t.equipMissing?.length ? join('To wear ' + t.name, 'needs ' + t.equipMissing.join(', ')) : null,
+    ...(t.monsters || []).map(m => { const r = sim['mon:' + m.monsterId]; const hours = r && !r.failed && r.killsPerHour ? 100 / (m.chance * r.killsPerHour) : null; return join('Farm ' + m.monster, m.area, pct(m.chance) + ' per kill', m.unlocked === false ? 'area locked' : null, hours ? 'about ' + (hours < 1 ? Math.round(hours * 60) + ' min' : hours.toFixed(1) + ' h') + ' on average' : null, r && !r.failed ? 'deaths ' + ((r.deathRate || 0) * 100).toFixed(1) + '%' : null); }),
+    t.craft ? join('Craft ' + t.name, t.craft.skill, t.craft.unlocked ? (t.craft.affordable ? 'materials in bank' : 'materials missing') : 'recipe locked') : null,
+    t.shop ? join('Buy ' + t.shop.name, t.shop.missing.length ? 'needs ' + t.shop.missing.join(', ') : 'available') : null,
+  ].filter(Boolean);
+  const masteryLines = (g.pools || []).filter(p => p.xp > 0).length ? [] : ['Every unlocked mastery pool is past its last checkpoint (95%).'];
+  masteryLines.push(...(g.pools || []).filter(p => p.xp > 0).slice(0, 6).map(p => join(p.skill + ' pool (' + p.realm.replace(' Realm', '') + ')', p.pct.toFixed(1) + '% → ' + p.next + '%', fmtRate(p.missing) + ' XP to go')));
+  const combatSim = data.upgradeSim && !data.upgradeSim.error ? data.upgradeSim.baseline : null;
+  const profitLines = [
+    combatSim?.gpPerHour ? join('Current combat', fmtRate(combatSim.gpPerHour) + ' GP/h (sim)') : null,
+    ...(g.profit || []).slice(0, 6).map(p => join(p.skill + ': ' + p.recipe, fmtRate(p.gpPerHour) + ' GP/h', p.runwayHours ? p.runwayHours.toFixed(1) + ' h of materials' : 'no materials needed')),
+  ].filter(Boolean);
+  const foodHours = combatSim?.atePerHour ? (observed.foodQty || 0) / combatSim.atePerHour : null;
+  const afkLines = [
+    combatSim && !combatSim.failed ? join('Stay on the current fight', 'deaths ' + ((combatSim.deathRate || 0) * 100).toFixed(1) + '%', foodHours ? 'food lasts ' + (foodHours > 48 ? Math.round(foodHours / 24) + ' d' : foodHours.toFixed(1) + ' h') : 'no food eaten') : null,
+    ...(g.profit || []).filter(p => p.gathering || p.runwayHours >= 12).slice(0, 5).map(p => join(p.skill + ': ' + p.recipe, p.gathering ? 'runs unattended, no materials' : 'runs ' + p.runwayHours.toFixed(0) + ' h unattended')),
+  ].filter(Boolean);
+  const sl = g.slayer || {};
+  const slayerLines = [
+    sl.active ? join('Task: ' + sl.monster, sl.killsLeft + ' kills left') : 'No Slayer task: start one',
+    join('Slayer coins: ' + fmtRate(sl.coins || 0) + ' SC', sl.abyssalCoins ? fmtRate(sl.abyssalCoins) + ' abyssal SC' : null),
+    ...(sl.locked || []).slice(0, 5).map(a => join('Unlock ' + a.name, 'needs ' + (a.missing.join(', ') || 'Slayer ' + a.slayerLevel))),
+  ];
+  const simmed = [...next.slice(0, 2).map(d => ({ label: 'Clear ' + d.name, r: sim['area:' + d.id] })), ...(c.unkilled || []).slice(0, 3).map(m => ({ label: 'Kill ' + m.name, r: sim['mon:' + m.id] }))];
+  const safeLines = [
+    combatSim ? join((combatSim.deathRate ? 'Risky: ' : 'Safe: ') + 'current fight', 'deaths ' + ((combatSim.deathRate || 0) * 100).toFixed(1) + '%') : null,
+    ...simmed.filter(x => x.r && !x.r.failed).map(x => join((x.r.deathRate ? 'Risky: ' : 'Safe: ') + x.label, 'deaths ' + ((x.r.deathRate || 0) * 100).toFixed(1) + '%')),
+    ...(analysis.standardPlan || []).filter(l => !/^combat|dungeon/i.test(l)).slice(0, 3),
+    simmed.some(x => x.r) ? null : 'Refresh this character alone (it simulates) to check deaths before any fight.',
+  ].filter(Boolean);
+  const capeLines = [
+    ...(g.capes || []).slice(0, 8).map(cp => join(cp.missing.length ? cp.name : 'Buy ' + cp.name, cp.missing.length ? 'needs ' + cp.missing.join(', ') : 'requirements met')),
+    ...(c.petsMissing || []).slice(0, 4).map(p => join('Pet ' + p.name, p.how || p.skill)),
+  ];
+  const shopLines = (g.shop || []).map(p => join('Buy ' + p.name, p.gp ? fmtRate(p.gp) + ' GP' : p.items.length ? p.items.join(', ') : 'price varies'));
+  return { progression: null, dungeons: dungeonLines, completion: completionLines, target: targetLines, mastery: masteryLines, profit: profitLines, afk: afkLines, slayer: slayerLines, safe: safeLines, capes: capeLines, shop: shopLines, quick: g.quick || {}, targetName: t?.name ?? null };
+}
 const ACTION_STATUSES = ['proposed', 'approved', 'done', 'blocked', 'dismissed', 'stale'];
 
 function readLedger(file = LEDGER) {
@@ -1740,6 +1811,7 @@ function buildLatest(chars, latest, previous, now) {
   const staleMs = 24 * 3600 * 1000;
   return {
     generatedAt: now,
+    goals: readGoals(),
     account: {
       name: ACCOUNT,
       scannedNow: chars.length ? chars.map(c => c.name) : previous?.account?.scannedNow || [],
@@ -1879,6 +1951,7 @@ h1 { margin: 0; color: var(--accent); font-size: 1.55rem; letter-spacing: 0; }
 #setup ol { margin: .55rem 0 0; padding-left: 1.2rem; color: var(--muted); }
 #start { margin-bottom: .7rem; padding: .6rem .8rem; border: 1px solid #6b5a33; border-radius: 8px; background: #1d1a13; }
 #start h2 { margin: 0 0 .35rem; color: var(--accent); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+#start.page-error { border-color: var(--danger); background: #2a1715; color: #ffd8d2; }
 #start.all-good { border-color: #2d6255; background: #13221e; color: #ccefe7; }
 .start-item { display: flex; align-items: center; gap: .6rem; padding: .3rem 0; border-top: 1px solid #3a3222; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .start-item:first-of-type { border-top: 0; }
@@ -1937,6 +2010,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .tab-switch button:hover { color: var(--ink); border-color: transparent; }
 .tab-switch button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
 .tab-intro { margin: -.2rem 0 .7rem; color: var(--muted); font-size: .84rem; }
+.goal-switch { flex-wrap: wrap; }
+.goal-intro { margin: -.3rem 0 0; font-size: .84rem; }
 .panel-grid > .tab-intro { margin-bottom: -.4rem; }
 .tab-switch .tab-link { margin-left: auto; flex: 0 0 auto; display: flex; align-items: center; gap: .4rem; padding: .6rem .7rem; color: var(--muted); }
 .tab-switch .tab-link:hover { color: var(--accent); text-decoration: none; }
@@ -2078,7 +2153,33 @@ a:hover { text-decoration: underline; }
 <div id="cards"></div>
 <script id="data" type="application/json">${json}</script>
 <script>
+// A script error must never leave a blank page: say what broke, where the To do box is.
+window.addEventListener('error', e => { const box = document.getElementById('start'); if (box) { box.className = 'page-error'; box.textContent = 'Dashboard error: ' + (e.message || 'unknown') + '. Refresh the journal; if it persists, run ./melvor-report.js improve --record.'; } });
 const snap = JSON.parse(document.getElementById('data').textContent);
+// Plans goal per character: journal/goals.json via journal-serve, localStorage when the page is opened from disk.
+const GOAL_LABELS = { progression: 'Progression', dungeons: 'Dungeon path', completion: 'Completion', target: 'Target item', mastery: 'Mastery pools', profit: 'Profit', afk: 'AFK', slayer: 'Slayer', safe: 'Hardcore safe', capes: 'Capes & pets', shop: 'Shop' };
+const GOAL_INTRO = {
+  progression: 'Raise the lowest skills (standard and abyssal) with the best recipe you have materials for.',
+  dungeons: 'Dungeons, Abyss depths and strongholds in game order: what to clear next and what blocks the rest.',
+  completion: 'Cheapest Completion Log gains first: items to craft once, monsters never killed, near-max masteries, pets.',
+  target: 'One item you want: how to get it, where to farm it and how long it takes on average.',
+  mastery: 'Mastery pools closest to their next checkpoint (10, 25, 50, 95%): each checkpoint unlocks a permanent bonus.',
+  profit: 'Activities ranked by GP per hour (sell value minus inputs; combat from the simulator).',
+  afk: 'What runs longest without you: no deaths, enough food, materials for 12 h or more.',
+  slayer: 'Current task, Slayer coins and the Slayer areas still locked with what each needs.',
+  safe: 'For Hardcore: only fights the simulator clears with 0% deaths; skilling is always safe.',
+  capes: 'Skillcapes you can buy or still need, and pets left to find.',
+  shop: 'Permanent shop upgrades you can afford right now.',
+};
+const goalStore = (() => { try { return JSON.parse(localStorage.getItem('mpt-goals') || '{}'); } catch { return {}; } })();
+const goalOf = (name, c) => goalStore[name] || snap.goals?.[name]?.goal || (c && c.observed.mode === 'Hardcore Mode' ? 'safe' : 'progression');
+const saveGoal = async (name, patch) => {
+  if (patch.goal) { goalStore[name] = patch.goal; try { localStorage.setItem('mpt-goals', JSON.stringify(goalStore)); } catch {} }
+  if (location.protocol.startsWith('http')) { try { await fetch('/goal', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ character: name, ...patch }) }); } catch {} }
+};
+const goalLines = (c, goal) => goal === 'progression' ? null : c.analysis.goals?.[goal] || null;
+let keepOpen = null; // reopen this card on this tab after a re-render
+
 const STATUSES = ['proposed', 'approved', 'done', 'blocked', 'dismissed', 'stale'];
 const RANK = { critical: 0, high: 1, medium: 2, low: 3 };
 const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
@@ -2134,7 +2235,7 @@ const isAction = i => !isAutomaticTask(i.label) && !/^ETA pending/i.test(i.label
 const urgent = Object.entries(snap.characters)
   .map(([name, c]) => [name, hasRisk(name)
     ? { priority: 'critical', label: 'Local save is newer than cloud: do not load cloud.' }
-    : insights(c).find(i => isAction(i) && (i.severity === 'danger' || i.severity === 'warning')) || insights(c).find(i => isAction(i) && i.actionable)])
+    : insights(c).find(i => isAction(i) && (i.severity === 'danger' || i.severity === 'warning')) || (goalLines(c, goalOf(name, c))?.[0] && !/^(Safe|No Slayer|Pick a target|Refresh this)/.test(goalLines(c, goalOf(name, c))[0]) ? { priority: 'high', label: goalLines(c, goalOf(name, c))[0] } : null) || insights(c).find(i => isAction(i) && i.actionable)])
   .filter(([, item]) => item)
   .sort((a, b) => RANK[a[1].priority] - RANK[b[1].priority])
   .slice(0, 3);
@@ -2201,7 +2302,7 @@ const TAB_INTRO = {
   upgrades: 'Better gear for what this character is doing now: items to loot or craft, and owned items worth equipping.',
   inventory: 'Everything in the bank, grouped by kind and worth (sell price). In use shows what the current activity consumes.',
   skills: 'Every skill with its level, abyssal level, XP to the next level and mastery pool.',
-  plans: 'Suggested next activities (lowest skills first, only with materials for 8 h or more) and open gear decisions.',
+  plans: 'Pick a goal: the plan below, the Next column and To do follow it for this character.',
   history: 'What changed between journal scans: activity, total level, maxed skills and GP.',
 };
 const TAB_GROUP = { now: 0, progress: 0, completion: 0, equipment: 1, upgrades: 1, inventory: 1, skills: 1, plans: 2, history: 2 };
@@ -2217,6 +2318,30 @@ const TAB_ICONS = {
   plans: '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>',
   history: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
 };
+function plansPanel(name, c, actions, hidden) {
+  const goal = goalOf(name, c);
+  const body = el('div', 'panel panel-grid'); body.dataset.panel = 'plans';
+  const switcher = el('div', 'seg goal-switch span-all');
+  for (const [id, label] of Object.entries(GOAL_LABELS)) {
+    const b = el('button', '', label); b.type = 'button'; b.setAttribute('aria-pressed', String(id === goal));
+    b.addEventListener('click', async () => { await saveGoal(name, { goal: id }); keepOpen = { name, tab: 'plans' }; render(); loadWikiIcons(); });
+    switcher.append(b);
+  }
+  body.append(switcher, el('p', 'muted span-all goal-intro', GOAL_INTRO[goal]));
+  if (goal === 'target') {
+    const form = el('form', 'controls span-all'); const input = el('input'); input.type = 'search'; input.placeholder = 'Item name, e.g. Hollow Reaper Scythe'; input.value = snap.goals?.[name]?.target || c.analysis.goals?.targetName || '';
+    const go = el('button', '', 'Set target'); go.type = 'submit'; go.style.width = 'auto';
+    const note = el('span', 'muted');
+    form.addEventListener('submit', async e => { e.preventDefault(); await saveGoal(name, { target: input.value.trim() }); note.textContent = location.protocol.startsWith('http') ? 'Saved: refresh ' + name + ' to build the plan.' : 'Open the dashboard with journal-serve to save a target.'; });
+    form.append(input, go, note); body.append(form);
+  }
+  const lines = goalLines(c, goal);
+  const goalBox = goal === 'progression'
+    ? [box('Standard plan', (c.analysis.standardPlan || []).map(line => detailRow(line))), box('Abyssal plan', (c.analysis.abyssalPlan || []).map(line => detailRow(line))), box('After the Slayer task', (c.analysis.afterTaskPlan || []).map(line => detailRow(line))), (c.analysis.standardPlan || []).length || (c.analysis.abyssalPlan || []).length || (c.analysis.afterTaskPlan || []).length ? null : box('Next activities', [el('p', 'muted', c.observed.action === 'Combat' && c.observed.combat?.slayerTask ? 'Paused while a Slayer task runs: skill plans come back when it ends.' : 'Nothing to switch to: no low skill has materials for 8 h or more.')])]
+    : [spanAll(box(GOAL_LABELS[goal], lines ? (lines.length ? lines.map(line => detailRow(line, /^(Risky|Unlock)/.test(line) ? 'sev-warning' : /^(Safe|Clear|Buy|Craft|Kill|Farm)/.test(line) ? 'p-high' : '')) : [el('p', 'muted', 'Nothing found for this goal.')]) : [el('p', 'muted', 'Refresh this character to build this plan.')]))];
+  for (const node of [...goalBox, box('Decisions', actions.length || !hidden ? actions : [el('p', 'muted', 'No open decision (' + hidden + ' closed or stale hidden).')]), box('Risk notes', (c.analysis.riskNotes || []).map(line => detailRow(line, 'sev-warning')))].filter(Boolean)) body.append(node);
+  return body;
+}
 const completionSheet = c => {
   const now = c.observed.completion, prev = c.analysis.completionPrevious;
   if (!now) return null;
@@ -2300,7 +2425,7 @@ function upgradeSheet(c) {
       const tile = el('div', 'tile' + (choice.primary.blocked?.length ? ' blocked' : '') + (worse ? ' worse' : ''));
       const name = el('div', 'tile-title'); name.append(wiki(choice.primary.name));
       const meta = el('div', 'insight-chips'); const src = el('span'); src.append(...source(choice.primary, kind)); meta.append(src);
-      if (g !== null) meta.append(el('span', g > 0.5 ? 'chip-good' : g < -0.5 ? 'chip-warn' : '', 'sim ' + (g >= 0 ? '+' : '') + g.toFixed(1) + '% XP/h · kill ' + r.killTimeS.toFixed(1) + ' s' + (r.deathRate ? ' · deaths ' + (r.deathRate * 100).toFixed(1) + '%' : '')));
+      if (g !== null) meta.append(el('span', g > 0.5 ? 'chip-good' : g < -0.5 ? 'chip-warn' : '', 'sim ' + (g >= 0 ? '+' : '') + g.toFixed(1) + '% XP/h · ' + (r.killTimeS != null ? 'kill ' + r.killTimeS.toFixed(1) + ' s' : 'no kill') + (r.deathRate ? ' · deaths ' + (r.deathRate * 100).toFixed(1) + '%' : '')));
       else if (r?.failed) meta.append(el('span', 'chip-warn', 'sim failed: ' + r.failed));
       if (choice.primary.blocked?.length) meta.append(el('span', 'chip-warn', 'blocked: ' + choice.primary.blocked.join(', ')));
       if (kind !== 'bank' && choice.primary.owned) meta.append(el('span', '', 'owned x' + choice.primary.owned.toLocaleString('en-US')));
@@ -2345,11 +2470,11 @@ function skillsSheet(c) {
     const title = el('strong'); title.append(wiki(skill.name));
     card.append(title, stat('Level ', skill.level + '/' + skill.levelCap));
     const levelMeter = meter('xp', 'XP', skill.xp, skill.xpLevelStart, skill.xpNextLevel); if (levelMeter) card.append(levelMeter);
-    if (skill.abyssalLevel !== null && skill.abyssalLevel !== undefined) {
+    if (skill.abyssalLevel !== null && skill.abyssalLevel !== undefined && c.observed.abyss !== false) {
       card.append(stat('Abyssal ', skill.abyssalLevel + '/' + skill.abyssalCap));
       const abyssMeter = meter('abyss', 'Abyssal XP', skill.abyssalXP, skill.abyssalXPLevelStart, skill.abyssalXPNextLevel); if (abyssMeter) card.append(abyssMeter);
     }
-    for (const pool of skill.masteryPools || []) {
+    for (const pool of (skill.masteryPools || []).filter(pool => c.observed.abyss !== false || !/abyss/i.test(pool.realm))) {
       const label = /abyss/i.test(pool.realm) ? 'Abyssal pool' : 'Mastery pool';
       if (pool.xp >= pool.cap && pool.cap > 0) { // MasteryCanPoolOverflow lets the pool exceed its cap
         const row = el('div', 'skill-meter mastery'); const bar = el('progress'); bar.max = 100; bar.value = 100;
@@ -2372,8 +2497,21 @@ function inventorySheet(c) {
   const gp = inventory.reduce((sum, item) => sum + value(item), 0);
   const ap = inventory.reduce((sum, item) => sum + (item.currency === 'AP' ? item.sell * item.quantity : 0), 0);
   // ~10 families over the game's 80-odd item types; the raw type stays in the tile tooltip
-  const FAMILIES = [['Equipment', /armour|weapon|amulet|ring|cape|glove|boot|helm|shield|equipment|quiver|arrow|bolt|javelin|knife|gem/i], ['Resources', /logs|ore|bar|herb|fish|hide|shard|bone|essence|leather|plank|thread|fibre|ash|dust|crystal|soul/i], ['Food', /food|cooked/i], ['Potions', /potion/i], ['Runes', /rune/i], ['Seeds', /seed/i], ['Artefacts', /artefact/i], ['Familiars', /familiar|tablet/i], ['Scrolls', /scroll|consumable|token/i]];
-  const family = item => (FAMILIES.find(([, re]) => re.test(item.type || '')) || ['Other'])[0];
+  // by what the item is (class and equipment slot), the type text only as a fallback: a Diamond is a resource, an Agile Gem is gear
+  const RESOURCE_TYPES = /logs|ore|bar|herb|fish|hide|shard|bone|essence|leather|plank|thread|fibre|ash|dust|crystal|soul|gem|fragment|material|ingredient|arrowhead|headless|unstrung|leaves/i;
+  const family = item => {
+    if (/artefact/i.test(item.type || '')) return 'Artefacts';
+    if (item.slot === 'Summon1' || item.slot === 'Summon2') return 'Familiars';
+    if (item.slot === 'Consumable') return 'Consumables';
+    if (item.slot) return 'Equipment';
+    if (item.kind === 'FoodItem') return 'Food';
+    if (item.kind === 'PotionItem') return 'Potions';
+    if (item.kind === 'RuneItem') return 'Runes';
+    if (/seed/i.test(item.type || '')) return 'Seeds';
+    if (!item.kind && /armour|weapon|amulet|ring|cape|glove|boot|helm|shield|quiver/i.test(item.type || '')) return 'Equipment';
+    if (RESOURCE_TYPES.test(item.type || '')) return 'Resources';
+    return 'Other';
+  };
   const types = new Map(); for (const item of inventory) { const t = family(item); types.set(t, (types.get(t) || []).concat(item)); }
   const summary = el('div', 'insight-chips inv-summary');
   summary.append(el('span', '', inventory.length.toLocaleString('en-US') + ' items'), el('span', '', types.size + ' groups'), el('span', '', 'bank value ' + fmtCompact(gp) + ' GP'));
@@ -2460,6 +2598,7 @@ function render() {
     const decision = (concern && !isAutomaticTask(concern.label) ? concern : null) || insights(c).find(i => !isAutomaticTask(i.label) && i.actionable);
     const progress = eta?.etaSeconds && eta.metric ? fmtEta(eta.etaSeconds) + ' · ' + eta.metric.toLocaleString() + ' ' + eta.unit + ' left' : eta?.label || 'No ETA yet';
     const details = el('details', 'character priority-' + p);
+    if (keepOpen?.name === name) details.open = true;
     const head = el('summary', 'character-head');
     const identity = el('div', 'identity');
     const identityTitle = el('div', 'identity-title');
@@ -2469,7 +2608,8 @@ function render() {
     identity.append(identityTitle, el('small', '', (c.observed.mode || '') + (lagging ? ' · scanned ' + relative(c.observed.at) : '')));
     if (hasRisk(name)) identity.append(el('span', 'badge risk', 'save risk'));
     const cell = (label, value) => { const n = el('div', 'cell'); const text = el('span', 'cell-value'); text.append(value || 'n/a'); n.append(el('span', 'cell-label', label), text); return n; };
-    const next = nextAction(decision);
+    const goal = goalOf(name, c), gl = goalLines(c, goal);
+    const next = gl?.length ? short(planLine(gl[0]) || gl[0].split('; ').slice(0, 2).join(' · '), 72) : nextAction(decision);
     const nextCell = cell('Next', wikiText(next)); if (/^(Nothing|ETA pending)/.test(next)) nextCell.classList.add('idle');
     const done = c.observed.completion?.total;
     const completionCell = cell('Completion', null); completionCell.classList.add('completion-cell');
@@ -2517,7 +2657,7 @@ function render() {
       upgradeSheet(c),
       inventorySheet(c),
       skillsSheet(c),
-      panel('plans', [box('Standard plan', (c.analysis.standardPlan || []).map(line => detailRow(line))), box('Abyssal plan', (c.analysis.abyssalPlan || []).map(line => detailRow(line))), box('After the Slayer task', (c.analysis.afterTaskPlan || []).map(line => detailRow(line))), (c.analysis.standardPlan || []).length || (c.analysis.abyssalPlan || []).length || (c.analysis.afterTaskPlan || []).length ? null : box('Next activities', [el('p', 'muted', c.observed.action === 'Combat' && c.observed.combat?.slayerTask ? 'Paused while a Slayer task runs: skill plans come back when it ends.' : 'Nothing to switch to: no low skill has materials for 8 h or more.')]), box('Decisions', actions.length || !hidden ? actions : [el('p', 'muted', 'No open decision (' + hidden + ' closed or stale hidden).')]), box('Risk notes', (c.analysis.riskNotes || []).map(line => detailRow(line, 'sev-warning')))]),
+      plansPanel(name, c, actions, hidden),
       history.children.length ? history : null,
     ].filter(Boolean);
     const tabs = el('div', 'tab-switch'); tabs.setAttribute('role', 'tablist');
@@ -2529,7 +2669,9 @@ function render() {
       btn.append(el('span', 'tab-label', label));
       if (index && TAB_GROUP[tabName] !== TAB_GROUP[panels[index - 1].dataset.panel]) tabs.append(el('span', 'tab-sep'));
       if (TAB_INTRO[tabName]) content.prepend(el('p', 'tab-intro span-all', TAB_INTRO[tabName]));
-      content.hidden = index !== 0; tabs.append(btn); body.append(content);
+      const active = keepOpen?.name === name ? keepOpen.tab === tabName : index === 0;
+      btn.setAttribute('aria-selected', String(active));
+      content.hidden = !active; tabs.append(btn); body.append(content);
     }
     body.prepend(tabs);
     // the raw Markdown journal sits at the end of the tab bar instead of a footer link
@@ -2590,7 +2732,7 @@ function runJournalServer() {
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
       const snapshot = readLatestSnapshot();
       return snapshot
-        ? send(res, 200, renderDashboard(snapshot), 'text/html; charset=utf-8')
+        ? send(res, 200, renderDashboard({ ...snapshot, goals: readGoals() }), 'text/html; charset=utf-8')
         : send(res, 404, JSON.stringify({ error: 'journal missing; run journal --record first' }));
     }
     if (req.method === 'GET' && ['/assets/mpt-crest.png', '/assets/favicon.png'].includes(url.pathname)) {
@@ -2601,6 +2743,19 @@ function runJournalServer() {
       if (!CHARS.includes(name)) return send(res, 404, JSON.stringify({ error: 'not found' }));
       try { return send(res, 200, fs.readFileSync(path.join(JOURNAL_DIR, `${name}.md`)), 'text/markdown; charset=utf-8'); } catch { return send(res, 404, JSON.stringify({ error: 'not found' })); }
     }
+    if (req.method === 'POST' && url.pathname === '/goal') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; if (body.length > 1024) req.destroy(); });
+      req.on('end', () => {
+        let input; try { input = JSON.parse(body); } catch { return send(res, 400, JSON.stringify({ error: 'invalid request' })); }
+        if (!CHARS.includes(input.character)) return send(res, 400, JSON.stringify({ error: 'unknown character' }));
+        const patch = {};
+        if (input.goal !== undefined) { if (!GOAL_IDS.includes(input.goal)) return send(res, 400, JSON.stringify({ error: 'unknown goal' })); patch.goal = input.goal; }
+        if (input.target !== undefined) patch.target = String(input.target).slice(0, 80) || null;
+        return send(res, 200, JSON.stringify(writeGoal(input.character, patch)));
+      });
+      return;
+    }
     if (req.method !== 'POST' || url.pathname !== '/refresh') return send(res, 404, JSON.stringify({ error: 'not found' }));
     let body = '';
     req.on('data', chunk => { body += chunk; if (body.length > 1024) req.destroy(); });
@@ -2610,9 +2765,16 @@ function runJournalServer() {
       if (character !== 'all' && !CHARS.includes(character)) return send(res, 400, JSON.stringify({ error: 'unknown character' }));
       if (refreshing) return send(res, 409, JSON.stringify({ error: 'a journal refresh is already running' }));
       refreshing = true;
-      const child = spawn(process.execPath, [__filename, 'journal', character, '--record', ...(character === 'all' ? [] : ['--sim'])], { cwd: __dirname, env: process.env, stdio: 'ignore' });
+      const child = spawn(process.execPath, [__filename, 'journal', character, '--record', ...(character === 'all' ? [] : ['--sim'])], { cwd: __dirname, env: process.env, stdio: ['ignore', 'ignore', 'pipe'] });
+      let stderr = ''; child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-2000); });
       child.on('error', error => { refreshing = false; send(res, 500, JSON.stringify({ error: sanitizeIncident(error.message) })); });
-      child.on('exit', code => { refreshing = false; send(res, code === 0 ? 200 : 500, JSON.stringify(code === 0 ? { ok: true } : { error: `journal refresh failed (exit ${code})` })); });
+      child.on('exit', code => {
+        refreshing = false;
+        // say why: the usual cause is another scan (CLI or assistant) holding the browser
+        const last = stderr.trim().split('\n').pop() || '';
+        const reason = /already using port/.test(last) ? 'another scan is running (CLI or assistant); try again in a minute' : sanitizeIncident(last) || `exit ${code}`;
+        send(res, code === 0 ? 200 : 500, JSON.stringify(code === 0 ? { ok: true } : { error: 'Refresh failed: ' + reason }));
+      });
     });
   });
   server.on('error', error => {
@@ -2625,14 +2787,22 @@ function runJournalServer() {
 
 async function collectJournal(name, save, includeSaveBackup = false) {
   return withCharacterSource(name, save?.source, async client => {
-    const data = await evalExpr(client, journalScript(includeSaveBackup));
+    const target = readGoals()[name]?.target || null;
+    const data = await evalExpr(client, journalScript(includeSaveBackup, target));
     // --sim: replay the current target with each upgrade candidate in [Myth] Combat Simulator
     if (simulate && data.report?.action === 'Combat' && data.upgradePlan?.slots) data.upgradeSim = await evalExpr(client, `mh.simUpgrades(${JSON.stringify(data.upgradePlan)})`, 240000);
+    // --sim: next dungeon bosses, never-killed monsters and the target item's best monster, for the Plans goals
+    if (simulate && data.goals) {
+      const areas = (data.goals.dungeons || []).filter(d => d.name !== '???' && !d.clears && d.unlocked && d.boss).slice(0, 2).map(d => ({ key: 'area:' + d.id, monsterId: d.boss, entityId: d.id }));
+      const monsters = (data.goals.completion?.unkilled || []).slice(0, 3).map(m => ({ key: 'mon:' + m.id, monsterId: m.id }));
+      const farm = (data.goals.target?.monsters || []).filter(m => m.unlocked !== false).slice(0, 1).map(m => ({ key: 'mon:' + m.monsterId, monsterId: m.monsterId }));
+      data.goalSim = await evalExpr(client, `mh.simTargets(${JSON.stringify([...areas, ...monsters, ...farm])})`, 240000);
+    }
     return data;
   }, simulate ? SIM_DEBUG : undefined);
 }
 
-const journalScript = includeSaveBackup => `(() => {
+const journalScript = (includeSaveBackup, target) => `(() => {
     const wanted = ${JSON.stringify(JOURNAL_WANTED)};
     const qty = n => { for (const [item, bi] of game.bank.items) if (item.name === n) return bi.quantity; return 0; };
     const skills = mh.skills();
@@ -2641,10 +2811,10 @@ const journalScript = includeSaveBackup => `(() => {
       ...skills.filter(s => (s.abyssalLevel ?? 0) < (s.abyssalCap ?? 0)).sort((a, b) => a.abyssalLevel - b.abyssalLevel).slice(0, 6),
     ].map(s => s.name))];
     const equipmentSets = game.combat.player.equipmentSets.map((set, index) => ({ index, items: Object.fromEntries(set.equipment.equippedArray.filter(slot => !slot.isEmpty).map(slot => [slot.slot.localID, slot.item.name])) }));
-    const inventory = [...game.bank.items].map(([item, entry]) => ({ name: item.name, quantity: entry.quantity, media: item.media || null, type: item.type || item.category || 'Other', sell: item.sellsFor?.quantity ?? 0, currency: item.sellsFor?.currency?.id === 'melvorD:GP' ? 'GP' : item.sellsFor?.currency?.id === 'melvorItA:AbyssalPieces' ? 'AP' : null })).sort((a, b) => a.name.localeCompare(b.name));
+    const inventory = [...game.bank.items].map(([item, entry]) => ({ name: item.name, quantity: entry.quantity, media: item.media || null, type: item.type || item.category || 'Other', kind: item.constructor?.name ?? null, slot: item.validSlots?.[0]?.localID ?? null, sell: item.sellsFor?.quantity ?? 0, currency: item.sellsFor?.currency?.id === 'melvorD:GP' ? 'GP' : item.sellsFor?.currency?.id === 'melvorItA:AbyssalPieces' ? 'AP' : null })).sort((a, b) => a.name.localeCompare(b.name));
     const values = value => value instanceof Map ? [...value.values()] : value instanceof Set ? [...value] : Array.isArray(value) ? value : value?.allObjects ?? [];
     const talents = game.skills.allObjects.flatMap(skill => values(skill.skillTrees).map(tree => ({ skill: skill.name, points: tree.points || 0, candidates: values(tree.nodes).filter(node => node.canUnlock && tree.canAffordNode(node) && !values(tree.unlockedNodes).includes(node)).map(node => ({ name: node.name, shortName: node.shortName })) }))).filter(tree => tree.points > 0);
-    const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])), equipmentSets, inventory, talents, upgradePlan: mh.upgradePlan(), completion: ${completionScript} };
+    const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])), equipmentSets, inventory, talents, abyss: mh.abyssOpen(), upgradePlan: mh.upgradePlan(), goals: mh.goalData(${JSON.stringify(target)}), completion: ${completionScript} };
     if (${JSON.stringify(includeSaveBackup)}) out.saveExport = mh.exportSaveString();
     return out;
   })()`;
@@ -2774,7 +2944,7 @@ function lock(retry = true) {
   }
 }
 
-module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData, completionLine, verifiedSkillPlan };
+module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData, completionLine, verifiedSkillPlan, buildGoals };
 if (require.main === module) (async () => {
   if (cmd === 'journal-serve') return runJournalServer();
   if (cmd === 'journal-action') return runJournalAction(who, arg3);

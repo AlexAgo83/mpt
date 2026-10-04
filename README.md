@@ -27,6 +27,8 @@ assistant read, plan and act for you, one reviewed change at a time.
   level ETAs and idle alerts for every character on one dashboard.
 - **Know what to do next.** Gear upgrade plans with real passives, dungeon targets, abyssal
   gaps and skilling plans, ranked per character.
+- **Pick a goal per character.** Progression, dungeon path, completion, a target item, profit, AFK,
+  Hardcore safe and more: the plan, the Next column and To do follow it.
 - **Track your completion.** Completion Log progress per expansion and category, with the
   gain since your last check.
 - **Ask your AI.** "Who runs out of scrolls first?", "Is Kang ready for Into the Abyss?"
