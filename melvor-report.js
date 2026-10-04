@@ -1842,27 +1842,43 @@ body {
 .brand { display: flex; align-items: center; gap: .6rem; }
 .brand img { width: 2.4rem; height: 2.4rem; border-radius: .55rem; }
 h1 { margin: 0; color: var(--accent); font-size: 1.55rem; letter-spacing: 0; }
-.title-row { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: .75rem; }
-.title-row p { margin: 0; color: var(--muted); }
-#refreshControls { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; }
-#refreshControls select, #refreshControls button { width: auto; }
-#refreshStatus { color: var(--muted); }
-#setup { margin-bottom: .75rem; padding: .65rem .8rem; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
-#setup summary { cursor: pointer; color: var(--accent); }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .9rem; }
+.top-actions { display: flex; align-items: center; gap: .6rem; }
+.split { display: flex; }
+.split select { width: auto; border-radius: 6px 0 0 6px; border-right: 0; }
+.split button { width: auto; display: flex; align-items: center; gap: .35rem; border-radius: 0 6px 6px 0; color: #101413; background: var(--accent); border-color: var(--accent); font-weight: 600; }
+.icon-button { width: auto; display: grid; place-items: center; padding: .45rem; border-radius: 6px; }
+.topbar svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#refreshStatus { margin: -.5rem 0 .6rem; text-align: right; }
+#refreshStatus:empty { display: none; }
+#setup { max-width: 34rem; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: var(--panel); }
+#setup::backdrop { background: #0009; }
+#setup h2 { margin-top: 0; color: var(--accent); font-size: 1.05rem; }
+#setup form button { width: auto; }
 #setup ol { margin: .55rem 0 0; padding-left: 1.2rem; color: var(--muted); }
-#start { margin-bottom: .75rem; padding: .85rem; border: 1px solid var(--accent); border-radius: 8px; background: #211d14; }
-#start h2 { margin: 0 0 .5rem; color: var(--accent); font-size: 1rem; }
-.start-item { display: grid; grid-template-columns: 8rem 1fr; gap: .75rem; padding: .35rem 0; border-top: 1px solid #51462e; }
+#start { margin-bottom: .7rem; padding: .6rem .8rem; border: 1px solid #6b5a33; border-radius: 8px; background: #1d1a13; }
+#start h2 { margin: 0 0 .35rem; color: var(--accent); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+#start.all-good { border-color: #2d6255; background: #13221e; color: #ccefe7; }
+.start-item { display: flex; align-items: center; gap: .6rem; padding: .3rem 0; border-top: 1px solid #3a3222; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .start-item:first-of-type { border-top: 0; }
-.start-item strong { color: var(--ink); }
-#summary { display: grid; grid-template-columns: repeat(4, minmax(7rem, 1fr)); border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
-.stat { min-width: 0; padding: .65rem .75rem; border-right: 1px solid var(--line); }
-.stat:last-child { border-right: 0; }
-.stat b { display: block; color: var(--accent); font-size: 1.08rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.stat span { color: var(--muted); font-size: .72rem; text-transform: uppercase; }
-#filterBox { margin: .75rem 0; color: var(--muted); }
-#filterBox > summary { cursor: pointer; width: fit-content; }
-#filters { display: grid; grid-template-columns: minmax(13rem, 2fr) repeat(4, minmax(8rem, 1fr)) auto; gap: .5rem; margin-top: .55rem; align-items: center; }
+.name-chip { flex: none; padding: .05rem .5rem; border-radius: 999px; color: #101413; background: var(--accent); font-weight: 650; font-size: .8rem; }
+.start-item.p-critical .name-chip { background: var(--danger); }
+.kpis { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .8rem; }
+.kpi { width: auto; display: inline-flex; align-items: baseline; gap: .1rem; padding: .3rem .7rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--muted); font-size: .82rem; }
+.kpi b { color: var(--ink); font-size: .95rem; font-variant-numeric: tabular-nums; }
+.kpi.on b { color: var(--teal); }
+.kpi.warn { border-color: var(--warning); } .kpi.warn b { color: var(--warning); }
+.kpi.zero { opacity: .6; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .6rem; }
+.toolbar #q { flex: 1 1 14rem; width: auto; }
+.toolbar select#sort { width: auto; }
+.seg { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; }
+.seg button { width: auto; border: 0; border-radius: 6px; background: transparent; color: var(--muted); padding: .35rem .65rem; white-space: nowrap; }
+.seg button[aria-pressed="true"] { color: #101413; background: var(--accent); }
+#filterBox { position: relative; color: var(--muted); }
+#filterBox > summary { cursor: pointer; list-style: none; padding: .45rem .7rem; border: 1px solid var(--line); border-radius: 6px; }
+#filterBox[open] > summary { border-color: var(--accent); color: var(--ink); }
+#filterBox #filters { position: absolute; right: 0; z-index: 5; width: min(22rem, 90vw); display: grid; grid-template-columns: 1fr; gap: .45rem; margin-top: .35rem; padding: .6rem; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: 0 8px 24px #0008; }
 button, input, select { min-width: 0; width: 100%; font: inherit; color: var(--ink); background: #111614; border: 1px solid var(--line); border-radius: 4px; padding: .45rem .55rem; }
 button { cursor: pointer; }
 button:hover { border-color: var(--accent); }
@@ -1977,21 +1993,14 @@ a:hover { text-decoration: underline; }
 .history-entry { padding: 0; border: 0; }
 .history-entry time { display: block; margin-bottom: .3rem; }
 @media (max-width: 900px) {
-  #summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  #filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 720px) {
   body { padding: .7rem; }
-  .title-row { align-items: flex-start; flex-direction: column; gap: .15rem; }
-  #refreshControls { align-items: stretch; flex-wrap: wrap; }
-  #refreshStatus { width: 100%; }
-  #summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .start-item { grid-template-columns: 1fr; gap: .1rem; }
-  .stat { border-bottom: 1px solid var(--line); }
-  .stat:nth-child(even) { border-right: 0; }
-  #filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  #q { grid-column: 1 / -1; }
   .column-head { display: none; }
+  .topbar { flex-wrap: wrap; }
+  #scanTime { display: none; }
+  .split button span { display: none; }
+  .seg { overflow-x: auto; max-width: 100%; }
   .character-head { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem .7rem; }
   .tab-switch .tab-label { display: none; }
   .tab-switch button { padding: .55rem .5rem; }
@@ -2003,19 +2012,26 @@ a:hover { text-decoration: underline; }
 }
 </style>
 <body>
-<header class="title-row"><div class="brand"><img src="/assets/mpt-crest.png" alt=""><h1>MelvorPT</h1></div><p id="scanTime"></p></header>
-<section id="refreshControls" aria-label="Refresh journal"><select id="refreshCharacter"><option value="all">all characters</option></select><button id="refreshButton" type="button">Refresh</button><span id="refreshStatus"></span></section>
-<details id="setup"><summary>Account setup</summary><ol><li>Sign in through the official Melvor page in the shared browser profile.</li><li>Set your character roster in <code>.env.local</code>.</li><li>Use Refresh to build the first local journal.</li></ol><p><a href="https://melvoridle.com/" target="_blank" rel="noopener">Open Melvor sign-in</a> · MPT never stores your credentials.</p></details>
-<section id="start"><h2>Start here</h2></section>
-<div id="summary"></div>
-<details id="filterBox"><summary>Advanced filters</summary><div id="filters">
-  <input id="q" type="search" placeholder="character, activity, or item">
+<header class="topbar"><div class="brand"><img src="/assets/mpt-crest.png" alt=""><h1>MelvorPT</h1></div>
+<div class="top-actions"><span id="scanTime" class="muted"></span>
+<div class="split" aria-label="Refresh journal"><select id="refreshCharacter" aria-label="Character to refresh"><option value="all">All</option></select><button id="refreshButton" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg><span>Refresh</span></button></div>
+<button id="setupButton" class="icon-button" type="button" title="Account setup" aria-label="Account setup"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div></header>
+<p id="refreshStatus" class="muted"></p>
+<dialog id="setup"><h2>Account setup</h2><ol><li>Sign in through the official Melvor page in the shared browser profile.</li><li>Set your character roster in <code>.env.local</code>.</li><li>Use Refresh to build the first local journal.</li></ol><p><a href="https://melvoridle.com/" target="_blank" rel="noopener">Open Melvor sign-in</a> · MPT never stores your credentials.</p><form method="dialog"><button>Close</button></form></dialog>
+<section id="start" aria-label="To do"></section>
+<div id="summary" class="kpis"></div>
+<div class="toolbar">
+  <input id="q" type="search" placeholder="Search character, activity or item" aria-label="Search">
+  <div class="seg" id="quick" role="group" aria-label="Quick filter"><button type="button" data-quick="all" aria-pressed="true">All</button><button type="button" data-quick="attention" aria-pressed="false">Needs attention</button><button type="button" data-quick="combat" aria-pressed="false">Combat</button><button type="button" data-quick="skilling" aria-pressed="false">Skilling</button></div>
+  <select id="sort" aria-label="Sort characters"><option value="score">Sort: score</option><option value="completion">Sort: completion</option><option value="name">Sort: name</option></select>
+  <details id="filterBox"><summary>Filters</summary><div id="filters">
   <select id="fAction"><option value="">all activities</option></select>
   <select id="fRisk"><option value="">all saves</option><option value="risk">save risk</option><option value="ok">save safe</option></select>
   <select id="fStatus"><option value="">all statuses</option></select>
   <select id="fPriority"><option value="">all priorities</option><option value="critical">critical</option><option value="high">high</option><option value="medium">medium</option><option value="low">low</option></select>
   <label class="check"><input id="fAttention" type="checkbox"> needs attention</label>
 </div></details>
+</div>
 <div class="column-head" aria-hidden="true"><span>Character</span><span>Current</span><span>Next</span><span>Completion</span></div>
 <div id="cards"></div>
 <script id="data" type="application/json">${json}</script>
@@ -2040,13 +2056,14 @@ const current = c => {
 const attention = (name, c) => hasRisk(name) || isStale(name) || insights(c).some(i => i.severity === 'danger' || i.severity === 'warning');
 const fmtEta = seconds => seconds < 3600 ? Math.round(seconds / 60) + ' min' : seconds < 172800 ? Math.round(seconds / 3600) + ' h' : Math.round(seconds / 86400) + ' d';
 const relative = value => { const min = Math.max(0, Math.round((Date.now() - Date.parse(value)) / 60000)); return min < 1 ? 'just now' : min < 60 ? min + 'm ago' : min < 1440 ? Math.round(min / 60) + 'h ago' : Math.round(min / 1440) + 'd ago'; };
-document.getElementById('scanTime').textContent = 'Scanned ' + new Date(snap.generatedAt).toLocaleString('en-GB');
+const scanTime = document.getElementById('scanTime'); scanTime.textContent = 'Scanned ' + relative(snap.generatedAt); scanTime.title = new Date(snap.generatedAt).toLocaleString('en-GB');
+document.getElementById('setupButton').addEventListener('click', () => document.getElementById('setup').showModal());
 const refreshCharacter = document.getElementById('refreshCharacter');
 for (const name of Object.keys(snap.characters).sort()) refreshCharacter.append(new Option(name, name));
 const refreshButton = document.getElementById('refreshButton');
 const refreshStatus = document.getElementById('refreshStatus');
 if (location.protocol !== 'http:' && location.protocol !== 'https:') {
-  refreshButton.textContent = 'Copy command';
+  refreshButton.lastChild.textContent = 'Copy command';
   refreshStatus.textContent = 'Start journal-serve to refresh from this page.';
 }
 refreshButton.addEventListener('click', async () => {
@@ -2068,24 +2085,40 @@ refreshButton.addEventListener('click', async () => {
   }
 });
 
+// Only real actions: "ETA pending" lines are status, they stay muted in the card's Next column.
+const isAction = i => !isAutomaticTask(i.label) && !/^ETA pending/i.test(i.label);
 const urgent = Object.entries(snap.characters)
   .map(([name, c]) => [name, hasRisk(name)
     ? { priority: 'critical', label: 'Local save is newer than cloud: do not load cloud.' }
-    : insights(c).find(i => !isAutomaticTask(i.label) && (i.severity === 'danger' || i.severity === 'warning')) || insights(c).find(i => !isAutomaticTask(i.label) && i.actionable)])
+    : insights(c).find(i => isAction(i) && (i.severity === 'danger' || i.severity === 'warning')) || insights(c).find(i => isAction(i) && i.actionable)])
   .filter(([, item]) => item)
   .sort((a, b) => RANK[a[1].priority] - RANK[b[1].priority])
   .slice(0, 3);
 const start = document.getElementById('start');
-if (!urgent.length) start.append(el('p', 'muted', 'Nothing urgent. Let current activities continue.'));
-for (const [name, item] of urgent) { const row = el('div', 'start-item'); row.append(el('strong', '', name), el('span', '', item.label)); start.append(row); }
+if (!urgent.length) { start.className = 'all-good'; start.textContent = '✓ All running — nothing to do'; }
+else start.append(el('h2', '', 'To do'));
+for (const [name, item] of urgent) {
+  const parts = item.label.split('; ');
+  const row = el('div', 'start-item p-' + item.priority); row.title = item.label;
+  row.append(el('span', 'name-chip', name), el('span', '', [parts[0], parts.find(p => /runway|left|ETA/.test(p))].filter(Boolean).join(' · ')));
+  start.append(row);
+}
 
 const summary = document.getElementById('summary');
 const operations = snap.account.operations || {};
-const stat = (label, value) => { const d = el('div', 'stat'); d.append(el('b', '', String(value)), el('span', '', label)); summary.append(d); };
-stat('characters', Object.keys(snap.characters).length);
-stat('alerts', Object.values(snap.characters).flatMap(c => insights(c)).filter(i => i.severity === 'danger' || i.severity === 'warning').length);
-stat('complete within 1 h', (operations.nearTermCompletions || []).length);
-stat('save risks', snap.account.saveRisks.length);
+const stat = (label, value, quickFilter, tone) => {
+  const d = el(quickFilter ? 'button' : 'span', 'kpi' + (value ? ' ' + (tone || 'on') : ' zero')); if (quickFilter) { d.type = 'button'; d.dataset.quick = quickFilter; }
+  d.append(el('b', '', String(value)), document.createTextNode(' ' + label)); summary.append(d);
+};
+const completions = Object.values(snap.characters).map(c => c.observed.completion?.total).filter(v => v != null);
+stat('characters', Object.keys(snap.characters).length, 'all', 'plain');
+stat('alerts', Object.values(snap.characters).flatMap(c => insights(c)).filter(i => i.severity === 'danger' || i.severity === 'warning').length, 'attention', 'warn');
+stat('finish within 1 h', (operations.nearTermCompletions || []).length, 'soon');
+stat('save risks', snap.account.saveRisks.length, 'risk', 'warn');
+if (completions.length) stat('avg completion', (completions.reduce((a, b) => a + b, 0) / completions.length).toFixed(1) + '%', null, 'plain');
+let quick = 'all';
+const setQuick = value => { quick = value; for (const b of document.querySelectorAll('#quick [data-quick]')) b.setAttribute('aria-pressed', String(b.dataset.quick === value)); render(); loadWikiIcons(); };
+document.addEventListener('click', e => { const b = e.target.closest('[data-quick]'); if (b) setQuick(b.dataset.quick); });
 
 const fAction = document.getElementById('fAction');
 for (const a of [...new Set(Object.values(snap.characters).map(c => c.observed.action || 'idle'))].sort()) fAction.append(new Option(a, a));
@@ -2261,7 +2294,9 @@ function render() {
   const wantAction = fAction.value, wantRisk = document.getElementById('fRisk').value, wantStatus = fStatus.value, wantPriority = document.getElementById('fPriority').value;
   const attentionOnly = document.getElementById('fAttention').checked;
   cards.replaceChildren();
-  const entries = Object.entries(snap.characters).sort((a, b) => score(b[1]) - score(a[1]) || RANK[priority(a[1])] - RANK[priority(b[1])] || a[0].localeCompare(b[0]));
+  const sortBy = document.getElementById('sort').value;
+  const done = c => c.observed.completion?.total ?? -1;
+  const entries = Object.entries(snap.characters).sort((a, b) => sortBy === 'name' ? a[0].localeCompare(b[0]) : sortBy === 'completion' ? done(b[1]) - done(a[1]) : score(b[1]) - score(a[1]) || RANK[priority(a[1])] - RANK[priority(b[1])] || a[0].localeCompare(b[0]));
   for (const [name, c] of entries) {
     const action = c.observed.action || 'idle';
     const haystack = (name + ' ' + action + ' ' + JSON.stringify(insights(c)) + ' ' + JSON.stringify(c.observed.equipment || {}) + ' ' + JSON.stringify(c.decisions)).toLowerCase();
@@ -2272,6 +2307,11 @@ function render() {
     if (wantStatus && !(c.decisions[wantStatus] || []).length) continue;
     if (wantPriority && priority(c) !== wantPriority) continue;
     if (attentionOnly && !attention(name, c)) continue;
+    if (quick === 'attention' && !attention(name, c)) continue;
+    if (quick === 'combat' && action !== 'Combat') continue;
+    if (quick === 'skilling' && (action === 'Combat' || action === 'idle')) continue;
+    if (quick === 'soon' && !(snap.account.operations?.nearTermCompletions || []).includes(name)) continue;
+    if (quick === 'risk' && !hasRisk(name)) continue;
 
     const p = priority(c);
     const eta = insights(c).find(i => i.type === 'progress_eta' && i.etaSeconds !== undefined) || insights(c).find(i => i.type === 'progress_eta');
@@ -2357,7 +2397,7 @@ async function loadWikiIcons() {
     } catch { /* Wiki unavailable: the item name remains visible. */ }
   }
 }
-for (const id of ['q', 'fAction', 'fRisk', 'fStatus', 'fPriority', 'fAttention']) document.getElementById(id).addEventListener('input', () => { render(); loadWikiIcons(); });
+for (const id of ['q', 'sort', 'fAction', 'fRisk', 'fStatus', 'fPriority', 'fAttention']) document.getElementById(id).addEventListener('input', () => { render(); loadWikiIcons(); });
 cards.addEventListener('click', e => {
   const set = e.target.closest('[data-equipment-set]');
   if (set) { const sheet = set.closest('.equipment-sheet'); for (const button of sheet.querySelectorAll('[data-equipment-set]')) button.setAttribute('aria-selected', String(button === set)); for (const grid of sheet.querySelectorAll('.equipment-grid')) grid.hidden = grid.dataset.equipmentSet !== set.dataset.equipmentSet; loadWikiIcons(); return; }
