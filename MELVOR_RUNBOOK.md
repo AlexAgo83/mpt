@@ -9,6 +9,9 @@ Operational procedures live in Logics:
 - [Apply a guarded equipment, skilling, or talent action](logics/runbook/run_008_apply_a_guarded_melvor_equipment_skilling_or_talent_action.md)
 - [Review action-aware equipment upgrade plans](logics/runbook/run_009_review_action_aware_equipment_upgrade_plans.md)
 - [Prepare and run a standard dungeon (combat-setup / combat-run)](logics/runbook/run_010_prepare_and_run_a_standard_dungeon_with_combat_setup_and_combat_run.md)
+- [Prepare a character for a dungeon and accompany the run](logics/runbook/run_011_prepare_and_accompany_a_dungeon_run.md)
+- [Impending Darkness Event](logics/runbook/run_012_impending_darkness_event.md)
+- [Into the Mist](logics/runbook/run_013_into_the_mist.md)
 
 Archived (one-off procedures kept for reference): [run_003 Felth](logics/runbook/run_003_defeat_felth_in_depths_of_decay.md),
 [run_004 Abyssal Magic set](logics/runbook/run_004_configure_abyssal_magic_equipment_set.md),

@@ -80,6 +80,7 @@ const usage = `usage:
   ./melvor-report.js save-push <character> [--local-source]
   ./melvor-report.js journal [all|character] [--record] [--save-backup] [--sim]
   ./melvor-report.js completion [all|character] [--record]
+  ./melvor-report.js dungeon-guide "<dungeon name>"
   ./melvor-report.js journal-serve [--port 8787]
   ./melvor-report.js journal-status [all|character]
   ./melvor-report.js journal-diff [all|character]
@@ -93,7 +94,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -1917,6 +1918,34 @@ ${DASHBOARD_JS}
 `;
 }
 
+// Every dungeon has a page and a community Guide subpage on the official wiki: fetch both through the MediaWiki API
+// (the HTML pages refuse scripted readers), keep a cleaned copy in journal/guides/ and print it.
+async function runDungeonGuide(name) {
+  if (!name || name === 'all') throw Error('usage: ./melvor-report.js dungeon-guide "<dungeon name>"');
+  const title = name.trim().replace(/ /g, '_');
+  const fetchPage = async page => {
+    const url = 'https://wiki.melvoridle.com/api.php?' + new URLSearchParams({ action: 'parse', page, prop: 'wikitext', format: 'json', redirects: '1' });
+    const response = await fetch(url, { headers: { 'user-agent': 'MelvorPT/1.0 (personal Melvor Idle tooling)' } });
+    const data = await response.json();
+    return data.parse?.wikitext?.['*'] || null;
+  };
+  const clean = text => text
+    .replace(/\{\|[\s\S]*?\|\}/g, '[table: see the wiki page]')
+    .replace(/\{\{(?:ItemIcon|MonsterIcon|ZoneIcon|SkillReq|Skill|PetIcon|UpgradeIcon|Icon|SpellIcon|PrayerIcon|AgilityIcon|POIIcon|EffectIcon|ZoneTypeIcon)\|([^}|]+)[^}]*\}\}/g, '$1')
+    .replace(/\[\[(?:[^\]|]*\|)?([^\]]+)\]\]/g, '$1')
+    .replace(/<\/?div[^>]*>|<br ?\/?>/g, '')
+    .replace(/\n{3,}/g, '\n\n');
+  const [main, guide] = await Promise.all([fetchPage(title), fetchPage(title + '/Guide')]);
+  if (!main && !guide) throw Error(`no wiki page found for "${name}"`);
+  const body = [`# ${name}`, '', `Source: https://wiki.melvoridle.com/w/${title} and /Guide (CC BY-NC-SA; community content).`, '',
+    main ? clean(main) : '(no main page)', '', '---', '', guide ? clean(guide) : '(no Guide page)'].join('\n');
+  const dir = path.join(JOURNAL_DIR, 'guides'); fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, title.replace(/[^A-Za-z0-9_-]/g, '_') + '.md');
+  fs.writeFileSync(file, body);
+  console.log(body);
+  console.error(`saved ${path.relative(__dirname, file)}`);
+}
+
 function runJournalServer() {
   let refreshing = false;
   const send = (res, status, body, type = 'application/json; charset=utf-8') => {
@@ -2160,6 +2189,7 @@ function lock(retry = true) {
 module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData, completionLine, verifiedSkillPlan, buildGoals };
 if (require.main === module) (async () => {
   if (cmd === 'journal-serve') return runJournalServer();
+  if (cmd === 'dungeon-guide') return runDungeonGuide(who);
   if (cmd === 'journal-action') return runJournalAction(who, arg3);
   if (cmd === 'journal-status') return runJournalStatus();
   if (cmd === 'journal-diff') return runJournalDiff();

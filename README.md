@@ -62,6 +62,7 @@ Log in once through the official Melvor page if asked. Then try:
 | [Journal and dashboard](docs/journal.md) | History, action ledger, level ETAs, save backups |
 | [AI operating manual](MELVOR.md) | How assistants drive the game safely |
 | [Runbooks](MELVOR_RUNBOOK.md) | Step-by-step procedures (dungeons, gear, saves…) |
+| [Dungeons](docs/dungeons/README.md) | How dungeons are prepared, event dungeons, wiki guides |
 | [Development](docs/development.md) | Repository layout, validation, CI |
 
 ## License

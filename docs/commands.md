@@ -31,6 +31,7 @@ npm run source
 ./melvor-report.js talent-unlock <character> <skill> <node>
 ./melvor-report.js config-set <character> <potion|prayers|poi|style> <value>
 ./melvor-report.js completion [all|character] [--record]
+./melvor-report.js dungeon-guide "<dungeon name>"
 ./melvor-report.js export-state all > /tmp/melvor-state.json
 ./melvor-report.js save-backup all
 ./melvor-report.js journal <character>
