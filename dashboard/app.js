@@ -58,10 +58,12 @@ const dungeonRow = (name, line, cls) => {
   verdict.append(el('span', ready ? 'chip-good' : 'chip-warn', ready ? 'Ready' : !prereqOk ? 'Not ready: prerequisites missing' : !worstFight ? 'Not ready: not simulated' : 'Not ready: ' + worstFight.label + (worstFight.best ? ' ' + pct(worstFight.best.death) + ' deaths' : ' not simulated')));
   if (!ready && planWorst != null) verdict.append(el('span', planWorst <= limit ? 'chip-good' : 'chip-warn', 'with the plan: worst ' + pct(planWorst)));
   verdict.append(el('span', '', 'limit ' + pct(limit) + ' · checked ' + new Date(dc.at).toLocaleString()));
+  const lc = dc.lastClear;
+  if (lc) verdict.append(el('span', lc.status === 'completed' && lc.back ? 'chip-good' : 'chip-warn', 'last clear: ' + lc.status + ' ' + new Date(lc.at).toLocaleString() + (lc.lowestHP != null && lc.maxHP ? ' · lowest HP ' + Math.round(lc.lowestHP / lc.maxHP * 100) + '%' : '') + (lc.back ? ' · back to ' + lc.now : ' · NOT back to its activity')));
   const more = el('details', 'bank-group'); more.append(el('summary', '', 'Check and plan'));
   const sub = (title, nodes) => { const g = el('div', 'insight'); g.append(el('strong', '', title), ...nodes); return g; };
   more.append(sub('Prerequisites', dc.checks.map(x => el('div', x.ok ? '' : 'sev-warning', (x.ok ? '✓ ' : '✗ ') + x.label + (x.detail ? ' · ' + x.detail : '')))));
-  more.append(sub('Best current set per fight', dc.fights.map(f => el('div', f.ready ? '' : 'sev-warning', f.label + (f.best ? ' · S' + f.best.set + ' ' + f.best.role + ' · deaths ' + pct(f.best.death) + ' · kill ' + Math.round(f.best.kill) + ' s' : ' · not simulated')))));
+  more.append(sub('Best current set per fight', dc.fights.map(f => el('div', f.ready ? '' : 'sev-warning', f.label + (f.best ? ' · S' + f.best.set + ' ' + f.best.role + ' · deaths ' + pct(f.best.death) + (f.best.trials ? ' over ' + f.best.trials + ' trials' : '') + ' · kill ' + Math.round(f.best.kill) + ' s' : ' · not simulated')))));
   for (const r of dc.plan?.results || []) {
     const chips = el('div', 'insight-chips');
     for (const ch of r.changes) chips.append(el('span', '', ch.slot + ': ' + ch.from + ' → ' + ch.to));

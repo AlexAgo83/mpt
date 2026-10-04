@@ -1766,7 +1766,8 @@ function structuredInsights(entry) {
 // dungeon-check / dungeon-optimize results (journal/dungeons/), by character then dungeon name, for Plans > Dungeon path
 function readDungeonChecks() {
   const dir = path.join(JOURNAL_DIR, 'dungeons'), out = {};
-  let files = []; try { files = fs.readdirSync(dir).filter(f => f.endsWith('.json') && !f.endsWith('-plan.json')); } catch { return out; }
+  let files = []; try { files = fs.readdirSync(dir).filter(f => f.endsWith('.json') && !f.endsWith('-plan.json') && !f.endsWith('-before.json')); } catch { return out; }
+  let clears = []; try { clears = fs.readFileSync(path.join(dir, 'clears.jsonl'), 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)); } catch {}
   for (const f of files) {
     try {
       const check = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
@@ -1775,7 +1776,8 @@ function readDungeonChecks() {
       const v = dungeonVerdict(check);
       (out[check.character] ||= {})[check.dungeon] = {
         at: check.at, checks: check.checks, threshold: v.threshold, ready: v.ready,
-        fights: v.fights.map(f => ({ label: f.label, ready: f.ready, best: f.best && { set: f.best.set, role: f.best.role, death: f.best.deathRate, kill: f.best.killTimeS } })),
+        fights: v.fights.map(f => ({ label: f.label, ready: f.ready, best: f.best && { set: f.best.set, role: f.best.role, death: f.best.deathRate, kill: f.best.killTimeS, trials: f.best.trials ?? null } })),
+        lastClear: clears.filter(c => c.character === check.character && c.dungeon === check.dungeon).at(-1) || null,
         plan: plan && { at: plan.at, results: [...plan.results].sort((a, b) => a.setIndex - b.setIndex).map(r => ({ style: r.style, label: r.label, setIndex: r.setIndex, start: r.start, best: r.best, potion: r.potion, prayers: r.prayers,
           // final choice per slot, from the original item (the greedy search may improve a slot twice)
           changes: Object.values(r.changes.reduce((m, c) => ({ ...m, [c.slot]: { ...c, from: m[c.slot]?.from ?? c.from } }), {})).filter(c => c.slot !== 'Prayers') })) },
@@ -2403,6 +2405,8 @@ if (require.main === module) (async () => {
       if (r.potionBack) console.log(`  potion back: ${r.potionBack.final ?? r.potionBack.error}`);
       console.log(`  previous activity: ${r.prev.name}${r.prev.trees ? ' (' + r.prev.trees.join(', ') + ')' : ''}${r.prev.onTask ? ' (Slayer task)' : ''} -> now ${r.resume.now}${r.resume.trees ? ' (' + r.resume.trees.join(', ') + ')' : ''} on S${r.resume.set} (was S${r.resume.wantedSet})${r.resume.area ? ' in ' + r.resume.area : ''}: ${r.resume.ok ? 'resumed' : 'NOT resumed'}`);
       console.log(`  saved: ${r.saved} | source ${r.sourceBefore} -> ${r.sourceAfter}`);
+      const lowestHP = Math.min(...(run.samples || []).map(s => s.hp));
+      fs.appendFileSync(path.join(dir, 'clears.jsonl'), JSON.stringify({ at: new Date().toISOString(), character: who, dungeon: check.dungeon, status: r.status, set: setNumber, plan: plans.length > 0, lowestHP: Number.isFinite(lowestHP) ? lowestHP : null, maxHP: run.samples?.[0]?.maxHP ?? null, back: r.resume.ok, now: r.resume.now }) + '\n');
       fs.appendFileSync(path.join(JOURNAL_DIR, `${who}.md`), `## ${new Date().toISOString()} - ${who} dungeon-clear\n\n- Dungeon: ${check.dungeon}\n- Status: ${r.status}, set S${setNumber}${plans.length ? ' with the plan' : ''}\n- Lowest HP: ${Math.min(...(run.samples || []).map(s => s.hp))}\n- Back to: ${r.resume.now} (${r.resume.ok ? 'resumed' : 'not resumed'})\n\n`);
       if (!r.resume.ok || (r.restore && !r.restore.applied)) throw Error('dungeon-clear did not put everything back: see above');
       return;
