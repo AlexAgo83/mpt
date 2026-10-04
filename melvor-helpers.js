@@ -442,7 +442,7 @@
     const runFor = async (monster, settings, entityId) => {
       const task = game.combat.slayerTask;
       api.import({ ...settings, isSlayerTask: Boolean(task?.active && task.monster === monster) }); await sleep(50);
-      const r = (await G.simulation.simulate({ monsterId: monster.id, entityId, saveString: G.game.generateSaveStringSimple(), trials: G.stores.simulator.state.trials, maxTicks: G.stores.simulator.state.ticks })).result;
+      const r = (await mh.simulateFull(G, monster.id, entityId));
       return r.simSuccess ? { xpPerHour: Math.max(r.xpPerSecondAbyssal || 0, r.xpPerSecondMelvor || 0) * 3600, killTimeS: r.killTimeS, deathRate: r.deathRate, killsPerHour: (r.killsPerSecond || 0) * 3600, gpPerHour: Math.max(r.gpPerSecondMelvor || 0, r.gpPerSecondAbyssal || 0) * 3600, atePerHour: (r.atePerSecond || 0) * 3600 } : { failed: r.reason || 'simulation failed' };
     };
     return { api, exported, runFor };
@@ -518,8 +518,8 @@
         const weapon = [...exported.equipment].find(([k]) => k.endsWith(':Weapon'))?.[1] ?? null;
         for (const f of fights) {
           if (f.style && f.style !== set.role) continue; // style-locked fight (Bane): only the matching set can hurt him
-          let r; try { r = (await G.simulation.simulate({ monsterId: f.monsterId ?? f.monster.id, entityId: f.entityId, saveString: G.game.generateSaveStringSimple(), trials: G.stores.simulator.state.trials, maxTicks: G.stores.simulator.state.ticks })).result; } catch (e) { r = { simSuccess: false, reason: String(e.message || e) }; }
-          sims.push({ fight: f.key, label: f.label, set: set.index, role: set.role, weapon, ok: r.simSuccess, reason: r.simSuccess ? null : r.reason, deathRate: r.deathRate ?? null, killTimeS: Number.isFinite(r.killTimeS) ? r.killTimeS : null });
+          let r; try { r = (await mh.simulateFull(G, f.monsterId ?? f.monster.id, f.entityId)); } catch (e) { r = { simSuccess: false, reason: String(e.message || e) }; }
+          sims.push({ fight: f.key, label: f.label, set: set.index, role: set.role, weapon, ok: r.simSuccess, reason: r.simSuccess ? null : r.reason, deathRate: r.deathRate ?? null, killTimeS: Number.isFinite(r.killTimeS) ? r.killTimeS : null, trials: r.trials ?? null });
         }
       }
     }
@@ -530,6 +530,17 @@
 
   // Greedy search, by simulation, of the set that survives one fight best: owned gear slot by slot, then the combat
   // potion and prayers. Read-only: everything happens in the simulator's copy. Returns the changes to apply.
+  // The simulator gives each trial a tick budget and stops when the total runs out: long fights (Bane) ended at 300-400
+  // of 1000 trials, too few to call a death rate 0%. Rerun once with the budget scaled to what was missing.
+  mh.simulateFull = async (G, monsterId, entityId) => {
+    const st = G.stores.simulator.state, run = maxTicks => G.simulation.simulate({ monsterId, entityId, saveString: G.game.generateSaveStringSimple(), trials: st.trials, maxTicks });
+    let r = (await run(st.ticks)).result;
+    const short = /Simulated (\d+)\/(\d+) trials/.exec(r.reason || '');
+    if (r.simSuccess && short && +short[1] > 0) r = (await run(Math.ceil(st.ticks * Math.min(20, +short[2] / +short[1] * 1.2)))).result;
+    const done = /Simulated (\d+)\/(\d+) trials/.exec(r.reason || '');
+    return { ...r, trials: done ? +done[1] : st.trials };
+  };
+
   // the simulator builds its engine after the game loads, later on a large save: wait for it before calling it missing
   mh.waitSimulator = async (ms = 60000) => {
     for (const end = Date.now() + ms; self.mcs?.global && !self.mcs.global.simulation && Date.now() < end;) await new Promise(r => setTimeout(r, 500));
@@ -549,10 +560,13 @@
     let sims = 0;
     const run = async settings => {
       sims++; api.import(settings); await sleep(40);
-      const r = (await G.simulation.simulate({ monsterId, entityId, saveString: G.game.generateSaveStringSimple(), trials: G.stores.simulator.state.trials, maxTicks: G.stores.simulator.state.ticks })).result;
-      return r.simSuccess ? { death: r.deathRate ?? 1, kill: Number.isFinite(r.killTimeS) ? r.killTimeS : 1e9 } : { death: 1, kill: 1e9, failed: r.reason };
+      const r = (await mh.simulateFull(G, monsterId, entityId));
+      return r.simSuccess ? { death: r.deathRate ?? 1, kill: Number.isFinite(r.killTimeS) ? r.killTimeS : 1e9, trials: r.trials } : { death: 1, kill: 1e9, trials: 0, failed: r.reason };
     };
-    const better = (a, b) => a.death < b.death - 1e-9 || (Math.abs(a.death - b.death) <= 1e-9 && a.kill < b.kill - 0.05);
+    // a change must beat the simulation noise (two standard errors of the difference; a 0% rate counts as 1/trials),
+    // or tie on deaths and kill 3% faster: otherwise it is chance (crossbow bolts in a magic set)
+    const se = x => { const n = Math.max(x.trials || 0, 1), q = Math.max(x.death, 1 / n); return Math.sqrt(q * (1 - Math.min(q, 1)) / n); };
+    const better = (a, b) => { const noise = 2 * Math.hypot(se(a), se(b)); return a.death < b.death - noise || (a.death <= b.death && b.death - a.death <= noise && a.kill < b.kill * 0.97); };
     const start = await run(base); let best = start, current = base;
     const abyss = mh.abyssOpen();
     const meets = item => { try { return game.checkRequirements(item.equipRequirements || [], false); } catch { return false; } };

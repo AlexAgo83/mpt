@@ -1998,7 +1998,9 @@ async function runDungeonGuide(name) {
 function dungeonVerdict(r, threshold = r.hardcore ? 0 : Number(process.env.MELVOR_DEATH_THRESHOLD ?? 0.01)) {
   const best = {};
   for (const s of r.sims) if (s.ok && (best[s.fight] === undefined || s.deathRate < best[s.fight].deathRate)) best[s.fight] = s;
-  const fights = r.fights.map(f => ({ ...f, best: best[f.key] || null, ready: best[f.key] ? best[f.key].deathRate <= threshold : false }));
+  // Hardcore: a 0% only counts on 1000 trials or more (300 deaths-free trials still allow about 1% by the rule of three)
+  const enough = s => !r.hardcore || (s.trials ?? 0) >= 1000;
+  const fights = r.fights.map(f => ({ ...f, best: best[f.key] || null, ready: best[f.key] ? best[f.key].deathRate <= threshold && enough(best[f.key]) : false }));
   const blockers = r.checks.filter(c => !c.ok).map(c => c.label);
   return { threshold, fights, blockers, ready: r.simulated && !blockers.length && fights.every(f => f.ready) };
 }
@@ -2011,7 +2013,7 @@ function printDungeonCheck(name, r) {
   if (r.cape) console.log(`  simulated with ${r.cape} in the cape slot (required in every area)`);
   for (const f of v.fights) {
     const b = f.best;
-    console.log(`  ${f.ready ? 'ok ' : 'NO '} ${f.label}: ${b ? `best S${b.set} ${b.role} (${b.weapon?.split(':').pop() || '?'}) deaths ${(b.deathRate * 100).toFixed(1)}%${b.killTimeS ? `, kill ${b.killTimeS.toFixed(1)} s` : ''}` : 'no successful simulation'}`);
+    console.log(`  ${f.ready ? 'ok ' : 'NO '} ${f.label}: ${b ? `best S${b.set} ${b.role} (${b.weapon?.split(':').pop() || '?'}) deaths ${(b.deathRate * 100).toFixed(1)}%${b.trials ? ` over ${b.trials} trials` : ''}${b.killTimeS ? `, kill ${b.killTimeS.toFixed(1)} s` : ''}` : 'no successful simulation'}`);
   }
 }
 
