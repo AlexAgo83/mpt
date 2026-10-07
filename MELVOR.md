@@ -32,6 +32,16 @@ Each command is a no-write preview until `--apply` is explicit. Before applying,
 preview, confirm the character and target, then let the command load the newest source, save,
 and verify the final game state. Never add or use an all-character/apply-all variation.
 
+## Equipment sets and Abyssal training
+
+Set roles: S1 melee, S2 ranged, S3 magic, S4 skilling, S5 Abyssal melee, S6 Abyssal ranged, S7 Abyssal magic.
+`sets <character>` reads every set (items, spell, prayers, attack styles); `set-candidates <character> --style X` lists the
+usable and locked Abyssal bank gear per slot. Writes, preview until `--apply`: `set-plan <character> <plan.json>` (equip a
+plan into given sets, spell per set), `set-swap <character> A B` (exchange two sets; never apply twice), `craft <character>
+<skill> "<recipe>"` (craft, then resume the previous activity), `fight-start <character> "<monster>" --slot N`.
+`train-targets <character> --slot N` simulates a set against every reachable Abyssal monster to pick a training spot.
+Procedure: `logics/runbook/run_015_*`.
+
 ## Completion tracking
 
 `./melvor-report.js completion [all|character] [--record]` prints the Completion Log: total, per

@@ -36,6 +36,13 @@ npm run source
 ./melvor-report.js dungeon-optimize <character> "<dungeon name>" [--style melee|ranged|magic] [--cape "<cape>"]
 ./melvor-report.js dungeon-setup <character> "<dungeon name>" [--style melee,ranged] [--apply] [--restore --apply]
 ./melvor-report.js dungeon-clear <character> "<dungeon name>"
+./melvor-report.js sets <character>
+./melvor-report.js set-candidates <character> --style melee|ranged|magic
+./melvor-report.js set-plan <character> <plan.json> [--apply]
+./melvor-report.js set-swap <character> <set A> <set B> [--apply]
+./melvor-report.js craft <character> <skill> "<recipe>" [--quantity N] [--apply]
+./melvor-report.js train-targets <character> --slot N
+./melvor-report.js fight-start <character> "<monster>" --slot N [--apply]
 ./melvor-report.js export-state all > /tmp/melvor-state.json
 ./melvor-report.js save-backup all
 ./melvor-report.js journal <character>
@@ -61,6 +68,13 @@ the gear it replaces, and `--restore --apply` puts that gear back (the daily Sla
 `dungeon-clear` writes immediately: one clear for the completion, then the gear, the potion and the previous
 activity (Slayer task, combat target, Woodcutting trees or any skill) come back, checked by activity, set and
 task monster. It refuses Hardcore characters and characters not ready with or without a plan.
+
+Equipment sets (runbook `run_015`): `sets`, `set-candidates` and `train-targets` are read-only (`train-targets`
+simulates one set against every reachable Abyssal monster). `set-plan`, `set-swap`, `craft` and `fight-start` are previews
+until `--apply`: `set-plan` equips a JSON plan (`[{setIndex, equipment: [[slot, item]], spell?, prayers?}]`) into its sets
+and selects the spell per set; `set-swap` exchanges two whole sets (apply it once: a second apply swaps back); `craft`
+crafts then resumes the previous activity; `fight-start` fights one monster with a set and keeps the Slayer task.
+Set roles: S5 Abyssal melee, S6 Abyssal ranged, S7 Abyssal magic.
 
 `brief` is the preferred command for AI account triage. It returns one compact JSON object
 per character with:

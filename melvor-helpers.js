@@ -609,6 +609,8 @@
     return { setIndex, style, monsterId, start, best, changes, sims, equipment: [...current.equipment].map(([k, v]) => [k.split(':').pop(), game.items.getObjectByID(v)?.name ?? null]), potion: game.items.getObjectByID(current.potionID)?.name ?? null, prayers: (current.prayerSelected || []).map(id => game.prayers.getObjectByID(id)?.name) };
   };
 
+  const attackSpells = () => [...game.attackSpellbooks.allObjects].flatMap(b => [...(b.spells?.allObjects ?? b.spells ?? [])]);
+
   // Read-only preview of dungeon-optimize plans against the sets they target (plan.setIndex), not the selected set.
   // Several plans may want the same item: copies are counted across sets (bank + items the plans take out of a set).
   mh.dungeonSetupPreview = (plans) => {
@@ -620,7 +622,8 @@
       if (!set) return { setIndex: p.setIndex, style: p.style, error: 'no equipment set ' + p.setIndex };
       const swaps = p.equipment.filter(([slot, name]) => name && nameIn(set, slot) !== name).map(([slot, name]) => ({ slot, from: nameIn(set, slot), to: name }));
       const prayers = [...set.prayerSelection].map(x => x.name);
-      return { setIndex: p.setIndex, style: p.style, swaps, prayersNow: prayers, prayers: p.prayers, potion: p.potion };
+      const spellNow = set.spellSelection?.attack?.name ?? null;
+      return { setIndex: p.setIndex, style: p.style, swaps, prayersNow: prayers, prayers: p.prayers, potion: p.potion, spellNow, spell: p.spell ?? null };
     });
     // copies needed per item vs bank + copies freed by the swaps; stackable slots (tablets, ammo) share one stack
     const need = {}, freed = {};
@@ -660,12 +663,20 @@
           for (const x of [...p.activePrayers]) if (!wanted.includes(x)) p.togglePrayer(x);
           for (const x of wanted) if (!p.activePrayers.has(x)) p.togglePrayer(x);
         }
+        // the attack spell is stored per set: select it while the set is active (set-plan)
+        if (plan.spell && pass === 0) {
+          const spell = attackSpells().find(s => s.name === plan.spell);
+          if (!spell) log.push('S' + plan.setIndex + ' spell: unknown ' + plan.spell);
+          else if (!p.canUseCombatSpell(spell)) log.push('S' + plan.setIndex + ' spell: ' + plan.spell + ' not usable (level or runes)');
+          else { p.selectAttackSpell(spell); log.push('S' + plan.setIndex + ' spell: ' + plan.spell); }
+        }
       }
     }
     p.changeEquipmentSet(original);
     const after = mh.dungeonSetupPreview(plans);
     const left = after.sets.flatMap(s => (s.swaps || []).map(w => 'S' + s.setIndex + ' ' + w.slot + ' is ' + (w.from || 'empty') + ', not ' + w.to)
-      .concat(s.prayers?.length && s.prayers.join() !== s.prayersNow.join() ? ['S' + s.setIndex + ' prayers are ' + (s.prayersNow.join(' + ') || 'none')] : []));
+      .concat(s.prayers?.length && s.prayers.join() !== s.prayersNow.join() ? ['S' + s.setIndex + ' prayers are ' + (s.prayersNow.join(' + ') || 'none')] : [])
+      .concat(s.spell && s.spell !== s.spellNow ? ['S' + s.setIndex + ' spell is ' + (s.spellNow || 'none') + ', not ' + s.spell] : []));
     return { name: game.characterName, applied: !left.length, log, left, before, backTo: original + 1, stoppedCombat, error: left.length ? 'not fully applied' : null };
   };
 
@@ -982,6 +993,193 @@
         eq.Weapon === 'Grappling Hook' && eq.Summon2 !== 'Eagle' ? 'Grappling Hook is a Thieving item; Eagle is the Agility summon' : null,
       ].filter(Boolean),
     };
+  };
+
+  // Every equipment set with its items, attack spell and prayers (both are stored per set).
+  mh.setsView = () => {
+    const p = game.combat.player;
+    return p.equipmentSets.map((set, i) => ({ set: i + 1, selected: i === p.selectedEquipmentSet, spell: set.spellSelection?.attack?.name ?? null,
+      prayers: [...set.prayerSelection].map(x => x.name),
+      items: set.equipment.equippedArray.filter(s => !s.isEmpty).map(s => [s.slot.localID, s.item.name, s.quantity]) }));
+  };
+
+  // Abyssal bank gear per slot for one style: the best usable items and the best locked ones (with what unlocks them).
+  // ponytail: a stat score (attack + strength/damage + abyssal resistance), not a simulation; run train-targets to compare sets.
+  mh.setCandidates = (style, topN = 4) => {
+    const stats = i => { const o = {}; for (const s of i.equipmentStats ?? []) o[s.key + (s.damageType ? ':' + s.damageType.localID : '')] = s.value; return o; };
+    const g = (st, k) => st[k] || 0;
+    const score = st => ({ melee: Math.max(g(st, 'stabAttackBonus'), g(st, 'slashAttackBonus'), g(st, 'blockAttackBonus')) + 2 * g(st, 'meleeStrengthBonus'),
+      ranged: g(st, 'rangedAttackBonus') + 2 * g(st, 'rangedStrengthBonus'), magic: g(st, 'magicAttackBonus') + 6 * g(st, 'magicDamageBonus') }[style] ?? 0)
+      + 12 * g(st, 'resistance:Abyssal') + g(st, 'summoningMaxhit:Abyssal');
+    const short = { stabAttackBonus: 'stab', slashAttackBonus: 'slash', blockAttackBonus: 'crush', meleeStrengthBonus: 'mStr', rangedAttackBonus: 'rAcc', rangedStrengthBonus: 'rStr', magicAttackBonus: 'mAcc', magicDamageBonus: 'mDmg%', 'resistance:Abyssal': 'AR', attackSpeed: 'speed', 'summoningMaxhit:Abyssal': 'summonHit' };
+    const met = i => { try { return game.checkRequirements(i.equipRequirements ?? [], false); } catch { return false; } };
+    const reqs = i => (i.equipRequirements ?? []).filter(r => r.type === 'AbyssalLevel' || r.type === 'AbyssDepthCompletion').map(r => r.type === 'AbyssalLevel' ? r.skill.name + ' A' + r.level : 'Abyss depth clear').join(', ');
+    const abyssal = i => i.id.startsWith('melvorItA') || (i.equipmentStats ?? []).some(s => s.damageType?.localID === 'Abyssal');
+    const view = (i, q) => ({ name: i.name, qty: q, req: reqs(i), stats: Object.entries(stats(i)).filter(([k, v]) => short[k] && v).map(([k, v]) => short[k] + ' ' + v).join(', '), passive: (() => { try { return (i.modifiedDescription || '').replace(/<[^>]+>/g, '').slice(0, 120); } catch { return ''; } })() });
+    const bank = [...game.bank.items].filter(([i]) => i.validSlots?.length && abyssal(i));
+    const slots = ['Weapon', 'Quiver', 'Shield', 'Helmet', 'Platebody', 'Platelegs', 'Boots', 'Gloves', 'Amulet', 'Ring', 'Cape', 'Passive', 'Summon1'];
+    return { name: game.characterName, style, slots: Object.fromEntries(slots.filter(sl => sl !== 'Quiver' || style === 'ranged').map(sl => {
+      const fit = bank.filter(([i]) => i.validSlots.some(s => s.localID === sl) && (sl === 'Weapon' ? i.attackType === style : !i.attackType || i.attackType === style))
+        .sort(([a], [b]) => score(stats(b)) - score(stats(a)));
+      return [sl, { usable: fit.filter(([i]) => met(i)).slice(0, topN).map(([i, b]) => view(i, b.quantity)), locked: fit.filter(([i]) => !met(i)).slice(0, 2).map(([i, b]) => view(i, b.quantity)) }];
+    })) };
+  };
+
+  // Swap the whole contents of two sets (items with quantities, attack spell, prayers). Preview unless apply.
+  mh.setSwap = async (a, b, apply = false) => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const p = game.combat.player, sets = p.equipmentSets;
+    if (a === b || !sets[a - 1] || !sets[b - 1]) return { error: 'need two different existing sets' };
+    // a two-handed weapon also fills the Shield slot: keep only the slot that owns the item
+    const snap = set => {
+      const all = set.equipment.equippedArray.filter(s => !s.isEmpty);
+      const items = all.filter(s => { const occ = s.occupiedBy?.localID; return !(occ && occ !== s.slot.localID && all.some(o => o.slot.localID === occ && o.item === s.item)); })
+        .map(s => ({ slot: s.slot, item: s.item, qty: s.quantity }));
+      return { items, spell: set.spellSelection?.attack ?? null, prayers: [...set.prayerSelection] };
+    };
+    const view = s => ({ items: s.items.map(x => x.slot.localID + ': ' + x.item.name + (x.qty > 1 ? ' x' + x.qty : '')), spell: s.spell?.name ?? null, prayers: s.prayers.map(x => x.name) });
+    let sa = snap(sets[a - 1]), sb = snap(sets[b - 1]);
+    const out = { name: game.characterName, a, b, before: { ['S' + a]: view(sa), ['S' + b]: view(sb) }, applied: false, log: [] };
+    const newStacks = new Set([...sa.items, ...sb.items].map(x => x.item).filter(i => !game.bank.items.has(i))).size;
+    if (game.bank.occupiedSlots + newStacks > game.bank.maximumSlots) return { ...out, error: 'not enough free bank slots (' + newStacks + ' needed)' };
+    if (!apply) return out;
+    const original = p.selectedEquipmentSet;
+    if (game.combat.isActive) { game.combat.stop(); await sleep(1000); out.stoppedCombat = !game.combat.isActive; out.log.push('left the fight to change gear'); }
+    // snapshot again once the fight is over: summon and ammo charges moved while it ran
+    sa = snap(sets[a - 1]); sb = snap(sets[b - 1]);
+    out.before = { ['S' + a]: view(sa), ['S' + b]: view(sb) };
+    const select = i => { p.changeEquipmentSet(i - 1); return p.selectedEquipmentSet === i - 1; };
+    // empty both sets into the bank, then fill each with the other's snapshot
+    for (const [i, s] of [[a, sa], [b, sb]]) {
+      if (!select(i)) { p.changeEquipmentSet(original); return { ...out, error: 'set switch refused: leave the fight or dungeon first' }; }
+      for (const x of s.items) {
+        for (const attempt of [() => p.unequipItem(i - 1, x.slot), () => p.unequipItem(x.slot, i - 1)]) {
+          try { attempt(); } catch {}
+          if (p.equipment.equippedArray.find(e => e.slot === x.slot)?.isEmpty) break;
+        }
+        if (!p.equipment.equippedArray.find(e => e.slot === x.slot)?.isEmpty) { p.changeEquipmentSet(original); return { ...out, error: 'Melvor did not unequip S' + i + ' ' + x.slot.localID + ' (both sets may be partly emptied: items are in the bank, re-run the swap preview)' }; }
+      }
+    }
+    for (const [i, s] of [[a, sb], [b, sa]]) {
+      select(i);
+      for (const x of s.items) { p.equipItem(x.item, i - 1, x.slot, x.qty); out.log.push('S' + i + ' ' + x.slot.localID + ': ' + x.item.name + (p.equipment.equippedArray.find(e => e.slot === x.slot)?.item === x.item ? '' : ' NOT equipped')); }
+      if (s.spell) { try { p.selectAttackSpell(s.spell); } catch (e) { out.log.push('S' + i + ' spell: ' + e.message); } }
+      for (const x of [...p.activePrayers]) if (!s.prayers.includes(x)) p.togglePrayer(x);
+      for (const x of s.prayers) if (!p.activePrayers.has(x)) p.togglePrayer(x);
+    }
+    p.changeEquipmentSet(original);
+    const after = { a: view(snap(sets[a - 1])), b: view(snap(sets[b - 1])) };
+    const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
+    out.after = { ['S' + a]: after.a, ['S' + b]: after.b };
+    out.applied = same(after.a, out.before['S' + b]) && same(after.b, out.before['S' + a]);
+    out.backTo = original + 1;
+    if (!out.applied) out.error = 'sets do not match the swapped snapshot: compare before/after';
+    return out;
+  };
+
+  // Craft an artisan recipe until `count` more products are in the bank, then resume the previous activity.
+  mh.craft = async (skillName, recipeName, count = 1, apply = false) => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const skill = game.skills.allObjects.find(s => s.name.toLowerCase() === String(skillName).toLowerCase());
+    const action = skill?.actions?.allObjects.find(a => (a.product?.name ?? a.name ?? '').toLowerCase() === String(recipeName).toLowerCase());
+    if (!action) return { error: 'unknown skill or recipe: ' + skillName + ' / ' + recipeName };
+    if (typeof skill.selectRecipeOnClick !== 'function' || typeof skill.createButtonOnClick !== 'function') return { error: skill.name + ' is not an artisan skill' };
+    const product = action.product, have = () => game.bank.items.get(product)?.quantity ?? 0;
+    const prev = game.activeAction;
+    const prevKey = prev && prev !== game.woodcutting && Object.keys(prev).find(k => prev.actions?.allObjects?.includes(prev[k]));
+    const prevAction = prevKey ? prev[prevKey] : null, prevTrees = prev === game.woodcutting ? [...game.woodcutting.activeTrees] : null;
+    const out = { name: game.characterName, skill: skill.name, recipe: product.name, have: have(), count, previous: prev?.name ?? null, previousAction: prevAction?.name ?? prevTrees?.map(t => t.name).join(', ') ?? null,
+      inputs: (action.itemCosts ?? []).map(c => ({ item: c.item.name, required: c.quantity, available: game.bank.items.get(c.item)?.quantity ?? 0 })), applied: false };
+    if ((skill.level ?? 0) < (action.level ?? 1) || (skill.abyssalLevel ?? 0) < (action.abyssalLevel ?? 0)) return { ...out, error: 'recipe is not unlocked' };
+    if (out.inputs.some(c => c.available < c.required)) return { ...out, error: 'insufficient recipe materials' };
+    if (prev === game.combat) return { ...out, error: 'in combat: crafting would end the fight; stop it first and restart it with slayer-start' };
+    if (!apply) return out;
+    const target = out.have + count;
+    skill.selectRecipeOnClick(action); skill.createButtonOnClick();
+    for (let i = 0; i < 240 && have() < target; i++) await sleep(500);
+    if (game.activeAction === skill) skill.stop();
+    out.crafted = have() - out.have;
+    // resume: artisan recipe, woodcutting trees, or the click handler of gathering skills (harvesting veins, mining rocks)
+    if (prev && prev !== skill) {
+      if (prevTrees) { for (const t of prevTrees) if (!game.woodcutting.activeTrees.has(t)) game.woodcutting.selectTree(t); }
+      else if (prevAction && typeof prev.selectRecipeOnClick === 'function') { prev.selectRecipeOnClick(prevAction); prev.createButtonOnClick(); }
+      else if (prevAction) for (const m of ['onVeinClick', 'onRockClick']) { if (game.activeAction !== prev && typeof prev[m] === 'function') { prev[m](prevAction); await sleep(800); } }
+    }
+    await sleep(500);
+    out.now = game.activeAction?.name ?? null;
+    out.resumed = !prev || game.activeAction === prev;
+    out.applied = out.crafted >= count;
+    if (!out.applied) out.error = 'crafted ' + out.crafted + ' of ' + count;
+    return out;
+  };
+
+  // Fight one monster of a combat or slayer area with a given set (training, farming). Preview unless apply.
+  mh.fightStart = async (monsterName, setIndex, apply = false) => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const p = game.combat.player, lower = String(monsterName).toLowerCase();
+    const met = reqs => { try { return game.checkRequirements(reqs || [], false); } catch { return false; } };
+    const areas = [...game.combatAreas.allObjects, ...game.slayerAreas.allObjects];
+    const area = areas.find(a => a.monsters.some(m => m.name.toLowerCase() === lower));
+    const monster = area?.monsters.find(m => m.name.toLowerCase() === lower);
+    if (!monster) return { error: 'no combat or slayer area has ' + monsterName };
+    const set = p.equipmentSets[setIndex - 1];
+    if (!set) return { error: 'no equipment set ' + setIndex };
+    const weapon = set.equipment.equippedArray.find(s => s.slot.localID === 'Weapon' && !s.isEmpty)?.item;
+    const out = { name: game.characterName, monster: monster.name, area: area.name, abyssal: area.realm?.id === 'melvorItA:Abyssal', entry: met(area.entryRequirements),
+      set: setIndex, weapon: weapon?.name ?? null, damageType: weapon?.damageType?.name ?? null, previous: game.activeAction?.name ?? null,
+      slayerTask: game.combat.slayerTask?.active ? game.combat.slayerTask.monster?.name : null, applied: false };
+    if (!out.entry) return { ...out, error: 'area entry requirements not met' };
+    if (out.abyssal && !/Abyssal/i.test(out.damageType || '')) return { ...out, error: 'set ' + setIndex + ' does not deal Abyssal damage' };
+    if (!apply) return out;
+    // Auto Slayer sends every fight back to the task monster: turn it off for another target (slayer-start turns it back on)
+    const task = game.combat.slayerTask;
+    // so does the SEMI Auto Slayer mod (its own toggle, saved with the character): both are recorded for slayer-start
+    const semi = document.getElementById('semi-auto-slayer-enable-check');
+    if (task?.active && task.monster !== monster) {
+      if (game.settings.enableAutoSlayer) { game.settings.toggleSetting('enableAutoSlayer'); out.autoSlayerOff = !game.settings.enableAutoSlayer; }
+      if (semi?.checked) { semi.click(); out.semiAutoSlayerOff = !semi.checked; }
+      if (game.settings.enableAutoSlayer || semi?.checked) return { ...out, error: 'could not turn Auto Slayer off' };
+    }
+    if (game.combat.isActive) { game.combat.stop(); await sleep(1000); }
+    p.changeEquipmentSet(setIndex - 1);
+    if (p.selectedEquipmentSet !== setIndex - 1) return { ...out, error: 'set switch refused' };
+    // a set with more max HP keeps the current HP: eat up to 80% before the fight (Hardcore safety)
+    for (let i = 0; i < 200 && p.hitpoints < p.stats.maxHitpoints * 0.8 && (p.food.currentSlot?.quantity ?? 0) > 0; i++) { try { p.eatFood(); } catch { break; } }
+    out.hp = p.hitpoints + '/' + p.stats.maxHitpoints;
+    if (p.hitpoints < p.stats.maxHitpoints * 0.5) return { ...out, error: 'HP below 50% after eating: not starting' };
+    game.combat.selectMonster(monster, area);
+    // the save keeps the enemy in progress: wait for the new monster to spawn, or a reload resumes the old fight
+    for (let i = 0; i < 40 && game.combat.enemy?.monster !== monster; i++) await sleep(500);
+    out.now = game.activeAction?.name ?? null;     out.fighting = game.combat.enemy?.monster === monster ? monster.name : (game.combat.enemy?.monster?.name ?? null); out.area = game.combat.selectedArea?.name ?? out.area;
+    out.applied = game.activeAction === game.combat && out.fighting === monster.name && p.selectedEquipmentSet === setIndex - 1;
+    if (!out.applied) out.error = 'the fight did not start';
+    return out;
+  };
+
+  // Simulate one set against every reachable Abyssal combat/slayer-area monster: where to train that set's style.
+  mh.trainTargets = async (setIndex, maxSims = 45) => {
+    await mh.waitSimulator();
+    const G = self.mcs?.global, api = typeof mod !== 'undefined' ? mod.api?.mythCombatSimulator : null;
+    if (!G?.simulation || !api) return { error: 'combat simulator not available' };
+    const button = [...document.querySelectorAll('mcs-equipment-page button.mcs-button')].filter(b => /^[0-9]+$/.test(b.textContent.trim()))[setIndex - 1];
+    if (!button) return { error: 'no equipment set ' + setIndex };
+    button.click(); await new Promise(r => setTimeout(r, 300));
+    const base = api.export(), task = game.combat.slayerTask;
+    const met = reqs => { try { return game.checkRequirements(reqs || [], false); } catch { return false; } };
+    const fights = [...game.combatAreas.allObjects, ...game.slayerAreas.allObjects].filter(a => a.realm?.id === 'melvorItA:Abyssal' && met(a.entryRequirements))
+      .flatMap(a => a.monsters.map(m => ({ area: a.name, monster: m }))).slice(0, maxSims);
+    const set = game.combat.player.equipmentSets[setIndex - 1];
+    const weapon = set?.equipment.equippedArray.find(s => s.slot.localID === 'Weapon' && !s.isEmpty)?.item;
+    const out = [];
+    for (const f of fights) {
+      api.import({ ...base, isSlayerTask: Boolean(task?.active && task.monster === f.monster) }); await new Promise(r => setTimeout(r, 50));
+      let r; try { r = await mh.simulateFull(G, f.monster.id); } catch (e) { r = { simSuccess: false, reason: String(e.message || e) }; }
+      out.push({ area: f.area, monster: f.monster.name, attackType: f.monster.attackType, ok: r.simSuccess, reason: r.simSuccess ? null : r.reason,
+        xpPerHour: r.simSuccess ? Math.round(Math.max(r.xpPerSecondAbyssal || 0, r.xpPerSecondMelvor || 0) * 3600) : null,
+        deathRate: r.deathRate ?? null, killTimeS: Number.isFinite(r.killTimeS) ? r.killTimeS : null, atePerHour: r.simSuccess ? Math.round((r.atePerSecond || 0) * 3600) : null });
+    }
+    api.import(base);
+    return { name: game.characterName, mode: game.currentGamemode?.name ?? null, set: setIndex, style: weapon?.attackType ?? null, weapon: weapon?.name ?? null, damageType: weapon?.damageType?.name ?? null, fights: out };
   };
 
   window.mh = mh;

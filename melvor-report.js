@@ -88,6 +88,13 @@ const usage = `usage:
   ./melvor-report.js dungeon-optimize <character> "<dungeon name>" [--style melee|ranged|magic] [--cape "<cape name>"]
   ./melvor-report.js dungeon-setup <character> "<dungeon name>" [--style melee,ranged] [--apply] [--restore --apply]
   ./melvor-report.js dungeon-clear <character> "<dungeon name>"   (one clear, then back to the previous activity)
+  ./melvor-report.js sets <character>                              (every equipment set: items, attack spell, prayers)
+  ./melvor-report.js set-candidates <character> --style melee|ranged|magic   (best usable / locked Abyssal bank gear per slot)
+  ./melvor-report.js set-plan <character> <plan.json> [--apply]    (equip a plan into given sets: [{setIndex, equipment: [[slot, item]], spell?, prayers?}])
+  ./melvor-report.js set-swap <character> <set A> <set B> [--apply]   (swap two sets: items, spell, prayers)
+  ./melvor-report.js craft <character> <skill> "<recipe>" [--quantity N] [--apply]   (craft N, then resume the previous activity)
+  ./melvor-report.js train-targets <character> --slot N            (simulate set N against every reachable Abyssal monster)
+  ./melvor-report.js fight-start <character> "<monster>" --slot N [--apply]   (fight one monster with set N, e.g. a train-targets pick)
   ./melvor-report.js item-where <character> "<item name part>"     (bank, sets, deaths: where an item went)
   ./melvor-report.js bank-add <character> "<exact item name>" [--quantity N] [--apply]   (repair: put back an item lost by the tooling)
   ./melvor-report.js journal-serve [--port 8787]
@@ -103,7 +110,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide', 'dungeon-check', 'dungeon-optimize', 'dungeon-setup', 'dungeon-clear', 'item-where', 'bank-add'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide', 'dungeon-check', 'dungeon-optimize', 'dungeon-setup', 'dungeon-clear', 'item-where', 'bank-add', 'sets', 'set-candidates', 'set-plan', 'set-swap', 'craft', 'train-targets', 'fight-start'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -2184,6 +2191,11 @@ async function readSourcesByName() {
   return { slots, sources: Object.fromEntries(sourceOfTruth(slots).map(s => [s.name, s])) };
 }
 
+// fight-start turns Auto Slayer off to fight another monster; slayer-start reads this to turn back on only what it turned off
+const AUTO_SLAYER_OFF = path.join(JOURNAL_DIR, 'auto-slayer-off.json');
+function readAutoSlayerOff() { try { return JSON.parse(fs.readFileSync(AUTO_SLAYER_OFF, 'utf8')); } catch { return {}; } }
+function writeAutoSlayerOff(name, value) { const all = readAutoSlayerOff(); if (value) all[name] = value; else delete all[name]; fs.writeFileSync(AUTO_SLAYER_OFF, JSON.stringify(all, null, 2)); }
+
 async function withCharacterWrite(name, fn) {
   const { sources } = await readSourcesByName();
   const before = sources[name] || null;
@@ -2369,6 +2381,79 @@ if (require.main === module) (async () => {
       const r = apply ? await withCharacterWrite(who, client => evalExpr(client, script)) : await readSourcesByName().then(({ sources }) => withCharacterSource(who, sources[who]?.source, client => evalExpr(client, script)));
       if (r.error) throw Error(r.error);
       console.log(`${r.name} | bank-add | ${r.item}: ${r.before} -> ${r.after}${r.applied ? ' | applied, saved: ' + r.saved : ' | preview, nothing changed'}`);
+      return;
+    }
+
+    if (cmd === 'sets' || cmd === 'set-candidates' || cmd === 'train-targets') {
+      // read-only: set contents, candidate gear, or a simulation of one set against the Abyssal monsters
+      if (who === 'all') throw Error(`usage: ./melvor-report.js ${cmd} <character>${cmd === 'set-candidates' ? ' --style melee|ranged|magic' : cmd === 'train-targets' ? ' --slot N' : ''}`);
+      if (cmd === 'set-candidates' && !gearStyle) throw Error('set-candidates needs --style melee|ranged|magic');
+      const { sources } = await readSourcesByName();
+      const expr = cmd === 'sets' ? '({ name: game.characterName, styles: Object.fromEntries(Object.entries(game.combat.player.attackStyles ?? {}).map(([k, v]) => [k, v?.name])), sets: mh.setsView() })' : cmd === 'set-candidates' ? `mh.setCandidates(${JSON.stringify(gearStyle)})` : `mh.trainTargets(${requestedSlot})`;
+      const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, expr, 900000), cmd === 'train-targets' ? SIM_DEBUG : undefined);
+      if (r.error) throw Error(r.error);
+      if (cmd === 'sets') {
+        console.log(`${r.name} | ${r.sets.length} equipment sets | attack styles ${Object.entries(r.styles || {}).map(([k, v]) => k + ' ' + v).join(', ')} (config-set <character> style <name>)`);
+        for (const x of r.sets) {
+          console.log(`  S${x.set}${x.selected ? ' (selected)' : ''} | spell ${x.spell || '-'} | prayers ${x.prayers.join(' + ') || '-'}`);
+          console.log('    ' + (x.items.map(([slot, item, q]) => `${slot}: ${item}${q > 1 ? ' x' + q : ''}`).join(' | ') || 'empty'));
+        }
+      } else if (cmd === 'set-candidates') {
+        console.log(`${r.name} | ${r.style} | Abyssal bank gear (stat score, not a simulation)`);
+        const fmt = x => `${x.name} x${x.qty} [${x.stats}${x.req ? ' | ' + x.req : ''}]`;
+        for (const [slot, c] of Object.entries(r.slots)) {
+          console.log(`  ${slot}: ${c.usable.map(fmt).join(' ; ') || 'none usable'}`);
+          if (c.locked.length) console.log(`    locked: ${c.locked.map(fmt).join(' ; ')}`);
+        }
+      } else {
+        console.log(`${r.name} | ${r.mode} | S${r.set} ${r.style || '?'} (${r.weapon || 'no weapon'}, ${r.damageType || '?'}) | simulated Abyssal targets, best XP/h first`);
+        for (const x of [...r.fights].sort((a, b) => (b.ok - a.ok) || (a.deathRate > 0) - (b.deathRate > 0) || (b.xpPerHour || 0) - (a.xpPerHour || 0)))
+          console.log(`  ${x.ok ? fmtRate(x.xpPerHour) + ' XP/h' : 'FAILED'} | death ${x.deathRate != null ? (x.deathRate * 100).toFixed(1) + '%' : '?'} | ${x.killTimeS != null ? x.killTimeS.toFixed(1) + ' s/kill' : '-'} | ${x.monster} (${x.attackType}) in ${x.area}${x.reason ? ' | ' + x.reason : ''}`);
+        console.log('  a non-zero death rate is a stop sign (Hardcore: never; Standard: an item is lost on death)');
+      }
+      return;
+    }
+
+    if (cmd === 'set-plan' || cmd === 'set-swap' || cmd === 'craft' || cmd === 'fight-start') {
+      // guarded writes: a no-write preview until --apply, then save and source check (withCharacterWrite)
+      if (who === 'all' || !arg3 || (!['set-plan', 'fight-start'].includes(cmd) && !arg4)) throw Error(`usage: ./melvor-report.js ${{ 'fight-start': 'fight-start <character> "<monster>" --slot N', 'set-plan': 'set-plan <character> <plan.json>', 'set-swap': 'set-swap <character> <set A> <set B>', craft: 'craft <character> <skill> "<recipe>" [--quantity N]' }[cmd]} [--apply]`);
+      let expr;
+      if (cmd === 'set-plan') {
+        const raw = JSON.parse(fs.readFileSync(arg3, 'utf8'));
+        const plans = (Array.isArray(raw) ? raw : raw.plans || []).map(p => ({ setIndex: Number(p.setIndex), style: p.style || null, equipment: p.equipment || [], spell: p.spell || null, prayers: p.prayers || null }));
+        if (!plans.length || plans.some(p => !Number.isInteger(p.setIndex) || p.setIndex < 1)) throw Error('plan must be a list of { setIndex, equipment: [[slot, item]], spell?, prayers? }');
+        expr = apply ? `mh.dungeonSetupApply(${JSON.stringify(plans)})` : `mh.dungeonSetupPreview(${JSON.stringify(plans)})`;
+      } else if (cmd === 'set-swap') {
+        const [a, b] = [Number(arg3), Number(arg4)];
+        if (!Number.isInteger(a) || !Number.isInteger(b)) throw Error('set numbers must be integers');
+        expr = `mh.setSwap(${a}, ${b}, ${apply})`;
+      } else if (cmd === 'fight-start') {
+        if (slotIndex < 0) throw Error('fight-start needs --slot N');
+        expr = `mh.fightStart(${JSON.stringify(arg3)}, ${requestedSlot}, ${apply})`;
+      } else expr = `mh.craft(${JSON.stringify(arg3)}, ${JSON.stringify(arg4)}, ${requestedQuantity || 1}, ${apply})`;
+      const run = client => evalExpr(client, expr, 180000);
+      const r = apply ? await withCharacterWrite(who, run) : await readSourcesByName().then(({ sources }) => withCharacterSource(who, sources[who]?.source, run));
+      if (r.autoSlayerOff || r.semiAutoSlayerOff) writeAutoSlayerOff(who, { ...(readAutoSlayerOff()[who] || {}), game: Boolean(r.autoSlayerOff || readAutoSlayerOff()[who]?.game), semi: Boolean(r.semiAutoSlayerOff || readAutoSlayerOff()[who]?.semi) });
+      console.log(`${r.name} | ${cmd} | ${apply ? (r.applied ? 'applied' : 'NOT applied') + ` | saved: ${r.saved} | source ${r.sourceBefore} -> ${r.sourceAfter}` : 'preview; nothing changed'}`);
+      if (cmd === 'set-plan' && !apply) {
+        for (const s of r.sets) {
+          console.log(`  S${s.setIndex}${s.style ? ' ' + s.style : ''}${s.error ? ': ' + s.error : ''}`);
+          for (const w of s.swaps || []) console.log(`    ${w.slot}: ${w.from || 'empty'} -> ${w.to}`);
+          if (s.spell && s.spell !== s.spellNow) console.log(`    Spell: ${s.spellNow || 'none'} -> ${s.spell}`);
+          if (s.prayers?.length && s.prayers.join() !== s.prayersNow.join()) console.log(`    Prayers: ${s.prayersNow.join(' + ') || 'none'} -> ${s.prayers.join(' + ')}`);
+        }
+        for (const x of r.shortages || []) console.log(`  SHORT: ${x.name} needed in ${x.need} sets, ${x.have} available`);
+      } else if (cmd === 'set-swap') {
+        for (const [k, v] of Object.entries(apply ? r.after || {} : r.before || {})) console.log(`  ${k}${apply ? ' now' : ''} | spell ${v.spell || '-'} | prayers ${v.prayers.join(' + ') || '-'}\n    ${v.items.join(' | ') || 'empty'}`);
+      } else if (cmd === 'craft') {
+        console.log(`  ${r.skill}: ${r.recipe} x${r.count} (have ${r.have}) | inputs ${(r.inputs || []).map(c => `${c.item} ${c.required}/${c.available}`).join(', ')}`);
+        console.log(`  previous activity: ${r.previous || 'idle'}${r.previousAction ? ' (' + r.previousAction + ')' : ''}${apply ? ` -> now ${r.now || 'idle'}: ${r.resumed ? 'resumed' : 'NOT resumed, restart it by hand'} | crafted ${r.crafted}` : ''}`);
+      }
+      else if (cmd === 'fight-start') console.log(`${r.autoSlayerOff || r.semiAutoSlayerOff ? '  Auto Slayer turned off: ' + [r.autoSlayerOff ? 'game' : null, r.semiAutoSlayerOff ? 'SEMI' : null].filter(Boolean).join(' + ') + ' (slayer-start turns it back on)\n' : ''}${r.hp ? '  HP ' + r.hp + '\n' : ''}  ${r.monster} in ${r.area} with S${r.set} (${r.weapon || 'no weapon'}, ${r.damageType || '?'}) | was ${r.previous || 'idle'}${r.slayerTask ? ' | Slayer task ' + r.slayerTask + ' (kept, resume it with slayer-start)' : ''}${apply ? ' -> now ' + (r.now || 'idle') + ' on ' + (r.fighting || '-') : ''}`);
+      for (const line of r.log || []) console.log('  ' + line);
+      for (const line of r.left || []) console.log('  LEFT: ' + line);
+      if (r.stoppedCombat) console.log('  the fight was stopped to change gear: restart the activity (slayer-start <character> --slot N)');
+      if (r.error) throw Error(r.error);
       return;
     }
 
@@ -2646,6 +2731,12 @@ if (require.main === module) (async () => {
         const player = game.combat.player;
         const task = game.combat.slayerTask;
         if (!task?.active || !task.monster) return { error: 'no active Slayer task' };
+        // fight-start turned Auto Slayer (game setting, SEMI mod) off to fight another monster: back on the task, turn it back on
+        const restore = ${JSON.stringify(readAutoSlayerOff()[who] || {})};
+        const semi = document.getElementById('semi-auto-slayer-enable-check');
+        if (restore.game && !game.settings.enableAutoSlayer) game.settings.toggleSetting('enableAutoSlayer');
+        if (restore.semi && semi && !semi.checked) semi.click();
+        const autoSlayerOn = [restore.game && game.settings.enableAutoSlayer ? 'game' : null, restore.semi && semi?.checked ? 'SEMI' : null].filter(Boolean).join(' + ');
         const slot = ${requestedSlot - 1};
         if (!player.equipmentSets?.[slot]) return { error: 'equipment set ${requestedSlot} does not exist' };
         player.changeEquipmentSet(slot);
@@ -2669,11 +2760,12 @@ if (require.main === module) (async () => {
           name: game.characterName, task: task.monster.name, remaining: task.killsLeft,
           slot: slot + 1, style: player.attackType, area: game.combat.selectedArea?.name ?? null,
           monster: game.combat.enemy?.monster?.name ?? null, hitChance: player.stats.hitChance,
-          food: player.food.currentSlot?.item?.name ?? null,
+          food: player.food.currentSlot?.item?.name ?? null, autoSlayerOn,
         };
       })()`, 60000));
       if (data.error) throw Error(data.error);
       printSlayerStart(data);
+      if (data.autoSlayerOn) { console.log('  Auto Slayer turned back on: ' + data.autoSlayerOn); writeAutoSlayerOff(who, null); }
       return;
     }
 

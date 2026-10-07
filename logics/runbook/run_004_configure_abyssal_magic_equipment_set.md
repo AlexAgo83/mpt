@@ -6,7 +6,9 @@
 > Related backlog: (none yet)
 > Related task: (none yet)
 > Reminder: Update status, category, verification, and linked refs when you edit this doc.
-> Indicators reviewed: 2026-10-03 16:06:48
+> Indicators reviewed: 2026-10-07 01:03:31
+
+> Superseded: use `run_015_build_abyssal_equipment_sets_and_pick_a_training_target` (`set-plan`, `set-candidates`); the presets below are fixed and dated.
 
 # Trigger
 
