@@ -472,7 +472,8 @@
     const itemNamed = name => values(game.items).find(i => i.name === name);
     const purchased = name => { const p = values(game.shop.purchases).find(x => x.name === name); try { return p ? game.shop.isUpgradePurchased(p) || game.shop.getPurchaseCount?.(p) > 0 : null; } catch { return null; } };
     const clears = a => { for (const f of ['getDungeonCompleteCount', 'getAbyssDepthCompleteCount', 'getStrongholdCompleteCount']) { try { const n = game.combat[f]?.(a); if (Number.isFinite(n)) return n; } catch {} } return null; };
-    const abyssal = /^melvorItA:/.test(area.id);
+    // by realm, not id: Into the Abyss is an expansion dungeon fought in the Melvor realm
+    const abyssal = area.realm ? area.realm.id === 'melvorItA:Abyssal' : /^melvorItA:/.test(area.id);
     const checks = [];
     const check = (label, ok, detail) => checks.push({ label, ok, detail: detail || null });
     check('Entry requirements met', met(area.entryRequirements));
