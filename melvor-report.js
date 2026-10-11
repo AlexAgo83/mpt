@@ -751,7 +751,10 @@ const combatRunScript = (dungeonRef, timeoutMs, setNumber = null) => `(async () 
   const samples = [];
   const started = Date.now();
   let status = 'timeout';
-  // checked every second (a big hit lands between two 10 s checks); one sample in ten is kept for the report
+  // checked every 250 ms (a big hit lands between two checks); one sample in forty is kept for the report.
+  // Eats by hand under MELVOR_EAT_PCT (default 75%): auto-eat fires too late against Abyssal damage (Into the Abyss guide)
+  const eatBelow = ${Number(process.env.MELVOR_EAT_PCT || 75) / 100};
+  let eats = 0;
   const hpFloor = /Hardcore/i.test(game.currentGamemode?.name || '') ? 0.5 : 0.35;
   const foodLeft = () => { try { return p.food.slots.reduce((n, s) => n + (s.item !== game.emptyFoodItem ? s.quantity : 0), 0); } catch { return null; } };
   for (let tick = 0; Date.now() - started < ${Number(timeoutMs)}; tick++) {
@@ -766,15 +769,16 @@ const combatRunScript = (dungeonRef, timeoutMs, setNumber = null) => `(async () 
       maxHP: p.stats.maxHitpoints,
       food: foodLeft(),
     };
-    if (tick % 10 === 0) samples.push(sample);
+    if (tick % 40 === 0) samples.push(sample);
     if (sample.completed > beforeCompleted) { samples.push(sample); status = 'completed'; break; }
     if (sample.food !== null && sample.food < 10) { status = 'low-food'; game.combat.stop(); await sleep(1000); sample.stoppedCombat = !game.combat.isActive; samples.push(sample); break; }
     // leaving the loop is not enough: the fight goes on unwatched and a Standard death loses an item, so flee
     if (sample.hp < sample.maxHP * hpFloor) { status = 'low-hp'; game.combat.stop(); await sleep(1000); sample.stoppedCombat = !game.combat.isActive; samples.push(sample); break; }
-    await sleep(1000);
+    if (game.combat.isActive && sample.hp < sample.maxHP * eatBelow) { p.eatFood(1, false); eats++; }
+    await sleep(250);
   }
   const rewardOptions = ${visibleRewardOptions};
-  return { name: game.characterName, dungeon: dungeon.name, status, set, samples, rewardOptions };
+  return { name: game.characterName, dungeon: dungeon.name, status, set, samples, rewardOptions, eats };
 })()`;
 
 const combatSetupScript = `(() => {
