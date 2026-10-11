@@ -577,12 +577,14 @@
     const abyss = mh.abyssOpen();
     const meets = item => { try { return game.checkRequirements(item.equipRequirements || [], false); } catch { return false; } };
     const defensive = item => Object.entries(statsOf(item)).reduce((sum, [k, v]) => sum + (/Defence|resistance|damageReduction/i.test(k) ? v * (/resistance|damageReduction/i.test(k) ? 10 : 1) : /Attack|Strength|Damage/i.test(k) ? v / 2 : 0), 0);
-    const bank = [...game.bank.items.keys()].filter(item => item.validSlots?.length && meets(item) && (abyss || !/^melvorItA:/.test(item.id)) && (!item.attackType || item.attackType === style));
+    // an Abyssal-damage weapon is the key to Into the Abyss (Strange Sword): allowed before the Abyss opens, always tried
+    const abyssalHit = item => item.damageType?.id === 'melvorItA:Abyssal';
+    const bank = [...game.bank.items.keys()].filter(item => item.validSlots?.length && meets(item) && (abyss || !/^melvorItA:/.test(item.id) || abyssalHit(item)) && (!item.attackType || item.attackType === style));
     const changes = [];
     for (const slot of ['Weapon', 'Shield', 'Helmet', 'Platebody', 'Platelegs', 'Boots', 'Gloves', 'Amulet', 'Ring', 'Passive', 'Gem', 'Quiver', 'Consumable', 'Summon1', 'Summon2']) {
       if (sims >= maxSims) break;
       const key = keyOf(slot); const now = current.equipment.get(key);
-      const candidates = bank.filter(item => item.validSlots.some(v => v.localID === slot) && item.id !== now).sort((a, b) => defensive(b) - defensive(a)).slice(0, slot === 'Weapon' ? 4 : 3);
+      const candidates = bank.filter(item => item.validSlots.some(v => v.localID === slot) && item.id !== now).sort((a, b) => abyssalHit(b) - abyssalHit(a) || defensive(b) - defensive(a)).slice(0, Number(self.__mptOptCandidates || (slot === 'Weapon' ? 4 : 3)));
       for (const item of candidates) {
         if (sims >= maxSims) break;
         // one bank copy fills one slot: count the other slots already taking this item from the bank
