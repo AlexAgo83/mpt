@@ -1,12 +1,12 @@
 ## run_012_impending_darkness_event - Prepare and play the Impending Darkness Event
 > Status: Draft
 > Category: support
-> Verified: 2026-10-10, live: Chap cleared it (5 rounds, final Bane ranged after one magic reroll) with an in-page driver; Kang died once in round 4 (Unhallowed Wasteland, S1, flee check at 30% polled every second) and was restarted with the stricter rules below.
+> Verified: 2026-10-10, live: Chap cleared it (5 rounds, final Bane ranged after one magic reroll) with an in-page driver; Kang died once in round 4 (Unhallowed Wasteland, S1, flee check at 30% polled every second) and was restarted with the stricter rules below. `event-run` is that driver as a command: not run live yet as a command.
 > Related request: (none yet)
 > Related backlog: (none yet)
 > Related task: (none yet)
 > Reminder: Update status, category, verification, and linked refs when you edit this doc.
-> Indicators reviewed: 2026-10-11 02:15:44
+> Indicators reviewed: 2026-10-11 10:09:50
 
 # Trigger
 - A character must clear Impending Darkness (it unlocks The Abyssal Approach).
@@ -16,7 +16,7 @@
 - Into the Mist cleared, Slayer Skillcape (or Maximum Skillcape) owned, Map to the Unhallowed Wasteland bought.
 - 100% Slayer area negation reachable for Unhallowed Wasteland: Slayer gear pieces plus the Pillar of Combat Agility obstacle, or the Cartography point of interest Perilous Peaks at hex (19, 9) with Atlas of Discovery.
 - One set per style (S1 melee, S2 ranged, S3 magic) that beats Bane in that style at or under the death threshold. Ranged needs Shockwave, magic does well with Ocean Song and the Dragon + Unicorn (or Fox) synergy.
-- `combat-run` does not handle this event yet: the 2026-10-10 run used an in-page driver (modifier pick by the ranking below, area order and set per area, Bane style -> set, Run on a magic final Bane, final-Bane gear plan before round 5's last area, eat/Run thresholds above). It is to be folded into an `event-run` command.
+- `dungeon-check <char> "Impending Darkness Event"` shows `ok` on every line, including `S3 negates 100% of Slayer area effects`.
 
 # Lessons from the 2026-10-10 live run (read first)
 - **Round modifiers buff the enemies**, not you, and Bane, Instrument of Fear gets every one picked. Simulations of the final fight without them are optimistic.
@@ -28,16 +28,15 @@
 - Death ends the event (all rounds lost) and costs one random equipped item (Kang lost his S1 amulet).
 
 # Procedure
-1. Simulate Bane in each style with each style's set; note the weakest style (it will be rerolled).
-2. Prepare the four area sets: 100% negation (Unhallowed Wasteland), 40% negation (Dark Waters), full damage (Shrouded Badlands, Perilous Peaks), Bane set per style.
-3. Food Whale-class, Diamond Luck Potion IV, Dragon + Minotaur/Centaur/Witch, Whetstone, Jadestone Bolts, Fire Surge or Incinerate.
-4. Start the event. At each round start, **pick the highest-ranked modifier offered** (ranking in the dungeon doc). Restart early if the first picks are awful.
-5. Clear areas in the order Unhallowed Wasteland, Dark Waters, Shrouded Badlands, Perilous Peaks, with the prayers from the doc.
-6. Bane: switch to the set of **his** style and Protect from that style. If his style is your weak one, **Run** (not Stop Event) to reroll it.
-7. Watch Affliction: eat after your own attacks; never let a known max hit exceed current HP. Run if put to sleep by Suffocate.
-8. After round 5, Bane, Instrument of Fear: same rules, hold eat against Overwhelming Power when Affliction is high.
+1. `dungeon-check <char> "Impending Darkness Event"`: fix every `NO` line first (negation: see the sources above, then re-check).
+2. `dungeon-optimize <char> "Impending Darkness Event" --style melee`, then `--style ranged` (one style per call): the final-Bane plans `event-run` puts on before the last area. Magic is not needed: a magic final Bane is rerolled.
+3. `event-run <char>`: starts the event and plays it to the end with the rules above (modifier ranking, areas Unhallowed Wasteland S3, Dark Waters S2, Shrouded Badlands and Perilous Peaks S1, Bane in his style's set, resume before each boss, eat under 75%, Run under 35% then eat back to 95% and go on, Run from a magic final Bane). It refuses to start under 100% negation, stops on an offer it does not recognise, after 3 Runs, 10 rerolls or 2 hours (`MELVOR_EVENT_RUN_TIMEOUT_MS`), puts the final-Bane plan gear back and saves. Exit code 1 unless cleared.
+4. `slayer-start <char>`: the event leaves the character idle.
+5. One character at a time: the mpt lock allows one session, and a hidden tab stops the game loop.
+6. By hand only if `event-run` stopped: the rules in `docs/dungeons/impending-darkness.md` (eat after your own attacks under Affliction, Run if put to sleep by Suffocate).
 
 # Verification
+- `event-run` prints `cleared` and `clears N -> N+1`; `dungeon-check` shows the new clear count.
 - The four rewards (Shields of Melee/Ranged/Magic Power, Ring of Power) and the lore book in the bank; The Abyssal Approach unlocked.
 
 # Rollback

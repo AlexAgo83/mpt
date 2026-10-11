@@ -358,12 +358,18 @@ console.log('dungeon verdict and clear choice ok');
   const { chooseIdModifier } = require('./melvor-report.js');
   const offers = ['+15% chance to apply Affliction and +15% Lifesteal', '+20% Maximum Hit and +20% Accuracy Rating', '+15% Damage Reduction and +15% Evasion'];
   assert.strictEqual(chooseIdModifier(offers).index, 1, 'max hit + accuracy (rank 3) beats damage reduction (6) and affliction (11)');
-  assert.strictEqual(chooseIdModifier(['+2,000 Max HP and -10% Max Hit', '+100% chance to ignore Stuns and Freezes, Immune to Sleep']).rank, 1, 'stun/sleep immunity is the best');
+  assert.strictEqual(chooseIdModifier(['+2,000 Max HP and -10% Max Hit', 'Immune to Stun, Freeze or Crystallize and Immune to Sleep']).rank, 1, 'stun/sleep immunity is the best');
   assert.strictEqual(chooseIdModifier(['+20% Max Hit and -10% Maximum Hitpoints', '+20% Max Hit and +20% Accuracy']).rank, 2, 'max hit with less HP outranks max hit with accuracy');
   assert.strictEqual(chooseIdModifier(['+2,000 Max HP and -10% Max Hit']).rank, 4, '+2000 HP with less max hit is rank 4, not rank 2');
   assert.strictEqual(chooseIdModifier(['+50% chance to Poison and +10% Max HP']).rank, 5, 'poison + HP is rank 5');
   assert.strictEqual(chooseIdModifier(['+10% Max Hit, -10% Attack Interval, -10% Evasion', 'Something new']).rank, 10, 'a known offer is picked over an unknown one');
   assert.deepStrictEqual(chooseIdModifier(['+10% Max Hit, -10% Attack Interval, -10% Evasion', 'Something new']).unknown, ['Something new'], 'unknown offers are reported');
   assert.match(chooseIdModifier(['Something new', 'Another']).error, /no offer recognised/, 'nothing recognised: refused');
+  // offers as the game wrote them on 2026-10-10
+  assert.strictEqual(chooseIdModifier(['+20% Maximum Hit and -10% Maximum Hitpoints', 'Immune to Stun, Freeze or Crystallize and Immune to Sleep', '+10% Maximum Hitpoints and +50% chance to apply Poison when hitting with an attack']).rank, 1, 'live: stun immunity');
+  assert.strictEqual(chooseIdModifier(['+40% of Maximum Hit added to Minimum Hit and Heal 4% of current Hitpoints every 2 turns', '+15% Lifesteal and +15% chance to apply Affliction when attacking (once per turn)', '+10% Maximum Hitpoints and +50% chance to apply Poison when hitting with an attack']).rank, 5, 'live: poison');
+  assert.strictEqual(chooseIdModifier(['+40% of Maximum Hit added to Minimum Hit and Heal 4% of current Hitpoints every 2 turns']).rank, 12, 'live: min hit is known, last');
+  assert.strictEqual(chooseIdModifier(['+100% chance to ignore Slow Effects and -5% Attack Interval', '+2,000 Maximum Hitpoints and -10% Maximum Hit', '+15% Damage Reduction and +15% Global Evasion']).rank, 4, 'live: +2000 HP');
+  assert.strictEqual(chooseIdModifier(['Slayer Area Effects are +5% Stronger', '+10% Maximum Hit, -10% Attack Interval, and -10% Global Evasion']).rank, 9, 'live: area effects');
 }
 console.log('impending darkness modifier choice ok');

@@ -486,6 +486,11 @@
       // the guide makes the cape mandatory in every area: simulate with the best owned one in the cape slot
       forcedCape = [...capes].reverse().map(itemNamed).find(owned) || null;
       check('Map to the Unhallowed Wasteland bought', purchased('Map to the Unhallowed Wasteland') === true);
+      // the Unhallowed Wasteland enemies heal (100 - negation)% every 2 turns and the simulator ignores it (run_012):
+      // S3, the set event-run takes there, must negate all of it
+      const p = game.combat.player, was = p.selectedEquipmentSet;
+      p.changeEquipmentSet(2); const n = p.modifiers.flatSlayerAreaEffectNegation ?? 0; p.changeEquipmentSet(was);
+      check('S3 negates 100% of Slayer area effects', n >= 100, n + '% now');
       for (const name of ['Unhallowed Wasteland', 'Dark Waters', 'Shrouded Badlands', 'Perilous Peaks']) {
         const sa = values(game.slayerAreas).find(a => a.name === name); if (!sa) continue;
         const hardest = values(sa.monsters).sort((a, b) => (b.combatLevel ?? 0) - (a.combatLevel ?? 0))[0];

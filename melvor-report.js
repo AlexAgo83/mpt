@@ -66,6 +66,7 @@ const usage = `usage:
   ./melvor-report.js combat-plan [all|character] [--abyssal]
   ./melvor-report.js combat-setup <character>
   ./melvor-report.js combat-run <character> <dungeon name|id>
+  ./melvor-report.js event-run <character>   (Impending Darkness, run_012)
   ./melvor-report.js gear <character> [--detail] [--style melee|ranged|magic]
   ./melvor-report.js magic-setup <character> [--slot 6] [--apply] [--restore-ranged]
   ./melvor-report.js slayer-abyssal <character>
@@ -110,7 +111,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide', 'dungeon-check', 'dungeon-optimize', 'dungeon-setup', 'dungeon-clear', 'item-where', 'bank-add', 'sets', 'set-candidates', 'set-plan', 'set-swap', 'craft', 'train-targets', 'fight-start'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide', 'dungeon-check', 'dungeon-optimize', 'dungeon-setup', 'dungeon-clear', 'event-run', 'item-where', 'bank-add', 'sets', 'set-candidates', 'set-plan', 'set-swap', 'craft', 'train-targets', 'fight-start'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -2030,11 +2031,11 @@ function dungeonVerdict(r, threshold = r.hardcore ? 0 : Number(process.env.MELVO
 // dungeon-clear's choice, kept pure for the tests: the safest set when the check is ready as is, otherwise the safest
 // then fastest plan under the threshold. Hardcore characters are never run automatically.
 // Impending Darkness round modifiers, best first (docs/dungeons/impending-darkness.md, from the wiki Guide). The game's
-// exact wording is not verified yet: each rank is recognised by keywords that must all appear in the offer text.
+// offer texts as seen live on 2026-10-10: each rank is recognised by keywords that must all appear in the offer text.
 const ID_MODIFIER_RANKING = [
-  ['ignore stun', 'sleep'], ['+20% max hit', 'max hp'], ['max hit', 'accuracy'], ['2000', 'max hp'],
+  ['immune to stun', 'sleep'], ['+20% max hit', 'max hp'], ['max hit', 'accuracy'], ['2000', 'max hp'],
   ['poison', 'max hp'], ['damage reduction', 'evasion'], ['burn', 'frostburn'], ['slow', 'attack interval'],
-  ['slayer area effect'], ['max hit', 'attack interval', 'evasion'], ['affliction', 'lifesteal'], ['heal', 'min hit'],
+  ['slayer area effect'], ['max hit', 'attack interval', 'evasion'], ['affliction', 'lifesteal'], ['heal', 'minimum hit'],
 ];
 // The offer to click: the best recognised rank; an offer no rank recognises is never picked over a known one,
 // and with nothing recognised the choice is refused (to be taken by the operator).
@@ -2060,6 +2061,85 @@ function chooseClearPlan(check, planResults = []) {
   if (!best) return { error: `not ready for ${check.dungeon}, with or without a plan` };
   return { setNumber: best.setIndex, potion: best.potion, plans: [{ setIndex: best.setIndex, style: best.style, equipment: best.equipment, prayers: best.prayers, best: best.best }] };
 }
+
+// Impending Darkness, start to end in one page (run_012): picks each round's modifier, takes the areas in a fixed
+// order with the set the area needs, resumes the pause before each Bane, eats under 75% HP and runs under 35%
+// (then eats back up and goes on), runs from a magic final Bane to reroll its style, and puts the final-Bane plan
+// on before the last area. Refuses to start when the Unhallowed Wasteland set does not negate its healing.
+const eventRunScript = (plans, timeoutMs) => `(async () => {
+  const ID_MODIFIER_RANKING = ${JSON.stringify(ID_MODIFIER_RANKING)};
+  const chooseIdModifier = ${chooseIdModifier};
+  const c = game.combat, p = c.player, ev = game.combatEvents.allObjects[0], sleep = ms => new Promise(r => setTimeout(r, ms));
+  const ORDER = ['Unhallowed Wasteland', 'Dark Waters', 'Shrouded Badlands', 'Perilous Peaks'];
+  const AREA_SET = { 'Unhallowed Wasteland': 2, 'Dark Waters': 1, 'Shrouded Badlands': 0, 'Perilous Peaks': 0 }, STYLE_SET = { melee: 0, ranged: 1, magic: 2 };
+  const dungeon = game.dungeons.find(d => d.event === ev), clears = () => c.getDungeonCompleteCount(dungeon);
+  const st = { log: [], minHpPct: 100, eats: 0, flees: 0, rerolls: 0, banes: [], clearsBefore: clears(), set: p.selectedEquipmentSet };
+  const log = m => st.log.push(new Date().toISOString().slice(11, 19) + ' ' + m);
+  const desc = x => String(x.description || x.name).replace(/<[^>]+>/g, '');
+  const hpPct = () => 100 * p.hitpoints / p.stats.maxHitpoints;
+  // the Unhallowed Wasteland enemies heal (100 - negation)% every 2 turns: under 100 the area cannot be cleared
+  if (!c.isEventActive) {
+    if (c.isActive) { c.stop(); await sleep(1000); }
+    p.changeEquipmentSet(AREA_SET['Unhallowed Wasteland']); await sleep(300);
+    st.negation = p.modifiers.flatSlayerAreaEffectNegation ?? 0;
+    p.changeEquipmentSet(st.set);
+    if (st.negation < 100) return { ...st, state: 'refused', error: 'S3 negates ' + st.negation + '% of Slayer area effects, 100% needed (run_012: POI Perilous Peaks, Explorers Map, Hunters Ring, skillcape)' };
+    if (!c.checkAreaEntryRequirements(dungeon)) return { ...st, state: 'refused', error: 'entry requirements not met' };
+    c.startEvent(ev); log('event started');
+  } else log('resumed event at round ' + (c.eventProgress + 1));
+  let state = 'running', lastEnemy = null, final = null;
+  const end = Date.now() + ${Number(timeoutMs)};
+  while (state === 'running') {
+    await sleep(250);
+    if (Date.now() > end) { state = 'timeout'; break; }
+    if (clears() > st.clearsBefore) { state = 'cleared'; break; }
+    if (!c.isEventActive) { state = p.hitpoints <= 0 ? 'died' : 'event ended'; break; }
+    if (c.paused) { c.resumeDungeon(); continue; }
+    const hp = hpPct();
+    if (c.isActive) st.minHpPct = Math.min(st.minHpPct, hp);
+    if (c.isActive && hp < 35) {
+      c.stop(); st.flees++; log('RAN at ' + hp.toFixed(0) + '% vs ' + c.enemy?.monster?.name);
+      if (st.flees > 3) { state = 'ran too often'; break; }
+      for (let i = 0; i < 200 && hpPct() < 95; i++) { p.eatFood(1, false); await sleep(100); }
+      if (hpPct() < 95) { state = 'out of food'; break; }
+      continue;
+    }
+    if (c.isActive && hp < 75) { p.eatFood(1, false); st.eats++; continue; }
+    const offers = c.eventPassivesBeingSelected;
+    if (offers?.size) {
+      const list = [...offers], pick = chooseIdModifier(list.map(desc));
+      if (pick.error) { state = 'unknown modifiers: ' + list.map(desc).join(' | '); break; }
+      log('round ' + (c.eventProgress + 1) + ': ' + list.map(desc).join(' | ') + ' => ' + pick.offer);
+      c.onPassiveSelection(list[pick.index]); continue;
+    }
+    const e = c.enemy?.monster;
+    if (e && e !== lastEnemy) {
+      lastEnemy = e;
+      if (/Bane/.test(e.name)) {
+        const style = c.enemy.attackType; st.banes.push({ round: c.eventProgress + 1, name: e.name, style });
+        // nothing hurts a magic final Bane well enough (sims): leave and come back, he rolls his style again
+        if (/Instrument/.test(e.name) && style === 'magic') { c.stop(); st.rerolls++; log('final Bane is magic: run to reroll'); if (st.rerolls > 10) { state = 'too many rerolls'; break; } continue; }
+        if (p.selectedEquipmentSet !== STYLE_SET[style]) p.changeEquipmentSet(STYLE_SET[style]);
+        log(e.name + ' (' + style + ') with S' + (STYLE_SET[style] + 1));
+      }
+    }
+    if (c.isActive) continue;
+    const left = [...c.activeEventAreas.keys()];
+    if (!left.length) continue;
+    const area = ORDER.map(n => left.find(a => a.name === n)).find(Boolean) || left[0];
+    if (c.eventProgress === 4 && left.length === 1 && !final && ${JSON.stringify(plans)}.length) {
+      final = await mh.dungeonSetupApply(${JSON.stringify(plans)}); log('final Bane plan: ' + (final.error || 'applied'));
+      if (final.error) { state = 'final plan failed'; break; }
+    }
+    const set = AREA_SET[area.name] ?? 0;
+    if (p.selectedEquipmentSet !== set) p.changeEquipmentSet(set);
+    log('round ' + (c.eventProgress + 1) + ': ' + area.name + ' with S' + (set + 1));
+    c.selectEventArea(area);
+  }
+  if (c.isActive) { c.stop(); await sleep(1000); }
+  if (state !== 'cleared' && c.isEventActive) c.stopEvent();
+  return { ...st, state, clearsAfter: clears(), finalBefore: final?.before ?? null };
+})()`;
 
 function printDungeonCheck(name, r) {
   const v = dungeonVerdict(r);
@@ -2676,6 +2756,30 @@ if (require.main === module) (async () => {
       const after = sourceOfTruth(afterSlots).find(s => s.name === who) || null;
       console.log(`${data.name} | save-push | ${data.action || 'idle'} | GP ${fmtNum(data.gp)}`);
       console.log(`  saved: ${data.saved} | source ${forceLocal ? 'local (forced)' : before?.source || 'unknown'} -> ${after?.source || 'unknown'}`);
+      return;
+    }
+
+    if (cmd === 'event-run') {
+      if (who === 'all') throw Error('usage: ./melvor-report.js event-run <character>');
+      // the final-Bane plans of dungeon-optimize (melee and ranged only: a magic final Bane is rerolled)
+      const planFile = path.join(JOURNAL_DIR, 'dungeons', `${safeFilePart(who)}-Impending_Darkness_Event-plan.json`);
+      const threshold = Number(process.env.MELVOR_DEATH_THRESHOLD ?? 0.01);
+      const plans = fs.existsSync(planFile) ? JSON.parse(fs.readFileSync(planFile, 'utf8')).results.filter(r => r.style !== 'magic' && r.best && r.best.death <= threshold)
+        .map(r => ({ setIndex: r.setIndex, style: r.style, equipment: r.equipment, prayers: r.prayers, best: r.best })) : [];
+      const timeout = Number(process.env.MELVOR_EVENT_RUN_TIMEOUT_MS || 2 * 60 * 60 * 1000);
+      const r = await withCharacterWrite(who, async client => {
+        const out = await evalExpr(client, eventRunScript(plans, timeout), timeout + 60000);
+        if (out.finalBefore) out.restore = await evalExpr(client, `mh.dungeonSetupApply(${JSON.stringify(out.finalBefore.map(b => ({ ...b, best: { death: 0 } })))})`, 120000);
+        await evalExpr(client, `game.combat.player.changeEquipmentSet(${out.set ?? 0})`);
+        return out;
+      });
+      console.log(`${who} | event-run | Impending Darkness | ${r.state} | clears ${r.clearsBefore} -> ${r.clearsAfter ?? '?'} | lowest HP ${Math.round(r.minHpPct)}% | eats ${r.eats}, runs ${r.flees}, rerolls ${r.rerolls}`);
+      if (r.error) console.log('  ' + r.error);
+      for (const line of r.log) console.log('  ' + line);
+      if (r.restore) console.log(`  final plan gear back: ${r.restore.error || 'yes'}`);
+      fs.appendFileSync(path.join(JOURNAL_DIR, `${who}.md`), `## ${new Date().toISOString()} - ${who} event-run\n\n- Impending Darkness: ${r.state}, clears ${r.clearsBefore} -> ${r.clearsAfter ?? '?'}\n- Lowest HP ${Math.round(r.minHpPct)}%, runs ${r.flees}, rerolls ${r.rerolls}\n\n`);
+      console.log(`  next: slayer-start ${who} (the event leaves the character idle)`);
+      if (r.state !== 'cleared') process.exitCode = 1;
       return;
     }
 
