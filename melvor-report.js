@@ -2056,7 +2056,7 @@ function chooseClearPlan(check, planResults = []) {
     const worst = set => Math.max(...verdict.fights.map(f => check.sims.find(s => s.fight === f.key && s.set === set && s.ok)?.deathRate ?? 1));
     return { setNumber: [...new Set(check.sims.map(s => s.set))].sort((a, b) => worst(a) - worst(b))[0], plans: [], potion: null };
   }
-  const best = planResults.filter(r => r.best.death <= verdict.threshold).sort((a, b) => a.best.death - b.best.death || a.best.kill - b.best.kill)[0];
+  const best = planResults.filter(r => r.best && r.best.death <= verdict.threshold).sort((a, b) => a.best.death - b.best.death || a.best.kill - b.best.kill)[0];
   if (!best) return { error: `not ready for ${check.dungeon}, with or without a plan` };
   return { setNumber: best.setIndex, potion: best.potion, plans: [{ setIndex: best.setIndex, style: best.style, equipment: best.equipment, prayers: best.prayers, best: best.best }] };
 }
