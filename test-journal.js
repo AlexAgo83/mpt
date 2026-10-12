@@ -373,3 +373,11 @@ console.log('dungeon verdict and clear choice ok');
   assert.strictEqual(chooseIdModifier(['Slayer Area Effects are +5% Stronger', '+10% Maximum Hit, -10% Attack Interval, and -10% Global Evasion']).rank, 9, 'live: area effects');
 }
 console.log('impending darkness modifier choice ok');
+
+const { runeRisk } = require('./melvor-report.js');
+assert.strictEqual(runeRisk(null), null, 'no magic, no rune risk');
+assert.strictEqual(runeRisk({ spell: 'Ocean Song', casts: null }), null, 'runes paid by equipment');
+assert.strictEqual(runeRisk({ spell: 'Ocean Song', casts: 90000, etaMs: 3 * 86400000, limiting: 'Water Rune' }), null, 'three days of runes is fine');
+assert.match(runeRisk({ spell: 'Ocean Song', casts: 4000, etaMs: 5 * 3600000, limiting: 'Water Rune' }), /Water Rune runs out in 5 h/, 'under a day is flagged');
+assert.match(runeRisk({ spell: 'Ocean Song', casts: 0, etaMs: 0, limiting: 'Water Rune' }), /out of Water Rune.*combat stops/, 'empty bank is flagged');
+console.log('rune risk ok');

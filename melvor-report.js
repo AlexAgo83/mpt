@@ -554,6 +554,15 @@ function verifiedSkillPlan(data, skill, abyssal) {
   return `${abyssal ? 'abyssal ' : ''}${skill.name}: ${option.recipe}; ${option.maxActions} actions; ${option.runwayHours.toFixed(1)} h runway; ${inputs}`;
 }
 
+// A magic character stops fighting once the bank can't pay a cast; flag it a day ahead.
+const RUNE_RISK_MS = 24 * 3600 * 1000;
+function runeRisk(runes) {
+  if (!runes || runes.casts === null || runes.casts === undefined) return null;
+  if (runes.casts === 0) return `Runes: out of ${runes.limiting} for ${runes.spell}, combat stops`;
+  if (runes.etaMs < RUNE_RISK_MS) return `Runes: ${runes.limiting} runs out in ${fmtDuration(runes.etaMs)} (${runes.spell})`;
+  return null;
+}
+
 function briefFromData(name, data, save, previousEntry, now = new Date().toISOString()) {
   const report = data.report;
   const skills = data.skills || [];
@@ -634,6 +643,7 @@ function briefFromData(name, data, save, previousEntry, now = new Date().toISOSt
     risks: [
       saveRisk,
       report.mode === 'Hardcore Mode' ? 'Hardcore: verify survivability before combat changes' : null,
+      runeRisk(report.actionEstimate?.runes),
     ].filter(Boolean),
     next: [
       ...currentNext,
@@ -1758,7 +1768,7 @@ function structuredInsights(entry) {
     const isPending = /^ETA pending/i.test(label);
     const isIdle = /\bidle\b|action stopped/i.test(label);
     const isSave = !isPending && /save|source-of-truth/i.test(label);
-    const isRunway = /^(ammo|consumable|familiar|food):|quiver|summon|runway/i.test(label);
+    const isRunway = /^(ammo|consumable|familiar|food|runes):|quiver|summon|runway/i.test(label);
     const isTask = /slayer task|finish |ETA/i.test(label) && !isRunway;
     const actionable = !isPending && (isSave || /^Equip .+ in \w+; sim /i.test(label) || /; (\d+ actions; [\d.]+ h runway|no materials needed);/i.test(label) || /\bfinish\b/i.test(label));
     const priority = isPending ? 'low' : isIdle || (isAlert && isSave) ? 'critical'
@@ -2402,7 +2412,7 @@ function lock(retry = true) {
   }
 }
 
-module.exports = { planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData, completionLine, verifiedSkillPlan, buildGoals, dungeonVerdict, chooseClearPlan, chooseIdModifier };
+module.exports = { runeRisk, planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData, completionLine, verifiedSkillPlan, buildGoals, dungeonVerdict, chooseClearPlan, chooseIdModifier };
 if (require.main === module) (async () => {
   if (cmd === 'journal-serve') return runJournalServer();
   if (cmd === 'dungeon-guide') return runDungeonGuide(who);

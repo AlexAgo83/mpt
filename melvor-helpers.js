@@ -112,11 +112,16 @@
   };
   const currentActionEstimate = () => {
     const action = game.activeAction?.name ?? null;
-    if (!action) return { name: 'idle', notes: ['no task is running'] };
     const p = game.combat.player;
+    if (!action) {
+      // Melvor stops combat when the bank can't pay a cast: say why it went idle.
+      const runes = p.attackType === 'magic' ? runeRunway(p, p.stats.attackInterval) : null;
+      return { name: 'idle', notes: ['no task is running', ...(runes?.casts === 0 ? [runes.note] : [])], ...(runes ? { runes } : {}) };
+    }
     const equipped = Object.fromEntries(equippedSlots().map(s => [s.slot.localID, { item: s.item.name, quantity: slotQty(s) }]));
     const notes = [];
     const runways = [];
+    let runes = null;
     const addRunway = (slot, interval, unit) => {
       const e = equipped[slot];
       if (!e?.quantity || !interval) return;
@@ -140,6 +145,7 @@
       addRunway('Summon1', attackInterval, 'combat charges at 1/attack');
       addRunway('Summon2', attackInterval, 'combat charges at 1/attack');
       if (p.food.currentSlot?.quantity) notes.push(`Food: ${p.food.currentSlot.item.name} x${p.food.currentSlot.quantity.toLocaleString('en-US')}`);
+      if (p.attackType === 'magic') runes = runeRunway(p, attackInterval);
     } else {
       const interval = game.activeAction?.actionInterval ?? game.activeAction?.currentActionInteral ?? null;
       if (interval) {
@@ -148,7 +154,29 @@
         addRunway('Summon2', interval, 'skilling charges at 1/action');
       }
     }
-    return { name: action, notes: notes.filter(Boolean), equipment: equipped, runways };
+    if (runes?.note) notes.push(runes.note);
+    return { name: action, notes: notes.filter(Boolean), equipment: equipped, runways, ...(runes ? { runes } : {}) };
+  };
+
+  // Magic runway: casts of the attack spell the bank still pays for. Runes live in the
+  // bank, not in an equipment slot, so addRunway never saw them and a magic character
+  // ran dry unreported. Costs come from getRuneCosts (staff-provided runes already
+  // removed); rune preservation is ignored, so the estimate is a floor.
+  const runeRunway = (p, interval) => {
+    const spell = p.spellSelection?.attack;
+    if (!spell) return null;
+    const costs = (typeof p.getRuneCosts === 'function' ? p.getRuneCosts(spell) : spell.runesRequired) || [];
+    if (!costs.length) return { spell: spell.name, casts: null, note: `Runes: ${spell.name} paid by equipment` };
+    const per = costs.map(c => {
+      const have = game.bank.getQty(c.item);
+      return { item: c.item.name, perCast: c.quantity, have, casts: Math.floor(have / c.quantity) };
+    }).sort((a, b) => a.casts - b.casts);
+    const low = per[0];
+    const etaMs = low.casts * interval;
+    const note = low.casts === 0
+      ? `Runes: OUT of ${low.item} for ${spell.name} (${low.perCast}/cast, 0 in bank)`
+      : `Runes: ${low.item} · about ${fmtMs(etaMs)} (${low.casts.toLocaleString('en-US')} casts left, ${low.perCast}/cast)`;
+    return { spell: spell.name, casts: low.casts, etaMs, limiting: low.item, costs: per, note };
   };
 
   // Compact character overview.
