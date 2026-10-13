@@ -207,6 +207,8 @@ const req = (method, path) => new Promise((resolve, reject) => {
     res.on('end', () => resolve({ status: res.statusCode, data }));
   });
   r.on('error', reject);
+  // a wedged Chrome accepts the connection and never answers: fail instead of hanging the command
+  r.setTimeout(10000, () => r.destroy(Error(`Chrome on port ${PORT} is not answering; kill it (pkill -f remote-debugging-port=${PORT}) and rerun`)));
   r.end();
 });
 
@@ -270,66 +272,75 @@ async function waitFor(client, expression, timeoutMs = 120000) {
 
 // A document-start script must exist before the game's mods run (puts the combat simulator in debug mode for --sim).
 const SIM_DEBUG = `(() => { let v; Object.defineProperty(self, 'mcs', { configurable: true, get() { return v; }, set(x) { if (x && typeof x === 'object') x.isDebug = true; v = x; } }); })();`;
-async function preparePage(client, init) {
+// readSlots leaves its tab on the selection screen; the next character load takes it instead of opening and
+// loading a second page (about 7 s per command).
+let spareTab = null;
+// Chrome outlives the command, so every tab is tracked and closed on exit, errors included:
+// a leaked tab with a character loaded keeps playing it
+const openTabs = new Set();
+async function takeTab() {
+  if (spareTab) { const t = spareTab; spareTab = null; return t; }
+  const tab = await newTab(URL);
+  openTabs.add(tab.id);
+  const client = await cdp(tab.webSocketDebuggerUrl);
   await client.send('Runtime.enable');
   await client.send('Page.enable');
-  if (!init) return;
-  await client.send('Page.addScriptToEvaluateOnNewDocument', { source: init });
-  await client.send('Page.reload', { ignoreCache: false });
-  await sleep(1500);
+  return { tab, client };
 }
-
-async function withCharacter(name, fn, init) {
-  const tab = await newTab(URL);
-  const client = await cdp(tab.webSocketDebuggerUrl);
-  try {
-    await preparePage(client, init);
-    await waitFor(client, "document.readyState === 'complete'", 90000);
-    await sleep(2200);
-    await evalExpr(client, helper);
-    const load = await evalExpr(client, `mh.loadCharacter(${JSON.stringify(name)})`, 45000);
-    if (!String(load).startsWith('loading ')) throw Error(load);
-    await waitFor(client, `typeof game !== 'undefined' && game.loopStarted && game.characterName === ${JSON.stringify(name)}`, 150000);
-    await sleep(1500);
-    return await fn(client);
-  } finally {
-    client.close();
-    await closeTab(tab.id);
-  }
+async function dropTab({ tab, client }) {
+  client.close();
+  await closeTab(tab.id);
+  openTabs.delete(tab.id);
 }
+async function closeAllTabs() {
+  spareTab = null;
+  await Promise.all([...openTabs].map(closeTab));
+  openTabs.clear();
+}
+async function closeSpareTab() {
+  if (spareTab) await dropTab(spareTab);
+  spareTab = null;
+}
+const SELECTION_READY = "/Select your Character|Sign In|DEMO VERSION/.test(document.body?.innerText || '')";
 
 async function withCharacterSource(name, source, fn, init) {
-  if (source !== 'local') return withCharacter(name, fn, init);
-  const tab = await newTab(URL);
-  const client = await cdp(tab.webSocketDebuggerUrl);
+  const loader = source === 'local' ? 'loadLocalCharacter' : 'loadCharacter';
+  const t = await takeTab();
+  const { client } = t;
   try {
-    await preparePage(client, init);
+    if (init) {
+      await client.send('Page.addScriptToEvaluateOnNewDocument', { source: init });
+      await client.send('Page.reload', { ignoreCache: false });
+      await sleep(500);
+    }
     await waitFor(client, "document.readyState === 'complete'", 90000);
-    await sleep(2200);
+    await waitFor(client, SELECTION_READY, 90000);
+    // the save list is only final once the cloud sign-in lands (before it, some local saves render as btn-danger);
+    // the old fixed 7 s of sleeps covered this
+    await waitFor(client, "typeof cloudManager !== 'undefined' && cloudManager.isAuthenticated && !/DEMO VERSION/.test(document.body.innerText)", 20000).catch(() => null);
     await evalExpr(client, helper);
-    const load = await evalExpr(client, `mh.loadLocalCharacter(${JSON.stringify(name)})`, 45000);
-    if (!String(load).startsWith('loading local ')) throw Error(load);
+    const load = await evalExpr(client, `mh.${loader}(${JSON.stringify(name)})`, 45000);
+    if (!String(load).startsWith(source === 'local' ? 'loading local ' : 'loading ')) throw Error(load);
     await waitFor(client, `typeof game !== 'undefined' && game.loopStarted && game.characterName === ${JSON.stringify(name)}`, 150000);
+    // ponytail: kept fixed, lets the first ticks after offline progress settle before reading or writing
     await sleep(1500);
     return await fn(client);
   } finally {
-    client.close();
-    await closeTab(tab.id);
+    await dropTab(t);
   }
 }
 
 async function withPage(fn) {
-  const tab = await newTab(URL);
-  const client = await cdp(tab.webSocketDebuggerUrl);
+  const t = await takeTab();
+  await waitFor(t.client, "document.readyState === 'complete'", 90000);
   try {
-    await client.send('Runtime.enable');
-    await client.send('Page.enable');
-    await waitFor(client, "document.readyState === 'complete'", 90000);
-    await sleep(2200);
-    return await fn(client);
-  } finally {
-    client.close();
-    await closeTab(tab.id);
+    const r = await fn(t.client);
+    await closeSpareTab();
+    spareTab = t;
+    return r;
+  } catch (e) {
+    await dropTab(t);
+    throw e;
   }
 }
 
@@ -347,11 +358,13 @@ async function ensureChrome() {
     '--no-first-run',
     '--no-default-browser-check',
     'about:blank',
-  ], { stdio: 'ignore' });
+  ], { stdio: 'ignore', detached: true });
+  // left running between commands: the Melvor Cloud sign-in lives in this browser session and is lost on restart
+  chrome.unref();
 
   for (let i = 0; i < 80; i++) {
     const ready = await req('GET', '/json/version').catch(() => null);
-    if (ready?.status === 200) return chrome;
+    if (ready?.status === 200) return null;
     if (chrome.exitCode !== null) throw Error('Chrome exited before opening the debug port');
     await sleep(250);
   }
@@ -563,6 +576,20 @@ function runeRisk(runes) {
   return null;
 }
 
+// brief --short: one line per character, what an operator check needs without parsing the JSON
+function briefLine(b) {
+  const c = b.combat?.current;
+  const where = b.action === 'Combat' && c ? `${c.area || '?'} / ${c.monster || '?'}${c.slayerTask ? ` (slayer ${c.slayerTask.left})` : ''}` : (b.action || 'idle');
+  const low = b.standard?.lowest?.[0];
+  return [
+    b.name,
+    where,
+    b.deaths != null ? `deaths ${b.deaths}` : null,
+    low ? `lowest ${low.name} ${low.level}` : 'all standard skills capped',
+    ...(b.risks || []).map(r => `⚠ ${r}`),
+  ].filter(Boolean).join(' · ');
+}
+
 function briefFromData(name, data, save, previousEntry, now = new Date().toISOString()) {
   const report = data.report;
   const skills = data.skills || [];
@@ -599,6 +626,7 @@ function briefFromData(name, data, save, previousEntry, now = new Date().toISOSt
       writeBlocked: save.source === 'local' && save.diffMs > 5 * 60000,
     } : { current: 'unknown', diffMinutes: null, writeBlocked: true },
     gp: report.gp,
+    deaths: data.deaths ?? null,
     combat: {
       level: report.combatLevel,
       hp: report.hp,
@@ -1134,13 +1162,24 @@ function printSlots(r) {
 
 async function readSlots() {
   return withPage(async client => {
+    await waitFor(client, "typeof cloudManager !== 'undefined' && cloudManager.isAuthenticated", 20000).catch(() => null);
     await waitFor(client, "/Select your Character|Sign In|DEMO VERSION/.test(document.body?.innerText || '')", 90000);
     return evalExpr(client, `(async () => {
       const sleep = ms => new Promise(r => setTimeout(r, ms));
-      const click = async (re) => {
+      // poll for the toggled list instead of a fixed 5 s per toggle
+      const click = async (re, kind) => {
         const btn = [...document.querySelectorAll('button')].find(b => re.test(b.innerText));
-        if (btn) { btn.click(); await sleep(5000); return true; }
-        return false;
+        if (!btn) return false;
+        btn.click();
+        // done once the list is non-empty and unchanged for 500 ms (the cloud list fills in asynchronously)
+        let last = -1, still = 0;
+        for (let i = 0; i < 80 && still < 5; i++) {
+          await sleep(100);
+          const n = scrape(kind).filter(s => s.state === kind).length;
+          still = n > 0 && n === last ? still + 1 : 0;
+          last = n;
+        }
+        return true;
       };
       const scrape = (kind) => [...document.querySelectorAll('button')]
         .map(button => button.innerText)
@@ -1159,9 +1198,9 @@ async function readSlots() {
             status: (text.match(/(Most recent save|Old save)/) || [])[1] || null,
           };
         }).filter(Boolean);
-      if (/Show Local Saves/i.test(document.body.innerText)) await click(/Show Local Saves/i);
+      if (/Show Local Saves/i.test(document.body.innerText)) await click(/Show Local Saves/i, 'Local');
       const local = scrape('Local');
-      if (/Show Cloud Saves/i.test(document.body.innerText)) await click(/Show Cloud Saves/i);
+      if (/Show Cloud Saves/i.test(document.body.innerText)) await click(/Show Cloud Saves/i, 'Cloud');
       const cloud = scrape('Cloud');
       const text = document.body.innerText || '';
       return {
@@ -2394,8 +2433,8 @@ function lock(retry = true) {
     const fd = fs.openSync(LOCK, 'wx');
     fs.writeFileSync(fd, String(process.pid));
     const unlock = () => { try { fs.closeSync(fd); fs.unlinkSync(LOCK); } catch {} };
-    process.once('SIGINT', () => { unlock(); process.exit(130); });
-    process.once('SIGTERM', () => { unlock(); process.exit(143); });
+    process.once('SIGINT', () => closeAllTabs().finally(() => { unlock(); process.exit(130); }));
+    process.once('SIGTERM', () => closeAllTabs().finally(() => { unlock(); process.exit(143); }));
     return unlock;
   } catch {
     // ponytail: kill(pid, 0) treats EPERM as alive; fine, this tool only locks its own pids
@@ -2412,7 +2451,7 @@ function lock(retry = true) {
   }
 }
 
-module.exports = { runeRisk, planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData, completionLine, verifiedSkillPlan, buildGoals, dungeonVerdict, chooseClearPlan, chooseIdModifier };
+module.exports = { runeRisk, briefLine, planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData, completionLine, verifiedSkillPlan, buildGoals, dungeonVerdict, chooseClearPlan, chooseIdModifier };
 if (require.main === module) (async () => {
   if (cmd === 'journal-serve') return runJournalServer();
   if (cmd === 'dungeon-guide') return runDungeonGuide(who);
@@ -2952,11 +2991,13 @@ if (require.main === module) (async () => {
             skills: mh.skills(),
             skilling: mh.skillingAudit(),
             bank: Object.fromEntries(wanted.map(name => [name, qty(name)])),
+            deaths: (() => { try { return game.stats.Combat.get(CombatStats.Deaths); } catch { return null; } })(),
           };
         })()`));
         characters[name] = briefFromData(name, data, sources[name], previous?.characters?.[name] || null, now);
       }
-      console.log(JSON.stringify({ collectedAt: now, characters }, null, 2));
+      if (argv.includes('--short')) console.log(names.map(n => briefLine(characters[n])).join('\n'));
+      else console.log(JSON.stringify({ collectedAt: now, characters }, null, 2));
       return;
     }
 
@@ -3040,6 +3081,7 @@ if (require.main === module) (async () => {
       else printGear(data);
     }
   } finally {
+    await closeAllTabs();
     if (chrome) chrome.kill('SIGTERM');
     unlock();
   }

@@ -24,17 +24,19 @@
   mh.loadCharacter = async (name) => {
     const open = await mh.activeCharacters();
     if (open.includes(name)) return `refused: "${name}" already open in another tab`;
-    if (/DEMO VERSION|Buy the Full Game or Sign in/i.test(document.body.innerText))
-      return 'refused: not signed in to cloud';
+    // the cloud sign-in lands a few seconds after page load: the page says DEMO VERSION until then
+    const demo = () => /DEMO VERSION|Buy the Full Game or Sign in/i.test(document.body.innerText);
+    for (let i = 0; i < 60 && demo(); i++) await new Promise(r => setTimeout(r, 250));
+    if (demo()) return 'refused: not signed in to cloud';
     let btn = null;
-    for (let i = 0; i < 30 && !btn; i++) {
+    for (let i = 0; i < 120 && !btn; i++) {
       // the toggle can appear late: retry it on every iteration
       const toggle = [...document.querySelectorAll('button')].find(b => /Show Cloud Saves/i.test(b.innerText));
-      if (toggle) { toggle.click(); await new Promise(r => setTimeout(r, 1000)); }
+      if (toggle) { toggle.click(); await new Promise(r => setTimeout(r, 250)); }
       // not .btn-gamemode-standard: the class varies with the character's game mode
       btn = [...document.querySelectorAll('button[class*="btn-gamemode"]')]
         .find(b => b.innerText.includes(name));
-      if (!btn) await new Promise(r => setTimeout(r, 1000));
+      if (!btn) await new Promise(r => setTimeout(r, 250));
     }
     if (!btn) return `no save button for "${name}"`;
     if (/Local Save/i.test(btn.innerText)) return `refused: "${name}" is only visible as a local save`;
@@ -49,18 +51,18 @@
   mh.loadLocalCharacter = async (name) => {
     const open = await mh.activeCharacters();
     if (open.includes(name)) return `refused: "${name}" already open in another tab`;
-    const toggle = [...document.querySelectorAll('button')].find(b => /Show Local Saves/i.test(b.innerText));
-    if (toggle) {
-      toggle.click();
-      await new Promise(r => setTimeout(r, 5000));
-    }
+    // poll for the button instead of a fixed 5 s after the toggle; the toggle can appear late, so retry it too
     let btn = null;
-    for (let i = 0; i < 30 && !btn; i++) {
+    for (let i = 0; i < 150 && !btn; i++) {
+      // the toggle re-renders the list: click it only while no local save is shown, at most every 2 s
+      const shown = [...document.querySelectorAll('button[class*="btn-gamemode"]')].some(b => /Local Save/i.test(b.innerText));
+      const toggle = [...document.querySelectorAll('button')].find(b => /Show Local Saves/i.test(b.innerText));
+      if (toggle && !shown && i % 10 === 0) toggle.click();
       btn = [...document.querySelectorAll('button[class*="btn-gamemode"]')]
         .find(b => /Local Save/i.test(b.innerText) && b.innerText.includes(name));
-      if (!btn) await new Promise(r => setTimeout(r, 1000));
+      if (!btn) await new Promise(r => setTimeout(r, 200));
     }
-    if (!btn) return `no local save button for "${name}"`;
+    if (!btn) return `no local save button for "${name}": ` + JSON.stringify([...document.querySelectorAll('button')].map(b => b.className.slice(0, 40) + '|' + b.innerText.replace(/\s+/g, ' ').slice(0, 60)).filter(t => /Save|Local|Cloud/i.test(t)).slice(0, 12));
     btn.click();
     await new Promise(r => setTimeout(r, 800));
     const confirm = [...document.querySelectorAll('.swal2-popup button')]

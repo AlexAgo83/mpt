@@ -381,3 +381,10 @@ assert.strictEqual(runeRisk({ spell: 'Ocean Song', casts: 90000, etaMs: 3 * 8640
 assert.match(runeRisk({ spell: 'Ocean Song', casts: 4000, etaMs: 5 * 3600000, limiting: 'Water Rune' }), /Water Rune runs out in 5 h/, 'under a day is flagged');
 assert.match(runeRisk({ spell: 'Ocean Song', casts: 0, etaMs: 0, limiting: 'Water Rune' }), /out of Water Rune.*combat stops/, 'empty bank is flagged');
 console.log('rune risk ok');
+
+const { briefLine } = require('./melvor-report.js');
+assert.strictEqual(briefLine({ name: 'Chap', action: 'Combat', deaths: 16, combat: { current: { area: 'Toxic Swamps', monster: 'Venomous Snake', slayerTask: { left: 249 } } }, standard: { lowest: [{ name: 'Cartography', level: 105 }] }, risks: ['Runes: Fire Rune runs out in 7 h (Fire Surge)'] }),
+  'Chap · Toxic Swamps / Venomous Snake (slayer 249) · deaths 16 · lowest Cartography 105 · ⚠ Runes: Fire Rune runs out in 7 h (Fire Surge)', 'combat line');
+assert.strictEqual(briefLine({ name: 'Opa', action: 'Firemaking', deaths: 0, standard: { lowest: [] }, risks: [] }), 'Opa · Firemaking · deaths 0 · all standard skills capped', 'skilling line');
+console.log('brief line ok');
+
