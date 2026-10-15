@@ -317,7 +317,9 @@ async function withCharacterSource(name, source, fn, init) {
     await waitFor(client, SELECTION_READY, 90000);
     // the save list is only final once the cloud sign-in lands (before it, some local saves render as btn-danger);
     // the old fixed 7 s of sleeps covered this
-    await waitFor(client, "typeof cloudManager !== 'undefined' && cloudManager.isAuthenticated && !/DEMO VERSION/.test(document.body.innerText)", 20000).catch(() => null);
+    // signed out of the cloud, a write lands only in the local save and drifts from the cloud: stop instead
+    await waitFor(client, "typeof cloudManager !== 'undefined' && cloudManager.isAuthenticated && !/DEMO VERSION/.test(document.body.innerText)", 20000)
+      .catch(() => { throw Error('Melvor cloud is signed out in this Chrome: sign in again (login-smoke), nothing was read or changed'); });
     await evalExpr(client, helper);
     const load = await evalExpr(client, `mh.${loader}(${JSON.stringify(name)})`, 45000);
     if (!String(load).startsWith(source === 'local' ? 'loading local ' : 'loading ')) throw Error(load);
