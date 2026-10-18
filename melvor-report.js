@@ -97,6 +97,7 @@ const usage = `usage:
   ./melvor-report.js set-swap <character> <set A> <set B> [--apply]   (swap two sets: items, spell, prayers)
   ./melvor-report.js craft <character> <skill> "<recipe>" [--quantity N] [--apply]   (craft N, then resume the previous activity)
   ./melvor-report.js train-targets <character> --slot N [--weapon "<name>"]   (simulate set N against every reachable Abyssal monster; --weapon swaps it in the simulator only)
+  ./melvor-report.js fight-optimize <character> "<monster>" --slot N [--style melee|ranged|magic]   (owned gear, potion and prayers that make set N best against one monster; read-only)
   ./melvor-report.js fight-start <character> "<monster>" --slot N [--apply]   (fight one monster with set N, e.g. a train-targets pick)
   ./melvor-report.js batch <character> <steps.json> [--apply]    (one load + one save for several steps: [{do: config-set|equip|skill-start|set-plan|set-swap|fight-start|craft, ...}])
   ./melvor-report.js item-where <character> "<item name part>"     (bank, sets, deaths: where an item went)
@@ -2835,6 +2836,27 @@ if (require.main === module) (async () => {
       const planFile = path.join(JOURNAL_DIR, 'dungeons', `${safeFilePart(who)}-${safeFilePart(check.dungeon)}-plan.json`);
       const kept = fs.existsSync(planFile) ? JSON.parse(fs.readFileSync(planFile, 'utf8')).results.filter(old => !results.some(r => r.style === old.style)) : [];
       fs.writeFileSync(planFile, JSON.stringify({ at: new Date().toISOString(), character: who, dungeon: check.dungeon, results: [...kept, ...results] }, null, 2));
+      return;
+    }
+
+    if (cmd === 'fight-optimize') {
+      // read-only: the owned gear, potion and prayers that make set N best against one monster (a train-targets or fight-start pick)
+      if (who === 'all' || !arg3 || !requestedSlot) throw Error('usage: ./melvor-report.js fight-optimize <character> "<monster>" --slot N [--style melee|ranged|magic]');
+      const roles = (process.env.MELVOR_SET_ROLES || 'melee,ranged,magic,skill,melee,ranged,magic').split(',').map(x => x.trim());
+      const style = gearStyle || roles[requestedSlot - 1];
+      const { sources } = await readSourcesByName();
+      const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, `(() => { const m = game.monsters.allObjects.find(x => x.name === ${JSON.stringify(arg3)}); if (!m) return { error: 'no monster ' + ${JSON.stringify(arg3)} }; self.__mptOptCandidates = ${Number(process.env.MELVOR_OPTIMIZE_CANDIDATES || 0)}; self.__mptScreenTrials = ${Number(process.env.MELVOR_SCREEN_TRIALS ?? 200)}; return mh.optimizeFight({ monsterId: m.id, entityId: undefined, setIndex: ${requestedSlot}, style: ${JSON.stringify(style)}, maxSims: ${Number(process.env.MELVOR_OPTIMIZE_SIMS || 120)} }); })()`, 900000), SIM_DEBUG);
+      if (r.error) throw Error(r.error);
+      console.log(`${who} | ${arg3} | S${requestedSlot} ${style}: deaths ${(r.start.death * 100).toFixed(1)}% -> ${(r.best.death * 100).toFixed(1)}%, kill ${r.start.kill.toFixed(1)} -> ${r.best.kill.toFixed(1)} s (${r.sims} sims${r.screenTrials ? `, screened at ${r.screenTrials} trials, result at ${r.best.trials}` : ''})`);
+      const finalBySlot = new Map(); for (const c of r.changes) finalBySlot.set(c.slot, { ...c, from: finalBySlot.get(c.slot)?.from ?? c.from });
+      for (const c of finalBySlot.values()) console.log(`  ${c.slot}: ${c.from ? c.from + ' -> ' : ''}${c.to}`);
+      if (!r.changes.length) { console.log('  no owned change improves this fight'); return; }
+      // the set-plan steps of the changes (a batch set-plan step takes the same list)
+      const plan = [{ setIndex: requestedSlot, style, equipment: [...finalBySlot.values()].filter(c => !['Potion', 'Prayers'].includes(c.slot)).map(c => [c.slot, c.to]), ...(finalBySlot.has('Prayers') ? { prayers: finalBySlot.get('Prayers').to.split(' + ') } : {}), ...(finalBySlot.has('Potion') ? { potion: finalBySlot.get('Potion').to } : {}) }];
+      const dir = path.join(JOURNAL_DIR, 'fights'); fs.mkdirSync(dir, { recursive: true });
+      const planFile = path.join(dir, `${safeFilePart(who)}-${safeFilePart(arg3)}-S${requestedSlot}-plan.json`);
+      fs.writeFileSync(planFile, JSON.stringify(plan, null, 2));
+      console.log(`  plan: ${planFile} (set-plan ${who} <plan> to preview)`);
       return;
     }
 

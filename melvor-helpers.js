@@ -642,11 +642,18 @@
     const prayer = name => game.prayers.allObjects.find(p => p.name === name && usable(p));
     const combos = [[protect], [protect, 'Battleborn'], [protect, 'Battleheart'], [protect, { melee: 'Valor', ranged: 'Avidity', magic: 'Divination' }[style]], [protect, { melee: 'Piety', ranged: 'Rigour', magic: 'Augury' }[style]]]
       .map(c => c.map(prayer)).filter(c => c.every(Boolean)).map(c => c.map(p => p.id));
-    for (const ids of combos) {
-      if (sims >= maxSims) break;
+    const tryPrayers = async ids => {
+      if (sims >= maxSims) return;
       const trial = { ...current, prayerSelected: ids }; const r = await run(trial);
       if (better(r, best)) { best = r; current = trial; changes.push({ slot: 'Prayers', from: '', to: ids.map(id => game.prayers.getObjectByID(id)?.name).join(' + '), death: r.death, kill: r.kill }); }
-    }
+    };
+    // an Abyssal monster takes the abyssal prayers, not the standard ones: each usable one alone, then the kept one paired with each other
+    if (/^melvorItA:/.test(monsterId)) {
+      const abyssal = game.prayers.allObjects.filter(p => /^melvorItA:/.test(p.id) && usable(p)).map(p => p.id);
+      for (const id of abyssal) await tryPrayers([id]);
+      const kept = current.prayerSelected?.[0];
+      if (kept) for (const id of abyssal) if (id !== kept) await tryPrayers([kept, id]);
+    } else for (const ids of combos) await tryPrayers(ids);
     if (screen < full) {
       start = await run(base, full); best = current === base ? start : await run(current, full);
       // the 200-trial screen cannot see small death-rate gaps: never keep a plan that dies more than the start at full trials

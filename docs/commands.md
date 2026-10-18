@@ -42,6 +42,7 @@ npm run source
 ./melvor-report.js set-swap <character> <set A> <set B> [--apply]
 ./melvor-report.js craft <character> <skill> "<recipe>" [--quantity N] [--apply]
 ./melvor-report.js train-targets <character> --slot N
+./melvor-report.js fight-optimize <character> "<monster>" --slot N [--style melee|ranged|magic]
 ./melvor-report.js fight-start <character> "<monster>" --slot N [--apply]
 ./melvor-report.js batch <character> <steps.json> [--apply]
 ./melvor-report.js export-state all > /tmp/melvor-state.json
