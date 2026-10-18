@@ -2541,11 +2541,13 @@ if (require.main === module) (async () => {
       if (who === 'all') throw Error(`usage: ./melvor-report.js ${cmd} <character>${cmd === 'set-candidates' ? ' --style melee|ranged|magic' : cmd === 'train-targets' ? ' --slot N' : ''}`);
       if (cmd === 'set-candidates' && !gearStyle) throw Error('set-candidates needs --style melee|ranged|magic');
       const { sources } = await readSourcesByName();
-      const expr = cmd === 'sets' ? '({ name: game.characterName, styles: Object.fromEntries(Object.entries(game.combat.player.attackStyles ?? {}).map(([k, v]) => [k, v?.name])), sets: mh.setsView() })' : cmd === 'set-candidates' ? `mh.setCandidates(${JSON.stringify(gearStyle)})` : `(self.__mptScreenTrials = ${Number(process.env.MELVOR_SCREEN_TRIALS ?? 200)}, mh.trainTargets(${requestedSlot}, 45, ${JSON.stringify(weaponName)}))`;
+      const expr = cmd === 'sets' ? '({ name: game.characterName, styles: Object.fromEntries(Object.entries(game.combat.player.attackStyles ?? {}).map(([k, v]) => [k, v?.name])), sets: mh.setsView(), prayer: { level: game.prayer?.level, abyssalLevel: game.prayer?.abyssalLevel ?? 0 }, abyssalPrayers: game.prayers.allObjects.filter(p => /^melvorItA:/.test(p.id)).map(p => ({ name: p.name, level: p.abyssalLevel ?? 0 })).sort((a, b) => a.level - b.level) })' : cmd === 'set-candidates' ? `mh.setCandidates(${JSON.stringify(gearStyle)})` : `(self.__mptScreenTrials = ${Number(process.env.MELVOR_SCREEN_TRIALS ?? 200)}, mh.trainTargets(${requestedSlot}, 45, ${JSON.stringify(weaponName)}))`;
       const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, expr, 900000), cmd === 'train-targets' ? SIM_DEBUG : undefined);
       if (r.error) throw Error(r.error);
       if (cmd === 'sets') {
         console.log(`${r.name} | ${r.sets.length} equipment sets | attack styles ${Object.entries(r.styles || {}).map(([k, v]) => k + ' ' + v).join(', ')} (config-set <character> style <name>)`);
+        const usable = (r.abyssalPrayers || []).filter(p => p.level <= r.prayer.abyssalLevel), next = (r.abyssalPrayers || []).find(p => p.level > r.prayer.abyssalLevel);
+        console.log(`  Prayer ${r.prayer.level} / abyssal ${r.prayer.abyssalLevel} | abyssal prayers usable: ${usable.map(p => p.name).join(', ') || 'none'}${next ? ` | next: ${next.name} at abyssal ${next.level}` : ''}`);
         for (const x of r.sets) {
           console.log(`  S${x.set}${x.selected ? ' (selected)' : ''} | spell ${x.spell || '-'} | prayers ${x.prayers.join(' + ') || '-'}`);
           console.log('    ' + (x.items.map(([slot, item, q]) => `${slot}: ${item}${q > 1 ? ' x' + q : ''}`).join(' | ') || 'empty'));
