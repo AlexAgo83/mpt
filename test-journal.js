@@ -393,3 +393,5 @@ assert.deepStrictEqual(skillGains({ skills: [{ name: 'Magic', level: 2, xp: 300,
   [{ name: 'Magic', xp: 250, levels: '1→2' }], 'daily recap sums standard + abyssal XP and shows level-ups');
 console.log('daily recap ok');
 assert.match(require('./daily-recap.js').renderDaily(), /<title>Melvor daily/, 'daily page renders with or without snapshots');
+assert.deepStrictEqual(require('./daily-recap.js').itemChanges({ bank: { Whale: 90, Bones: 5 } }, { bank: { Whale: 100, Arrow: 3 } }),
+  { gained: [{ name: 'Bones', delta: 5 }], used: [{ name: 'Whale', delta: -10 }, { name: 'Arrow', delta: -3 }] }, 'items gained and used from bank deltas');

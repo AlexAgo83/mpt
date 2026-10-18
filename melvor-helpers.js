@@ -1231,19 +1231,23 @@
   };
 
   // Simulate one set against every reachable Abyssal combat/slayer-area monster: where to train that set's style.
-  mh.trainTargets = async (setIndex, maxSims = 45) => {
+  mh.trainTargets = async (setIndex, maxSims = 45, weaponName = null) => {
     await mh.waitSimulator();
     const G = self.mcs?.global, api = typeof mod !== 'undefined' ? mod.api?.mythCombatSimulator : null;
     if (!G?.simulation || !api) return { error: 'combat simulator not available' };
     const button = [...document.querySelectorAll('mcs-equipment-page button.mcs-button')].filter(b => /^[0-9]+$/.test(b.textContent.trim()))[setIndex - 1];
     if (!button) return { error: 'no equipment set ' + setIndex };
     button.click(); await new Promise(r => setTimeout(r, 300));
-    const base = api.export(), task = game.combat.slayerTask;
+    let base = api.export(); const task = game.combat.slayerTask;
+    // --weapon: compare another owned weapon in the simulator copy only (nothing is equipped)
+    const swap = weaponName ? game.items.allObjects.find(i => i.name === weaponName) : null;
+    if (weaponName && !swap) return { error: 'no item named ' + weaponName };
+    if (swap) { const equipment = new Map(base.equipment); equipment.set([...equipment.keys()].find(k => k.endsWith(':Weapon')) || 'melvorD:Weapon', swap.id); base = { ...base, equipment }; }
     const met = reqs => { try { return game.checkRequirements(reqs || [], false); } catch { return false; } };
     const fights = [...game.combatAreas.allObjects, ...game.slayerAreas.allObjects].filter(a => a.realm?.id === 'melvorItA:Abyssal' && met(a.entryRequirements))
       .flatMap(a => a.monsters.map(m => ({ area: a.name, monster: m }))).slice(0, maxSims);
     const set = game.combat.player.equipmentSets[setIndex - 1];
-    const weapon = set?.equipment.equippedArray.find(s => s.slot.localID === 'Weapon' && !s.isEmpty)?.item;
+    const weapon = swap || set?.equipment.equippedArray.find(s => s.slot.localID === 'Weapon' && !s.isEmpty)?.item;
     const out = [], full = G.stores.simulator.state.trials, screen = mh.screenTrials(G);
     const sim = async (f, trials) => {
       api.import({ ...base, isSlayerTask: Boolean(task?.active && task.monster === f.monster) }); await new Promise(r => setTimeout(r, 50));

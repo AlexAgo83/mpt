@@ -49,11 +49,13 @@ const styleIndex = argv.indexOf('--style');
 const gearStyle = styleIndex >= 0 ? argv[styleIndex + 1] : null;
 const capeIndex = argv.indexOf('--cape');
 const capeName = capeIndex >= 0 ? argv[capeIndex + 1] : null;
+const weaponIndex = argv.indexOf('--weapon');
+const weaponName = weaponIndex >= 0 ? argv[weaponIndex + 1] : null;
 const slotIndex = argv.indexOf('--slot');
 const requestedSlot = slotIndex >= 0 ? Number(argv[slotIndex + 1]) : 6;
 const dashboardPortIndex = argv.indexOf('--port');
 const dashboardPort = dashboardPortIndex >= 0 ? Number(argv[dashboardPortIndex + 1]) : Number(process.env.MELVOR_JOURNAL_PORT || 8787);
-const [cmd = 'summary', who = 'all', arg3, arg4] = argv.filter((a, i) => !['--record', '--abyssal', '--save-backup', '--sim', '--detail', '--apply', '--restore-ranged', '--restore', '--style', '--slot', '--port', '--quantity', '--cape'].includes(a) && (styleIndex < 0 || i !== styleIndex + 1) && (capeIndex < 0 || i !== capeIndex + 1) && (slotIndex < 0 || i !== slotIndex + 1) && (dashboardPortIndex < 0 || i !== dashboardPortIndex + 1) && (quantityIndex < 0 || i !== quantityIndex + 1));
+const [cmd = 'summary', who = 'all', arg3, arg4] = argv.filter((a, i) => !['--record', '--abyssal', '--save-backup', '--sim', '--detail', '--apply', '--restore-ranged', '--restore', '--style', '--slot', '--port', '--quantity', '--cape', '--weapon'].includes(a) && (styleIndex < 0 || i !== styleIndex + 1) && (capeIndex < 0 || i !== capeIndex + 1) && (weaponIndex < 0 || i !== weaponIndex + 1) && (slotIndex < 0 || i !== slotIndex + 1) && (dashboardPortIndex < 0 || i !== dashboardPortIndex + 1) && (quantityIndex < 0 || i !== quantityIndex + 1));
 const usage = `usage:
   ./melvor-report.js slots
   ./melvor-report.js smoke
@@ -94,7 +96,7 @@ const usage = `usage:
   ./melvor-report.js set-plan <character> <plan.json> [--apply]    (equip a plan into given sets: [{setIndex, equipment: [[slot, item]], spell?, prayers?}])
   ./melvor-report.js set-swap <character> <set A> <set B> [--apply]   (swap two sets: items, spell, prayers)
   ./melvor-report.js craft <character> <skill> "<recipe>" [--quantity N] [--apply]   (craft N, then resume the previous activity)
-  ./melvor-report.js train-targets <character> --slot N            (simulate set N against every reachable Abyssal monster)
+  ./melvor-report.js train-targets <character> --slot N [--weapon "<name>"]   (simulate set N against every reachable Abyssal monster; --weapon swaps it in the simulator only)
   ./melvor-report.js fight-start <character> "<monster>" --slot N [--apply]   (fight one monster with set N, e.g. a train-targets pick)
   ./melvor-report.js batch <character> <steps.json> [--apply]    (one load + one save for several steps: [{do: config-set|equip|skill-start|set-plan|set-swap|fight-start|craft, ...}])
   ./melvor-report.js item-where <character> "<item name part>"     (bank, sets, deaths: where an item went)
@@ -2022,7 +2024,7 @@ ${DASHBOARD_CSS}
 </style>
 <body>
 <header class="topbar"><div class="brand"><img src="/assets/mpt-mark.svg" alt=""><h1>MelvorPT</h1></div>
-<div class="top-actions"><a href="/daily" class="muted">Daily recap</a><span id="scanTime" class="muted"></span>
+<div class="top-actions"><a href="/daily" class="button-link">Daily recap</a><span id="scanTime" class="muted"></span>
 <div class="split" aria-label="Refresh journal"><button id="refreshCharacter" type="button" class="split-pick" aria-haspopup="menu" aria-label="Character to refresh"><span>All</span><svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button><button id="refreshButton" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg><span>Refresh</span></button></div>
 <button id="todoButton" class="todo-pill" type="button" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><b id="todoCount">0</b><span class="tab-label">To do</span></button>
 <button id="setupButton" class="icon-button" type="button" title="Account setup" aria-label="Account setup"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div></header>
@@ -2233,7 +2235,7 @@ function runJournalServer() {
         ? send(res, 200, renderDashboard({ ...snapshot, goals: readGoals() }), 'text/html; charset=utf-8')
         : send(res, 404, JSON.stringify({ error: 'journal missing; run journal --record first' }));
     }
-    if (req.method === 'GET' && url.pathname === '/daily') return send(res, 200, require('./daily-recap.js').renderDaily(url.searchParams.get('day')), 'text/html; charset=utf-8');
+    if (req.method === 'GET' && url.pathname === '/daily') return send(res, 200, require('./daily-recap.js').renderDaily({ day: url.searchParams.get('day'), live: url.searchParams.has('live') }), 'text/html; charset=utf-8');
     if (req.method === 'GET' && url.pathname === '/assets/mpt-mark.svg') {
       try { return send(res, 200, fs.readFileSync(path.join(__dirname, url.pathname)), 'image/svg+xml'); } catch { return send(res, 404, JSON.stringify({ error: 'not found' })); }
     }
@@ -2539,7 +2541,7 @@ if (require.main === module) (async () => {
       if (who === 'all') throw Error(`usage: ./melvor-report.js ${cmd} <character>${cmd === 'set-candidates' ? ' --style melee|ranged|magic' : cmd === 'train-targets' ? ' --slot N' : ''}`);
       if (cmd === 'set-candidates' && !gearStyle) throw Error('set-candidates needs --style melee|ranged|magic');
       const { sources } = await readSourcesByName();
-      const expr = cmd === 'sets' ? '({ name: game.characterName, styles: Object.fromEntries(Object.entries(game.combat.player.attackStyles ?? {}).map(([k, v]) => [k, v?.name])), sets: mh.setsView() })' : cmd === 'set-candidates' ? `mh.setCandidates(${JSON.stringify(gearStyle)})` : `(self.__mptScreenTrials = ${Number(process.env.MELVOR_SCREEN_TRIALS ?? 200)}, mh.trainTargets(${requestedSlot}))`;
+      const expr = cmd === 'sets' ? '({ name: game.characterName, styles: Object.fromEntries(Object.entries(game.combat.player.attackStyles ?? {}).map(([k, v]) => [k, v?.name])), sets: mh.setsView() })' : cmd === 'set-candidates' ? `mh.setCandidates(${JSON.stringify(gearStyle)})` : `(self.__mptScreenTrials = ${Number(process.env.MELVOR_SCREEN_TRIALS ?? 200)}, mh.trainTargets(${requestedSlot}, 45, ${JSON.stringify(weaponName)}))`;
       const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, expr, 900000), cmd === 'train-targets' ? SIM_DEBUG : undefined);
       if (r.error) throw Error(r.error);
       if (cmd === 'sets') {

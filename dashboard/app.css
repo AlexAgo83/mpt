@@ -288,3 +288,6 @@ body.focus .character[open] { border-left: 1px solid #58675f; }
   body.focus .rail-item { display: none; }
   body.focus .character-head .identity { display: block; }
 }
+
+.button-link { display: inline-flex; align-items: center; padding: .45rem .9rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--ink); text-decoration: none; font-weight: 600; }
+.button-link:hover { border-color: #58675f; }
