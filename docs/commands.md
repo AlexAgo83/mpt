@@ -43,6 +43,7 @@ npm run source
 ./melvor-report.js craft <character> <skill> "<recipe>" [--quantity N] [--apply]
 ./melvor-report.js train-targets <character> --slot N
 ./melvor-report.js fight-start <character> "<monster>" --slot N [--apply]
+./melvor-report.js batch <character> <steps.json> [--apply]
 ./melvor-report.js export-state all > /tmp/melvor-state.json
 ./melvor-report.js save-backup all
 ./melvor-report.js journal <character>
@@ -59,6 +60,13 @@ Report commands, including `config`, are read-only. `combat-setup`, `combat-run`
 preview-only until the same command is repeated with `--apply`; they accept one character
 only, load the newest save source, save, and verify the requested result. There is no bulk
 or apply-all command.
+
+`batch` loads the character once, runs several guarded steps, then saves once (preview until `--apply`). Steps file:
+`[{"do":"config-set","kind":"prayers","value":"Menace,Unrelenting"},{"do":"set-plan","plan":[{"setIndex":5,"equipment":[["Weapon","Strange Sword"]]}]},{"do":"fight-start","monster":"Abyssal Bat","slot":7}]`
+(also `equip` item/slot, `skill-start` skill/recipe, `set-swap` a/b, `craft` skill/recipe/quantity). It stops at the first error.
+
+`train-targets` and `dungeon-optimize` screen candidates with `MELVOR_SCREEN_TRIALS` trials (default 200, `0` = full count),
+then confirm the top 5 targets / the start and final sets with the simulator's full trial count (1000).
 
 `dungeon-check`, `dungeon-optimize` and `dungeon-setup` are read-only: the fights are simulated in
 [Myth] Combat Simulator's own copy of the game. `combat-run --slot N` uses the set `dungeon-check`

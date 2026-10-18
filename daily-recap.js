@@ -1,12 +1,11 @@
 #!/usr/bin/env node
-// Daily recap: snapshot journal/latest.json into journal/daily/<date>.json, then write an HTML page
-// comparing it with the previous snapshot. Run after `journal all --record --save-backup` (scripts/daily.sh).
+// Daily recap: snapshot journal/latest.json into journal/daily/<date>.json (scripts/daily.sh, after
+// `journal all --record --save-backup`); journal-serve renders /daily from those snapshots.
 const fs = require('fs');
 const path = require('path');
 
 const JOURNAL_DIR = path.join(__dirname, 'journal');
 const DAILY_DIR = path.join(JOURNAL_DIR, 'daily');
-const OUT_DIR = process.env.MELVOR_RECAP_DIR || path.join(JOURNAL_DIR, 'recaps');
 const HISTORY_DAYS = 30;
 
 const snapshot = latest => ({
@@ -59,8 +58,8 @@ function history(days) {
   return `<section class="card wide"><h2>Last ${days.length} days <small>total level · completion · GP</small></h2><div class="scroll"><table class="hist">${head}${rows}</table></div></section>`;
 }
 
-const page = (day, cards, hist) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Melvor daily ${day}</title><style>
+const page = (day, cards, hist, nav = '') => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Melvor daily ${day}</title><link rel="icon" type="image/svg+xml" href="/assets/mpt-mark.svg"><style>
 :root{--bg:#f6f7f9;--card:#fff;--fg:#1d2330;--mut:#6b7280;--up:#15803d;--down:#b91c1c;--line:#e5e7eb}
 @media (prefers-color-scheme:dark){:root{--bg:#111318;--card:#1b1f27;--fg:#e6e8ec;--mut:#9aa3b2;--up:#4ade80;--down:#f87171;--line:#2b313c}}
 body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,sans-serif}
@@ -69,24 +68,31 @@ h1{font-size:1.3rem;margin:0 0 12px}main{display:grid;gap:12px;grid-template-col
 h2{font-size:1.05rem;margin:0 0 6px}h3{font-size:.9rem;margin:10px 0 4px}small,.z{color:var(--mut)}.up{color:var(--up)}.down{color:var(--down)}
 table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:2px 6px 2px 0;font-variant-numeric:tabular-nums}th{font-weight:500;color:var(--mut)}
 ul{margin:0;padding-left:18px}.now{margin:0 0 8px}.scroll{overflow-x:auto}.hist td,.hist th{white-space:nowrap;border-top:1px solid var(--line);padding:4px 10px 4px 0}
-</style></head><body><h1>Melvor daily recap · ${day}</h1><main>${cards}${hist}</main></body></html>`;
+</style></head><body><h1><a href="/">MelvorPT</a> · daily recap · ${day} <small>${nav}</small></h1><main>${cards}${hist}</main></body></html>`;
+
+const readDays = () => !fs.existsSync(DAILY_DIR) ? [] : fs.readdirSync(DAILY_DIR).filter(f => /^\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort();
+const readDay = f => JSON.parse(fs.readFileSync(path.join(DAILY_DIR, f), 'utf8'));
+
+// The recap of one day (default: the newest) against the snapshot before it, plus the last 30 days.
+function renderDaily(day = null) {
+  const files = readDays();
+  if (!files.length) return page('no snapshot yet', '<section class="card">No daily snapshot yet: scripts/daily.sh writes one every morning.</section>', '');
+  const i = day && files.includes(`${day}.json`) ? files.indexOf(`${day}.json`) : files.length - 1;
+  const snap = readDay(files[i]), prev = i > 0 ? readDay(files[i - 1]) : null;
+  const d = snap.at.slice(0, 10);
+  const link = (j, label) => files[j] ? `<a href="/daily?day=${files[j].slice(0, 10)}">${label}</a>` : '';
+  const nav = [link(i - 1, '← previous day'), link(i + 1, 'next day →')].filter(Boolean).join(' · ');
+  const cards = Object.entries(snap.characters).map(([n, c]) => card(n, c, prev?.characters?.[n])).join('\n');
+  return page(d, cards, history(files.slice(Math.max(0, i - HISTORY_DAYS + 1), i + 1).map(readDay)), nav);
+}
 
 function main() {
-  const latest = JSON.parse(fs.readFileSync(path.join(JOURNAL_DIR, 'latest.json'), 'utf8'));
-  const snap = snapshot(latest);
+  const snap = snapshot(JSON.parse(fs.readFileSync(path.join(JOURNAL_DIR, 'latest.json'), 'utf8')));
   const day = snap.at.slice(0, 10);
   fs.mkdirSync(DAILY_DIR, { recursive: true });
   fs.writeFileSync(path.join(DAILY_DIR, `${day}.json`), JSON.stringify(snap));
-  const files = fs.readdirSync(DAILY_DIR).filter(f => /^\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort();
-  const days = files.slice(-HISTORY_DAYS).map(f => JSON.parse(fs.readFileSync(path.join(DAILY_DIR, f), 'utf8')));
-  const before = files.filter(f => f < `${day}.json`).at(-1);
-  const prev = before ? JSON.parse(fs.readFileSync(path.join(DAILY_DIR, before), 'utf8')) : null;
-  const cards = Object.entries(snap.characters).map(([n, c]) => card(n, c, prev?.characters?.[n])).join('\n');
-  fs.mkdirSync(OUT_DIR, { recursive: true });
-  const out = path.join(OUT_DIR, `melvor-${day}.html`);
-  fs.writeFileSync(out, page(day, cards, history(days)));
-  console.log(`daily snapshot ${day}${before ? ' vs ' + before.slice(0, 10) : ' (first)'} -> ${out}`);
+  console.log(`daily snapshot ${day} -> journal/daily/${day}.json (dashboard /daily)`);
 }
 
 if (require.main === module) main();
-module.exports = { snapshot, skillGains };
+module.exports = { snapshot, skillGains, renderDaily };

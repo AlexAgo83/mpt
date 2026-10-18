@@ -392,3 +392,4 @@ const { skillGains } = require('./daily-recap.js');
 assert.deepStrictEqual(skillGains({ skills: [{ name: 'Magic', level: 2, xp: 300, abyssalLevel: 1, abyssalXP: 50 }] }, { skills: [{ name: 'Magic', level: 1, xp: 100, abyssalLevel: 1, abyssalXP: 0 }] }),
   [{ name: 'Magic', xp: 250, levels: '1→2' }], 'daily recap sums standard + abyssal XP and shows level-ups');
 console.log('daily recap ok');
+assert.match(require('./daily-recap.js').renderDaily(), /<title>Melvor daily/, 'daily page renders with or without snapshots');

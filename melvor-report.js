@@ -96,6 +96,7 @@ const usage = `usage:
   ./melvor-report.js craft <character> <skill> "<recipe>" [--quantity N] [--apply]   (craft N, then resume the previous activity)
   ./melvor-report.js train-targets <character> --slot N            (simulate set N against every reachable Abyssal monster)
   ./melvor-report.js fight-start <character> "<monster>" --slot N [--apply]   (fight one monster with set N, e.g. a train-targets pick)
+  ./melvor-report.js batch <character> <steps.json> [--apply]    (one load + one save for several steps: [{do: config-set|equip|skill-start|set-plan|set-swap|fight-start|craft, ...}])
   ./melvor-report.js item-where <character> "<item name part>"     (bank, sets, deaths: where an item went)
   ./melvor-report.js bank-add <character> "<exact item name>" [--quantity N] [--apply]   (repair: put back an item lost by the tooling)
   ./melvor-report.js journal-serve [--port 8787]
@@ -111,7 +112,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide', 'dungeon-check', 'dungeon-optimize', 'dungeon-setup', 'dungeon-clear', 'event-run', 'item-where', 'bank-add', 'sets', 'set-candidates', 'set-plan', 'set-swap', 'craft', 'train-targets', 'fight-start'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide', 'dungeon-check', 'dungeon-optimize', 'dungeon-setup', 'dungeon-clear', 'event-run', 'item-where', 'bank-add', 'sets', 'set-candidates', 'set-plan', 'set-swap', 'craft', 'train-targets', 'fight-start', 'batch'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -698,7 +699,7 @@ function printCombatPlan(r, options = {}) {
   if (completed.length) console.log(`  completed ${options.abyssalOnly ? 'abyssal ' : ''}dungeons: ${completed.map(d => `${d.name} x${d.completeCount}`).join(', ')}`);
   if (options.abyssalOnly) {
     const depths = goals.abyssalDepths || [];
-    console.log(`  Abyssal Depths: ${depths.length ? depths.map(depth => depth.name).join(', ') : 'unavailable from this game build'} (completion state not exposed by this game API)`);
+    console.log(`  Abyssal Depths: ${depths.length ? depths.map(depth => depth.name + (Number.isFinite(depth.completeCount) ? ' x' + depth.completeCount : '')).join(', ') : 'unavailable from this game build'}`);
   }
   for (const d of dungeons) {
     const style = beats[d.bossAttackType] || null;
@@ -783,11 +784,19 @@ const combatRunScript = (dungeonRef, timeoutMs, setNumber = null) => `(async () 
   const isDepth = depths.includes(dungeon);
   const completedCount = () => isDepth ? (dungeon.timesCompleted ?? 0) : game.combat.getDungeonCompleteCount(dungeon);
   if (isDepth && typeof game.combat.selectAbyssDepth !== 'function') return { status: 'error', dungeon: dungeon.name, error: 'cannot select an Abyss depth: not starting' };
+  const supplies = mh.setSupplies(set.index + 1);
+  if (supplies.problems.length) return { status: 'error', dungeon: dungeon.name, error: 'supplies: ' + supplies.problems.join('; ') };
   const beforeCompleted = completedCount();
+  // leave the current fight before switching sets: a dungeon set kept fighting an Abyssal Slayer monster
+  // for the 5 s wait and GrifhinZ died (2026-10-18, lost an equipped item)
+  if (game.combat.isActive && game.combat.selectedArea?.id !== dungeon.id) { game.combat.stop(); await sleep(1000); }
+  if (game.combat.isActive && game.combat.selectedArea?.id !== dungeon.id) return { status: 'error', dungeon: dungeon.name, error: 'could not leave the current fight: not starting' };
   p.changeEquipmentSet(set.index);
   if (game.activeAction?.name !== 'Combat' || game.combat.selectedArea?.id !== dungeon.id)
     isDepth ? game.combat.selectAbyssDepth(dungeon) : game.combat.selectDungeon(dungeon);
-  await sleep(5000);
+  for (let waited = 0; waited < 5000 && game.combat.selectedArea?.id !== dungeon.id; waited += 250) await sleep(250);
+  if (game.combat.selectedArea?.id !== dungeon.id) { if (game.combat.isActive) game.combat.stop(); return { status: 'error', dungeon: dungeon.name, error: 'the game did not enter the dungeon (popup or requirement?): fight stopped' }; }
+  await sleep(1000);
   const samples = [];
   const started = Date.now();
   let status = 'timeout';
@@ -2013,7 +2022,7 @@ ${DASHBOARD_CSS}
 </style>
 <body>
 <header class="topbar"><div class="brand"><img src="/assets/mpt-mark.svg" alt=""><h1>MelvorPT</h1></div>
-<div class="top-actions"><span id="scanTime" class="muted"></span>
+<div class="top-actions"><a href="/daily" class="muted">Daily recap</a><span id="scanTime" class="muted"></span>
 <div class="split" aria-label="Refresh journal"><button id="refreshCharacter" type="button" class="split-pick" aria-haspopup="menu" aria-label="Character to refresh"><span>All</span><svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button><button id="refreshButton" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg><span>Refresh</span></button></div>
 <button id="todoButton" class="todo-pill" type="button" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><b id="todoCount">0</b><span class="tab-label">To do</span></button>
 <button id="setupButton" class="icon-button" type="button" title="Account setup" aria-label="Account setup"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div></header>
@@ -2224,6 +2233,7 @@ function runJournalServer() {
         ? send(res, 200, renderDashboard({ ...snapshot, goals: readGoals() }), 'text/html; charset=utf-8')
         : send(res, 404, JSON.stringify({ error: 'journal missing; run journal --record first' }));
     }
+    if (req.method === 'GET' && url.pathname === '/daily') return send(res, 200, require('./daily-recap.js').renderDaily(url.searchParams.get('day')), 'text/html; charset=utf-8');
     if (req.method === 'GET' && url.pathname === '/assets/mpt-mark.svg') {
       try { return send(res, 200, fs.readFileSync(path.join(__dirname, url.pathname)), 'image/svg+xml'); } catch { return send(res, 404, JSON.stringify({ error: 'not found' })); }
     }
@@ -2529,7 +2539,7 @@ if (require.main === module) (async () => {
       if (who === 'all') throw Error(`usage: ./melvor-report.js ${cmd} <character>${cmd === 'set-candidates' ? ' --style melee|ranged|magic' : cmd === 'train-targets' ? ' --slot N' : ''}`);
       if (cmd === 'set-candidates' && !gearStyle) throw Error('set-candidates needs --style melee|ranged|magic');
       const { sources } = await readSourcesByName();
-      const expr = cmd === 'sets' ? '({ name: game.characterName, styles: Object.fromEntries(Object.entries(game.combat.player.attackStyles ?? {}).map(([k, v]) => [k, v?.name])), sets: mh.setsView() })' : cmd === 'set-candidates' ? `mh.setCandidates(${JSON.stringify(gearStyle)})` : `mh.trainTargets(${requestedSlot})`;
+      const expr = cmd === 'sets' ? '({ name: game.characterName, styles: Object.fromEntries(Object.entries(game.combat.player.attackStyles ?? {}).map(([k, v]) => [k, v?.name])), sets: mh.setsView() })' : cmd === 'set-candidates' ? `mh.setCandidates(${JSON.stringify(gearStyle)})` : `(self.__mptScreenTrials = ${Number(process.env.MELVOR_SCREEN_TRIALS ?? 200)}, mh.trainTargets(${requestedSlot}))`;
       const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, expr, 900000), cmd === 'train-targets' ? SIM_DEBUG : undefined);
       if (r.error) throw Error(r.error);
       if (cmd === 'sets') {
@@ -2547,10 +2557,52 @@ if (require.main === module) (async () => {
         }
       } else {
         console.log(`${r.name} | ${r.mode} | S${r.set} ${r.style || '?'} (${r.weapon || 'no weapon'}, ${r.damageType || '?'}) | simulated Abyssal targets, best XP/h first`);
+        if (r.supplies?.problems?.length) console.log('  ⚠ SUPPLIES: ' + r.supplies.problems.join('; ') + ' (the set cannot fight long: restock before fight-start)');
         for (const x of [...r.fights].sort((a, b) => (b.ok - a.ok) || (a.deathRate > 0) - (b.deathRate > 0) || (b.xpPerHour || 0) - (a.xpPerHour || 0)))
-          console.log(`  ${x.ok ? fmtRate(x.xpPerHour) + ' XP/h' : 'FAILED'} | death ${x.deathRate != null ? (x.deathRate * 100).toFixed(1) + '%' : '?'} | ${x.killTimeS != null ? x.killTimeS.toFixed(1) + ' s/kill' : '-'} | ${x.monster} (${x.attackType}) in ${x.area}${x.reason ? ' | ' + x.reason : ''}`);
+          console.log(`  ${x.ok ? fmtRate(x.xpPerHour) + ' XP/h' : 'FAILED'} | death ${x.deathRate != null ? (x.deathRate * 100).toFixed(1) + '%' + (x.trials ? ' /' + x.trials : '') : '?'} | ${x.killTimeS != null ? x.killTimeS.toFixed(1) + ' s/kill' : '-'} | ${x.monster} (${x.attackType}) in ${x.area}${x.reason ? ' | ' + x.reason : ''}`);
         console.log('  a non-zero death rate is a stop sign (Hardcore: never; Standard: an item is lost on death)');
       }
+      return;
+    }
+
+    if (cmd === 'batch') {
+      // one character load and one save for several guarded steps; stops at the first error (steps already done stay done)
+      if (who === 'all' || !arg3) throw Error('usage: ./melvor-report.js batch <character> <steps.json> [--apply]');
+      const steps = JSON.parse(fs.readFileSync(arg3, 'utf8'));
+      if (!Array.isArray(steps) || !steps.length) throw Error('steps must be a non-empty list of { do, ... }');
+      const exprFor = st => {
+        if (st.do === 'config-set') return configSetScript(st.kind, st.value, apply);
+        if (st.do === 'equip') return equipmentActionScript(st.item, st.slot, st.quantity, apply);
+        if (st.do === 'skill-start') return skillStartScript(st.skill, st.recipe, apply);
+        if (st.do === 'set-plan') return apply ? `mh.dungeonSetupApply(${JSON.stringify(st.plan)})` : `mh.dungeonSetupPreview(${JSON.stringify(st.plan)})`;
+        if (st.do === 'set-swap') return `mh.setSwap(${Number(st.a)}, ${Number(st.b)}, ${apply})`;
+        if (st.do === 'fight-start') return `mh.fightStart(${JSON.stringify(st.monster)}, ${Number(st.slot)}, ${apply})`;
+        if (st.do === 'craft') return `mh.craft(${JSON.stringify(st.skill)}, ${JSON.stringify(st.recipe)}, ${Number(st.quantity) || 1}, ${apply})`;
+        throw Error('unknown batch step: ' + st.do + ' (config-set, equip, skill-start, set-plan, set-swap, fight-start, craft)');
+      };
+      const exprs = steps.map(exprFor); // validate every step before loading the game
+      const run = async client => {
+        const results = [];
+        for (const [i, expr] of exprs.entries()) {
+          const r = await evalExpr(client, expr, 180000);
+          results.push(r);
+          if (r?.error) break;
+          if (i < exprs.length - 1) await evalExpr(client, 'new Promise(r => setTimeout(r, 300))', 5000);
+        }
+        return { results };
+      };
+      const out = apply ? await withCharacterWrite(who, run) : await readSourcesByName().then(({ sources }) => withCharacterSource(who, sources[who]?.source, run));
+      for (const [i, r] of out.results.entries()) {
+        if (steps[i].do === 'fight-start' && (r.autoSlayerOff || r.semiAutoSlayerOff)) writeAutoSlayerOff(who, { ...(readAutoSlayerOff()[who] || {}), game: Boolean(r.autoSlayerOff || readAutoSlayerOff()[who]?.game), semi: Boolean(r.semiAutoSlayerOff || readAutoSlayerOff()[who]?.semi) });
+        const summary = r?.error ? 'ERROR ' + r.error : apply ? (r?.applied === false ? 'NOT applied' : 'done') : 'preview';
+        console.log(`${who} | ${i + 1}/${steps.length} ${steps[i].do} | ${summary}`);
+        if (!apply) for (const set of r?.sets || []) for (const w of set.swaps || []) console.log(`  S${set.setIndex} ${w.slot}: ${w.from || 'empty'} -> ${w.to}`);
+        if (r?.supplies?.problems?.length) console.log('  supplies: ' + r.supplies.problems.join('; '));
+        for (const line of [...(r?.log || []), ...(r?.left || []).map(l => 'LEFT: ' + l), ...(r?.shortages || []).map(x => `SHORT: ${x.name} ${x.have}/${x.need}`)]) console.log('  ' + line);
+        if (r?.final || r?.now) console.log('  now: ' + (r.final || r.now));
+      }
+      if (apply) console.log(`saved: ${out.saved} | source ${out.sourceBefore} -> ${out.sourceAfter}`);
+      if (out.results.length < steps.length || out.results.at(-1)?.error) throw Error(`batch stopped at step ${out.results.length}`);
       return;
     }
 
@@ -2763,13 +2815,13 @@ if (require.main === module) (async () => {
         const out = [];
         for (const t of targets) {
           const monsterExpr = t.monsterId ? JSON.stringify(t.monsterId) : `(() => { const a = [...game.dungeons.allObjects, ...game.abyssDepths.allObjects, ...game.strongholds.allObjects].find(x => x.id === ${JSON.stringify(t.entityId)}); return [...a.monsters].sort((x, y) => (y.combatLevel ?? 0) - (x.combatLevel ?? 0))[0].id; })()`;
-          out.push({ ...t, ...(await evalExpr(client, `self.__mptOptCandidates = ${Number(process.env.MELVOR_OPTIMIZE_CANDIDATES || 0)}; mh.optimizeFight({ monsterId: ${monsterExpr}, entityId: ${JSON.stringify(t.entityId)}, setIndex: ${t.setIndex}, style: ${JSON.stringify(t.style)}, cape: ${capeId}, maxSims: ${Number(process.env.MELVOR_OPTIMIZE_SIMS || 70)} })`, 900000)) });
+          out.push({ ...t, ...(await evalExpr(client, `self.__mptOptCandidates = ${Number(process.env.MELVOR_OPTIMIZE_CANDIDATES || 0)}; self.__mptScreenTrials = ${Number(process.env.MELVOR_SCREEN_TRIALS ?? 200)}; mh.optimizeFight({ monsterId: ${monsterExpr}, entityId: ${JSON.stringify(t.entityId)}, setIndex: ${t.setIndex}, style: ${JSON.stringify(t.style)}, cape: ${capeId}, maxSims: ${Number(process.env.MELVOR_OPTIMIZE_SIMS || 70)} })`, 900000)) });
         }
         return out;
       }, SIM_DEBUG);
       for (const r of results) {
         if (r.error) { console.log(`${r.style}: ${r.error}`); continue; }
-        console.log(`${who} | ${check.dungeon} | ${r.label} | S${r.setIndex} ${r.style}: deaths ${(r.start.death * 100).toFixed(1)}% -> ${(r.best.death * 100).toFixed(1)}%, kill ${r.start.kill.toFixed(1)} -> ${r.best.kill.toFixed(1)} s (${r.sims} sims)`);
+        console.log(`${who} | ${check.dungeon} | ${r.label} | S${r.setIndex} ${r.style}: deaths ${(r.start.death * 100).toFixed(1)}% -> ${(r.best.death * 100).toFixed(1)}%, kill ${r.start.kill.toFixed(1)} -> ${r.best.kill.toFixed(1)} s (${r.sims} sims${r.screenTrials ? `, screened at ${r.screenTrials} trials, result at ${r.best.trials}` : ''})`);
         // keep the final choice per slot (the greedy search may improve a slot twice); "from" is the original item
         const finalBySlot = new Map(); for (const c of r.changes) finalBySlot.set(c.slot, { ...c, from: finalBySlot.get(c.slot)?.from ?? c.from });
         for (const c of finalBySlot.values()) console.log(`  ${c.slot}: ${c.from ? c.from + ' -> ' : ''}${c.to}`);

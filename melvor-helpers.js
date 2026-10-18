@@ -399,7 +399,7 @@
     // a slower attack outweighs raw bonuses: such items never count as upgrades
     const slows = item => passivesOf(item).some(text => /\+[\d.]+s Attack Interval|\+[\d.]+% Attack Interval/i.test(text));
     const score = item => { if (slows(item)) return -Infinity; const stats = statsOf(item); return prefixes.reduce((sum, key) => sum + (key === 'resistance' ? 10 * Math.max(0, stats[realmResistance] ?? 0) : Math.max(0, ...Object.entries(stats).filter(([name]) => name.startsWith(key)).map(([, value]) => value))), 0); };
-    const meets = r => r.type === 'SkillLevel' ? r.skill?.level >= r.level : r.type === 'AbyssalLevel' ? (r.skill?.abyssalLevel ?? 0) >= r.level : r.type === 'DungeonCompletion' ? (combat.getDungeonCompleteCount?.(r.dungeon) ?? 0) >= r.count : r.type === 'AbyssDepthCompletion' ? false : r.type === 'ShopPurchase' ? false : false;
+    const meets = r => r.type === 'SkillLevel' ? r.skill?.level >= r.level : r.type === 'AbyssalLevel' ? (r.skill?.abyssalLevel ?? 0) >= r.level : r.type === 'DungeonCompletion' ? (combat.getDungeonCompleteCount?.(r.dungeon) ?? 0) >= r.count : r.type === 'AbyssDepthCompletion' ? ((r.depth ?? r.abyssDepth)?.timesCompleted ?? 0) >= (r.count ?? 1) : r.type === 'ShopPurchase' ? false : false;
     const requirement = r => r.type === 'SkillLevel' ? `${r.skill?.name || 'skill'} ${r.level}` : r.type === 'AbyssalLevel' ? `Abyssal ${r.skill?.name || 'skill'} ${r.level}` : r.type === 'DungeonCompletion' ? `${r.dungeon?.name || 'dungeon'} x${r.count ?? 1}` : r.type === 'AbyssDepthCompletion' ? `${r.depth?.name || r.abyssDepth?.name || 'Abyss depth'} completion` : r.type === 'ShopPurchase' ? `purchase ${r.purchase?.name || 'required'}` : r.type || 'unknown requirement';
     const craft = new Map();
     for (const skill of values(game.skills)) for (const action of values(skill.actions).length ? values(skill.actions) : values(skill.recipes)) {
@@ -501,7 +501,7 @@
     const owned = item => item ? (game.bank.items.get(item)?.quantity ?? 0) > 0 || game.combat.player.equipmentSets.some(set => set.equipment.equippedArray.some(s => s.item === item)) : false;
     const itemNamed = name => values(game.items).find(i => i.name === name);
     const purchased = name => { const p = values(game.shop.purchases).find(x => x.name === name); try { return p ? game.shop.isUpgradePurchased(p) || game.shop.getPurchaseCount?.(p) > 0 : null; } catch { return null; } };
-    const clears = a => { for (const f of ['getDungeonCompleteCount', 'getAbyssDepthCompleteCount', 'getStrongholdCompleteCount']) { try { const n = game.combat[f]?.(a); if (Number.isFinite(n)) return n; } catch {} } return null; };
+    const clears = a => { if (Number.isFinite(a.timesCompleted)) return a.timesCompleted; for (const f of ['getDungeonCompleteCount', 'getAbyssDepthCompleteCount', 'getStrongholdCompleteCount']) { try { const n = game.combat[f]?.(a); if (Number.isFinite(n)) return n; } catch {} } return null; };
     // by realm, not id: Into the Abyss is an expansion dungeon fought in the Melvor realm
     const abyssal = area.realm ? area.realm.id === 'melvorItA:Abyssal' : /^melvorItA:/.test(area.id);
     const checks = [];
@@ -568,14 +568,17 @@
   // potion and prayers. Read-only: everything happens in the simulator's copy. Returns the changes to apply.
   // The simulator gives each trial a tick budget and stops when the total runs out: long fights (Bane) ended at 300-400
   // of 1000 trials, too few to call a death rate 0%. Rerun once with the budget scaled to what was missing.
-  mh.simulateFull = async (G, monsterId, entityId) => {
-    const st = G.stores.simulator.state, run = maxTicks => G.simulation.simulate({ monsterId, entityId, saveString: G.game.generateSaveStringSimple(), trials: st.trials, maxTicks });
+  mh.simulateFull = async (G, monsterId, entityId, trials = G.stores.simulator.state.trials) => {
+    const st = G.stores.simulator.state, run = maxTicks => G.simulation.simulate({ monsterId, entityId, saveString: G.game.generateSaveStringSimple(), trials, maxTicks: Math.ceil(maxTicks * trials / st.trials) });
     let r = (await run(st.ticks)).result;
     const short = /Simulated (\d+)\/(\d+) trials/.exec(r.reason || '');
     if (r.simSuccess && short && +short[1] > 0) r = (await run(Math.ceil(st.ticks * Math.min(20, +short[2] / +short[1] * 1.2)))).result;
     const done = /Simulated (\d+)\/(\d+) trials/.exec(r.reason || '');
-    return { ...r, trials: done ? +done[1] : st.trials };
+    return { ...r, trials: done ? +done[1] : trials };
   };
+  // Two passes: screen every candidate with few trials, confirm the picks with the simulator's full count.
+  // ponytail: 200 screening trials cannot tell 0.3% from 1% deaths; the confirm pass and dungeon-check (full trials) decide go/no-go
+  mh.screenTrials = G => Math.min(G.stores.simulator.state.trials, Number(self.__mptScreenTrials ?? 200) || G.stores.simulator.state.trials);
 
   // the simulator builds its engine after the game loads, later on a large save: wait for it before calling it missing
   mh.waitSimulator = async (ms = 60000) => {
@@ -594,16 +597,17 @@
     const keyOf = slot => [...base.equipment.keys()].find(k => k.endsWith(':' + slot)) || 'melvorD:' + slot;
     if (cape) { const equipment = new Map(base.equipment); equipment.set(keyOf('Cape'), cape); base = { ...base, equipment }; }
     let sims = 0;
-    const run = async settings => {
+    const screen = mh.screenTrials(G), full = G.stores.simulator.state.trials;
+    const run = async (settings, trials = screen) => {
       sims++; api.import(settings); await sleep(40);
-      const r = (await mh.simulateFull(G, monsterId, entityId));
+      const r = (await mh.simulateFull(G, monsterId, entityId, trials));
       return r.simSuccess ? { death: r.deathRate ?? 1, kill: Number.isFinite(r.killTimeS) ? r.killTimeS : 1e9, trials: r.trials } : { death: 1, kill: 1e9, trials: 0, failed: r.reason };
     };
     // a change must beat the simulation noise (two standard errors of the difference; a 0% rate counts as 1/trials),
     // or tie on deaths and kill 3% faster: otherwise it is chance (crossbow bolts in a magic set)
     const se = x => { const n = Math.max(x.trials || 0, 1), q = Math.max(x.death, 1 / n); return Math.sqrt(q * (1 - Math.min(q, 1)) / n); };
     const better = (a, b) => { const noise = 2 * Math.hypot(se(a), se(b)); return a.death < b.death - noise || (a.death <= b.death && b.death - a.death <= noise && a.kill < b.kill * 0.97); };
-    const start = await run(base); let best = start, current = base;
+    let start = await run(base); let best = start, current = base;
     const abyss = mh.abyssOpen();
     const meets = item => { try { return game.checkRequirements(item.equipRequirements || [], false); } catch { return false; } };
     const defensive = item => Object.entries(statsOf(item)).reduce((sum, [k, v]) => sum + (/Defence|resistance|damageReduction/i.test(k) ? v * (/resistance|damageReduction/i.test(k) ? 10 : 1) : /Attack|Strength|Damage/i.test(k) ? v / 2 : 0), 0);
@@ -643,8 +647,9 @@
       const trial = { ...current, prayerSelected: ids }; const r = await run(trial);
       if (better(r, best)) { best = r; current = trial; changes.push({ slot: 'Prayers', from: '', to: ids.map(id => game.prayers.getObjectByID(id)?.name).join(' + '), death: r.death, kill: r.kill }); }
     }
+    if (screen < full) { start = await run(base, full); best = current === base ? start : await run(current, full); }
     api.import(base);
-    return { setIndex, style, monsterId, start, best, changes, sims, equipment: [...current.equipment].map(([k, v]) => [k.split(':').pop(), game.items.getObjectByID(v)?.name ?? null]), potion: game.items.getObjectByID(current.potionID)?.name ?? null, prayers: (current.prayerSelected || []).map(id => game.prayers.getObjectByID(id)?.name) };
+    return { setIndex, style, monsterId, start, best, changes, sims, screenTrials: screen, equipment: [...current.equipment].map(([k, v]) => [k.split(':').pop(), game.items.getObjectByID(v)?.name ?? null]), potion: game.items.getObjectByID(current.potionID)?.name ?? null, prayers: (current.prayerSelected || []).map(id => game.prayers.getObjectByID(id)?.name) };
   };
 
   const attackSpells = () => [...game.attackSpellbooks.allObjects].flatMap(b => [...(b.spells?.allObjects ?? b.spells ?? [])]);
@@ -772,7 +777,7 @@
     const reqText = r => r.type === 'SkillLevel' ? `${r.skill?.name} ${r.level}` : r.type === 'AbyssalLevel' ? `Abyssal ${r.skill?.name} ${r.level}` : r.type === 'DungeonCompletion' ? `clear ${r.dungeon?.name}${(r.count ?? 1) > 1 ? ' x' + r.count : ''}` : r.type === 'AbyssDepthCompletion' ? `clear ${r.depth?.name || r.abyssDepth?.name || 'an Abyss depth'}` : r.type === 'ShopPurchase' ? `buy ${r.purchase?.name || 'a shop upgrade'}` : r.type === 'ItemFound' ? `find ${r.item?.name}` : r.type === 'MonsterKilled' ? `kill ${r.monster?.name}` : r.type === 'SlayerItem' ? `wear ${r.item?.name}` : r.type === 'CartographyPOIDiscovery' ? `discover ${(r.pois || []).map(p => p.name).join(', ') || 'a map location'} (Cartography)` : r.type === 'CartographyHexDiscovery' ? 'survey more Cartography hexes' : r.type || 'requirement';
     const met = reqs => { try { return game.checkRequirements(reqs || [], false); } catch { return null; } };
     const missing = reqs => (reqs || []).filter(r => { try { return !game.checkRequirements([r], false); } catch { return true; } }).map(reqText);
-    const clears = area => { const c = game.combat; for (const f of ['getDungeonCompleteCount', 'getAbyssDepthCompleteCount', 'getStrongholdCompleteCount']) { try { const n = c[f]?.(area); if (Number.isFinite(n)) return n; } catch {} } return null; };
+    const clears = area => { if (Number.isFinite(area.timesCompleted)) return area.timesCompleted; const c = game.combat; for (const f of ['getDungeonCompleteCount', 'getAbyssDepthCompleteCount', 'getStrongholdCompleteCount']) { try { const n = c[f]?.(area); if (Number.isFinite(n)) return n; } catch {} } return null; };
     const areaView = (area, kind) => ({ id: area.id, name: area.name, kind, realm: area.realm?.id?.split(':').pop() ?? null, clears: clears(area), unlocked: met(area.entryRequirements), missing: missing(area.entryRequirements), boss: values(area.monsters).at(-1)?.id ?? null, bossName: values(area.monsters).at(-1)?.name ?? null });
     const dungeons = [...values(game.dungeons).map(d => areaView(d, 'dungeon')), ...values(game.abyssDepths).map(d => areaView(d, 'depth')), ...values(game.strongholds).map(d => areaView(d, 'stronghold'))];
     const slayerAreas = values(game.slayerAreas).filter(a => abyss || !isAbyssal(a)).map(a => ({ ...areaView(a, 'slayer area'), slayerLevel: a.slayerLevelRequired ?? null }));
@@ -935,7 +940,7 @@
         .filter(d => d.requirements.every(r => r.met))
         .sort((a, b) => a.maxCombatLevel - b.maxCombatLevel),
       completedDungeons: dungeons.filter(d => d.completeCount > 0),
-      abyssalDepths: values(game.abyssDepths ?? game.abyssalDepths).map(depth => ({ name: depth.name, id: depth.id })),
+      abyssalDepths: values(game.abyssDepths ?? game.abyssalDepths).map(depth => ({ name: depth.name, id: depth.id, completeCount: depth.timesCompleted ?? null })),
     };
     const beats = { melee: 'magic', ranged: 'melee', magic: 'ranged' };
     const next = goals.unclearedDungeons[0] ?? null;
@@ -1152,6 +1157,32 @@
   };
 
   // Fight one monster of a combat or slayer area with a given set (training, farming). Preview unless apply.
+  // Ammo and runes a set needs, read from the set itself (no set switch: switching mid-fight is how GrifhinZ died).
+  // ponytail: rune preservation and combination runes ignored, so the count is a floor; 1000 attacks minimum by default
+  mh.setSupplies = (setIndex, minAttacks = 1000) => {
+    const set = game.combat.player.equipmentSets[setIndex - 1];
+    if (!set) return { set: setIndex, problems: ['no equipment set ' + setIndex] };
+    const eq = set.equipment.equippedArray.filter(s => !s.isEmpty), slot = id => eq.find(s => s.slot.localID === id);
+    const weapon = slot('Weapon')?.item, style = weapon?.attackType ?? null, out = { set: setIndex, style, problems: [] };
+    if (style === 'ranged') {
+      const q = slot('Quiver');
+      out.ammo = q ? { item: q.item.name, qty: q.quantity } : null;
+      if (!q) out.problems.push('no ammo in the quiver');
+      else if (q.quantity < minAttacks) out.problems.push(`only ${q.quantity} ${q.item.name} in the quiver`);
+    }
+    if (style === 'magic') {
+      const spell = set.spellSelection?.attack;
+      if (!spell) out.problems.push('no attack spell selected');
+      else {
+        const provided = new Set(eq.flatMap(s => (s.item.providedRunes || []).map(r => (r.item ?? r).id)));
+        out.spell = spell.name;
+        out.runes = (spell.runesRequired || []).filter(r => !provided.has(r.item.id)).map(r => ({ item: r.item.name, perCast: r.quantity, have: game.bank.getQty(r.item) }));
+        for (const r of out.runes) if (r.have < r.perCast * minAttacks) out.problems.push(`${spell.name}: ${r.item} ${r.have} in bank (${r.perCast}/cast)`);
+      }
+    }
+    return out;
+  };
+
   mh.fightStart = async (monsterName, setIndex, apply = false) => {
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const p = game.combat.player, lower = String(monsterName).toLowerCase();
@@ -1168,6 +1199,8 @@
       slayerTask: game.combat.slayerTask?.active ? game.combat.slayerTask.monster?.name : null, applied: false };
     if (!out.entry) return { ...out, error: 'area entry requirements not met' };
     if (out.abyssal && !/Abyssal/i.test(out.damageType || '')) return { ...out, error: 'set ' + setIndex + ' does not deal Abyssal damage' };
+    out.supplies = mh.setSupplies(setIndex);
+    if (out.supplies.problems.length) return { ...out, error: 'supplies: ' + out.supplies.problems.join('; ') };
     if (!apply) return out;
     // Auto Slayer sends every fight back to the task monster: turn it off for another target (slayer-start turns it back on)
     const task = game.combat.slayerTask;
@@ -1190,7 +1223,10 @@
     for (let i = 0; i < 40 && game.combat.enemy?.monster !== monster; i++) await sleep(500);
     out.now = game.activeAction?.name ?? null;     out.fighting = game.combat.enemy?.monster === monster ? monster.name : (game.combat.enemy?.monster?.name ?? null); out.area = game.combat.selectedArea?.name ?? out.area;
     out.applied = game.activeAction === game.combat && out.fighting === monster.name && p.selectedEquipmentSet === setIndex - 1;
-    if (!out.applied) out.error = 'the fight did not start';
+    if (!out.applied) { out.error = 'the fight did not start'; return out; }
+    // a fight that lacks runes or ammo stops on its own after the first attacks: watch it for a few seconds
+    await sleep(6000);
+    if (game.activeAction !== game.combat || !game.combat.isActive) { out.applied = false; out.error = 'the fight stopped by itself within 6 s (runes, ammo or a game popup?)'; }
     return out;
   };
 
@@ -1208,16 +1244,20 @@
       .flatMap(a => a.monsters.map(m => ({ area: a.name, monster: m }))).slice(0, maxSims);
     const set = game.combat.player.equipmentSets[setIndex - 1];
     const weapon = set?.equipment.equippedArray.find(s => s.slot.localID === 'Weapon' && !s.isEmpty)?.item;
-    const out = [];
-    for (const f of fights) {
+    const out = [], full = G.stores.simulator.state.trials, screen = mh.screenTrials(G);
+    const sim = async (f, trials) => {
       api.import({ ...base, isSlayerTask: Boolean(task?.active && task.monster === f.monster) }); await new Promise(r => setTimeout(r, 50));
-      let r; try { r = await mh.simulateFull(G, f.monster.id); } catch (e) { r = { simSuccess: false, reason: String(e.message || e) }; }
-      out.push({ area: f.area, monster: f.monster.name, attackType: f.monster.attackType, ok: r.simSuccess, reason: r.simSuccess ? null : r.reason,
+      let r; try { r = await mh.simulateFull(G, f.monster.id, undefined, trials); } catch (e) { r = { simSuccess: false, reason: String(e.message || e) }; }
+      return { area: f.area, monster: f.monster.name, attackType: f.monster.attackType, ok: r.simSuccess, reason: r.simSuccess ? null : r.reason, trials: r.trials ?? trials,
         xpPerHour: r.simSuccess ? Math.round(Math.max(r.xpPerSecondAbyssal || 0, r.xpPerSecondMelvor || 0) * 3600) : null,
-        deathRate: r.deathRate ?? null, killTimeS: Number.isFinite(r.killTimeS) ? r.killTimeS : null, atePerHour: r.simSuccess ? Math.round((r.atePerSecond || 0) * 3600) : null });
-    }
+        deathRate: r.deathRate ?? null, killTimeS: Number.isFinite(r.killTimeS) ? r.killTimeS : null, atePerHour: r.simSuccess ? Math.round((r.atePerSecond || 0) * 3600) : null };
+    };
+    for (const f of fights) out.push(await sim(f, screen));
+    // confirm the best few at full trials: those are the ones fight-start will pick from
+    const confirm = Number(self.__mptConfirmTop ?? 5);
+    if (screen < full) for (const row of out.filter(r => r.ok).sort((a, b) => b.xpPerHour - a.xpPerHour).slice(0, confirm)) Object.assign(row, await sim(fights.find(f => f.monster.name === row.monster && f.area === row.area), full));
     api.import(base);
-    return { name: game.characterName, mode: game.currentGamemode?.name ?? null, set: setIndex, style: weapon?.attackType ?? null, weapon: weapon?.name ?? null, damageType: weapon?.damageType?.name ?? null, fights: out };
+    return { supplies: mh.setSupplies(setIndex), name: game.characterName, mode: game.currentGamemode?.name ?? null, set: setIndex, style: weapon?.attackType ?? null, weapon: weapon?.name ?? null, damageType: weapon?.damageType?.name ?? null, fights: out };
   };
 
   window.mh = mh;
