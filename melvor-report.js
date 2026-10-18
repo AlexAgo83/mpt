@@ -1420,7 +1420,8 @@ function recordSaveBackup(name, source, saveString, now = new Date().toISOString
   const archives = fs.readdirSync(SAVE_DIR)
     .filter(f => f.startsWith(`${base}.`) && f.endsWith('.txt') && f !== `${base}.latest.txt`)
     .sort();
-  for (const f of archives.slice(0, Math.max(0, archives.length - 5))) {
+  const keep = Number(process.env.MELVOR_SAVE_KEEP) || 30;
+  for (const f of archives.slice(0, Math.max(0, archives.length - keep))) {
     try { fs.unlinkSync(path.join(SAVE_DIR, f)); } catch {}
   }
   return entry;
@@ -1470,6 +1471,7 @@ function buildCharacterJournal(name, data, save) {
       currentAction: brief.currentAction,
       standard: brief.standard,
       abyssal: brief.abyssal,
+      stats: data.stats || null,
       saveSource: save ? { source: save.source, diffMinutes: save.diffMs === null ? null : Math.round(save.diffMs / 60000) } : null,
     },
     analysis: {
@@ -2313,6 +2315,9 @@ const journalScript = (includeSaveBackup, target) => `(() => {
     const values = value => value instanceof Map ? [...value.values()] : value instanceof Set ? [...value] : Array.isArray(value) ? value : value?.allObjects ?? [];
     const talents = game.skills.allObjects.flatMap(skill => values(skill.skillTrees).map(tree => ({ skill: skill.name, points: tree.points || 0, candidates: values(tree.nodes).filter(node => node.canUnlock && tree.canAffordNode(node) && !values(tree.unlockedNodes).includes(node)).map(node => ({ name: node.name, shortName: node.shortName })) }))).filter(tree => tree.points > 0);
     const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])), equipmentSets, inventory, talents, createdAt: (() => { try { return game.stats.General.get(GeneralStats.AccountCreationDate) || null; } catch { return null; } })(), abyss: mh.abyssOpen(), skillRates: mh.skillRates(), upgradePlan: mh.upgradePlan(), goals: mh.goalData(${JSON.stringify(target)}), completion: ${completionScript} };
+    const stat = key => { try { return game.stats.Combat.get(CombatStats[key]); } catch { return null; } };
+    const clears = game.dungeons.allObjects.reduce((n, d) => n + (game.combat.getDungeonCompleteCount?.(d) ?? 0), 0);
+    out.stats = { deaths: stat('Deaths'), kills: stat('MonstersKilled'), dungeonClears: clears };
     if (${JSON.stringify(includeSaveBackup)}) out.saveExport = mh.exportSaveString();
     return out;
   })()`;
