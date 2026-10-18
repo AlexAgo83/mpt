@@ -2816,7 +2816,7 @@ if (require.main === module) (async () => {
       const results = await withCharacterSource(who, sources[who]?.source, async client => {
         const out = [];
         for (const t of targets) {
-          const monsterExpr = t.monsterId ? JSON.stringify(t.monsterId) : `(() => { const a = [...game.dungeons.allObjects, ...game.abyssDepths.allObjects, ...game.strongholds.allObjects].find(x => x.id === ${JSON.stringify(t.entityId)}); return [...a.monsters].sort((x, y) => (y.combatLevel ?? 0) - (x.combatLevel ?? 0))[0].id; })()`;
+          const monsterExpr = t.monsterId ? JSON.stringify(t.monsterId) : `(() => { const a = [...game.dungeons.allObjects, ...game.abyssDepths.allObjects, ...game.strongholds.allObjects].find(x => x.id === ${JSON.stringify(t.entityId)}); return ([...a.monsters].find(m => m.name === ${JSON.stringify(t.fight)}) ?? [...a.monsters].sort((x, y) => (y.combatLevel ?? 0) - (x.combatLevel ?? 0))[0]).id; })()`; // the blocking fight, not always the strongest monster
           out.push({ ...t, ...(await evalExpr(client, `self.__mptOptCandidates = ${Number(process.env.MELVOR_OPTIMIZE_CANDIDATES || 0)}; self.__mptScreenTrials = ${Number(process.env.MELVOR_SCREEN_TRIALS ?? 200)}; mh.optimizeFight({ monsterId: ${monsterExpr}, entityId: ${JSON.stringify(t.entityId)}, setIndex: ${t.setIndex}, style: ${JSON.stringify(t.style)}, cape: ${capeId}, maxSims: ${Number(process.env.MELVOR_OPTIMIZE_SIMS || 70)} })`, 900000)) });
         }
         return out;
