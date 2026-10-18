@@ -709,6 +709,9 @@
           const wanted = plan.prayers.map(n => game.prayers.allObjects.find(x => x.name === n)).filter(Boolean);
           for (const x of [...p.activePrayers]) if (!wanted.includes(x)) p.togglePrayer(x);
           for (const x of wanted) if (!p.activePrayers.has(x)) p.togglePrayer(x);
+          // the game does not always carry the toggles into the set (out of combat, set switched back right after): write them too
+          const sel = p.equipmentSets[plan.setIndex - 1]?.prayerSelection;
+          if (sel?.clear && wanted.every(x => p.canEnablePrayer?.(x) !== false || p.activePrayers.has(x))) { sel.clear(); for (const x of wanted) sel.add(x); }
         }
         // the attack spell is stored per set: select it while the set is active (set-plan)
         if (plan.spell && pass === 0) {
