@@ -647,7 +647,11 @@
       const trial = { ...current, prayerSelected: ids }; const r = await run(trial);
       if (better(r, best)) { best = r; current = trial; changes.push({ slot: 'Prayers', from: '', to: ids.map(id => game.prayers.getObjectByID(id)?.name).join(' + '), death: r.death, kill: r.kill }); }
     }
-    if (screen < full) { start = await run(base, full); best = current === base ? start : await run(current, full); }
+    if (screen < full) {
+      start = await run(base, full); best = current === base ? start : await run(current, full);
+      // the 200-trial screen cannot see small death-rate gaps: never keep a plan that dies more than the start at full trials
+      if (best.death > start.death) { best = start; current = base; changes.length = 0; }
+    }
     api.import(base);
     return { setIndex, style, monsterId, start, best, changes, sims, screenTrials: screen, equipment: [...current.equipment].map(([k, v]) => [k.split(':').pop(), game.items.getObjectByID(v)?.name ?? null]), potion: game.items.getObjectByID(current.potionID)?.name ?? null, prayers: (current.prayerSelected || []).map(id => game.prayers.getObjectByID(id)?.name) };
   };
