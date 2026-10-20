@@ -3,6 +3,9 @@
 (() => {
   const mh = {};
 
+  // Game text without its HTML tags, removed until none is left (one pass can leave a tag split by another).
+  mh.stripTags = text => { let t = String(text ?? ''), prev; do { prev = t; t = t.replace(/<[^>]*>/g, ''); } while (t !== prev); return t; };
+
   // Multi-tab: every in-game tab answers the ping with its character name.
   // Multiple characters are allowed, the same character in two tabs is not.
   mh._bc = new BroadcastChannel('mh-active-chars');
@@ -810,7 +813,7 @@
     const unkilledAll = values(game.monsters).filter(m => !m.ignoreCompletion && (abyss || !isAbyssal(m)) && killCount(m) === 0 && areaOf.has(m.id)).map(m => { const area = areaOf.get(m.id); const unlocked = met(area.entryRequirements); return { id: m.id, name: m.name, area: area.name, unlocked, missing: unlocked ? [] : missing(area.entryRequirements), combatLevel: m.combatLevel ?? null }; }).sort((a, b) => (b.unlocked - a.unlocked) || (a.combatLevel ?? 0) - (b.combatLevel ?? 0));
     const unkilled = unkilledAll.filter(m => m.unlocked).slice(0, 10);
     const nearMastery = values(game.skills).filter(sk => sk.hasMastery).flatMap(sk => values(sk.actions).filter(a => abyss || !isAbyssal(a)).map(a => { let lvl = null; try { lvl = sk.getMasteryLevel(a); } catch {} return { skill: sk.name, action: a.name ?? a.product?.name, level: lvl, cap: sk.masteryLevelCap ?? 99 }; })).filter(x => x.level != null && x.level >= 90 && x.level < x.cap).sort((a, b) => b.level - a.level).slice(0, 10);
-    const petsMissing = values(game.pets).filter(p => !p.ignoreCompletion && (abyss || !isAbyssal(p)) && !game.petManager.isPetUnlocked(p)).map(p => ({ name: p.name, skill: p.skill?.name ?? null, how: (p.acquiredBy || p.description || '').toString().replace(/<[^>]+>/g, '').slice(0, 90) }));
+    const petsMissing = values(game.pets).filter(p => !p.ignoreCompletion && (abyss || !isAbyssal(p)) && !game.petManager.isPetUnlocked(p)).map(p => ({ name: p.name, skill: p.skill?.name ?? null, how: mh.stripTags(p.acquiredBy || p.description || '').slice(0, 90) }));
 
     // target item
     let target = null;
@@ -1070,7 +1073,7 @@
     const met = i => { try { return game.checkRequirements(i.equipRequirements ?? [], false); } catch { return false; } };
     const reqs = i => (i.equipRequirements ?? []).filter(r => r.type === 'AbyssalLevel' || r.type === 'AbyssDepthCompletion').map(r => r.type === 'AbyssalLevel' ? r.skill.name + ' A' + r.level : 'Abyss depth clear').join(', ');
     const abyssal = i => i.id.startsWith('melvorItA') || (i.equipmentStats ?? []).some(s => s.damageType?.localID === 'Abyssal');
-    const view = (i, q) => ({ name: i.name, qty: q, req: reqs(i), stats: Object.entries(stats(i)).filter(([k, v]) => short[k] && v).map(([k, v]) => short[k] + ' ' + v).join(', '), passive: (() => { try { return (i.modifiedDescription || '').replace(/<[^>]+>/g, '').slice(0, 120); } catch { return ''; } })() });
+    const view = (i, q) => ({ name: i.name, qty: q, req: reqs(i), stats: Object.entries(stats(i)).filter(([k, v]) => short[k] && v).map(([k, v]) => short[k] + ' ' + v).join(', '), passive: (() => { try { return mh.stripTags(i.modifiedDescription || '').slice(0, 120); } catch { return ''; } })() });
     const bank = [...game.bank.items].filter(([i]) => i.validSlots?.length && abyssal(i));
     const slots = ['Weapon', 'Quiver', 'Shield', 'Helmet', 'Platebody', 'Platelegs', 'Boots', 'Gloves', 'Amulet', 'Ring', 'Cape', 'Passive', 'Summon1'];
     return { name: game.characterName, style, slots: Object.fromEntries(slots.filter(sl => sl !== 'Quiver' || style === 'ranged').map(sl => {

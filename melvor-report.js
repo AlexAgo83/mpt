@@ -251,6 +251,10 @@ function cdp(wsUrl) {
   });
 }
 
+// A value interpolated into page code: JSON, with the characters that can end a script or a line escaped.
+const JS_ESCAPES = { '<': '\\u003C', '>': '\\u003E', '\u2028': '\\u2028', '\u2029': '\\u2029' };
+const js = v => String(JSON.stringify(v)).replace(/[<>\u2028\u2029]/g, c => JS_ESCAPES[c]);
+
 async function evalExpr(client, expression, timeout = 30000) {
   const r = await client.send('Runtime.evaluate', {
     expression,
@@ -331,9 +335,9 @@ async function withCharacterSource(name, source, fn, init, write = false) {
     // a loaded character pushes itself to the cloud (autoCloudSave on load, then periodically) and saves locally:
     // a read must leave both saves untouched, so only writers (withCharacterWrite, save-push) keep saving
     if (!write) await evalExpr(client, READ_ONLY);
-    const load = await evalExpr(client, `mh.${loader}(${JSON.stringify(name)})`, 45000);
+    const load = await evalExpr(client, `mh.${loader}(${js(name)})`, 45000);
     if (!String(load).startsWith(source === 'local' ? 'loading local ' : 'loading ')) throw Error(load);
-    await waitFor(client, `typeof game !== 'undefined' && game.loopStarted && game.characterName === ${JSON.stringify(name)}`, 150000);
+    await waitFor(client, `typeof game !== 'undefined' && game.loopStarted && game.characterName === ${js(name)}`, 150000);
     // ponytail: kept fixed, lets the first ticks after offline progress settle before reading or writing
     await sleep(1500);
     return await fn(client);
@@ -416,7 +420,7 @@ function printGear(r) {
     for (const best of (detail ? items : items.slice(0, 1))) {
       if (!best || best.name === r.equipped[slot]?.name || scoreItem(best, prefixes) <= scoreItem(r.equipped[slot], prefixes)) continue;
       console.log(`  raw candidate ${slot}: ${best.name}`);
-      if (detail) console.log(`    current ${JSON.stringify(r.equipped[slot]?.stats || {})} | passives ${(r.equipped[slot]?.passives || []).join('; ') || 'none'} | candidate ${JSON.stringify(best.stats)} | passives ${(best.passives || []).join('; ') || 'none'}`);
+      if (detail) console.log(`    current ${JSON.stringify(r.equipped[slot]?.stats || {})} | passives ${(r.equipped[slot]?.passives || []).join('; ') || 'none'} | candidate ${js(best.stats)} | passives ${(best.passives || []).join('; ') || 'none'}`);
     }
   }
   if (detail) for (const [slot, items] of Object.entries(r.blocked || {}))
@@ -770,11 +774,11 @@ const combatRunScript = (dungeonRef, timeoutMs, setNumber = null) => `(async () 
   // dungeons and Abyss depths (strongholds need a tier choice: not handled)
   const depths = game.abyssDepths?.allObjects ?? [];
   const allDungeons = [...game.dungeons.allObjects, ...depths];
-  const ref = ${JSON.stringify(dungeonRef)}.toLowerCase();
+  const ref = ${js(dungeonRef)}.toLowerCase();
   const dungeon = allDungeons.find(d => d.id.toLowerCase() === ref)
     ?? allDungeons.find(d => d.name.toLowerCase() === ref)
     ?? allDungeons.find(d => d.name.toLowerCase().includes(ref));
-  if (!dungeon) return { status: 'error', error: ${JSON.stringify('unknown dungeon: ' + dungeonRef)} };
+  if (!dungeon) return { status: 'error', error: ${js('unknown dungeon: ' + dungeonRef)} };
   const monsters = dungeon.monsters ?? [];
   const boss = monsters[monsters.length - 1];
   const style = beats[boss?.attackType] || null;
@@ -892,7 +896,7 @@ const magicSetupScript = (slotNumber, shouldApply) => `(async () => {
   const attackSpells = [...(game.attackSpellbooks?.allObjects ?? [])].flatMap(book => [...(book.spells?.allObjects ?? book.spells ?? [])]);
   const magicSpell = attackSpells.find(spell => spell.name === 'Abyssal Blast' && p.canUseCombatSpell(spell));
   const result = { name: game.characterName, slot: slotIndex + 1, preset: gear, potion: potionName, missing, targetEquipment: [...targetNames], damageType: targetWeapon?.damageType?.name ?? null, spell: magicSpell?.name ?? null, applied: false, actions: [] };
-  if (!${JSON.stringify(shouldApply)}) return result;
+  if (!${js(shouldApply)}) return result;
   if (!p.equipmentSets?.[slotIndex]) return { ...result, error: 'equipment set ' + (slotIndex + 1) + ' does not exist' };
   if (missing.length) return { ...result, error: 'missing required bank items' };
   const previousSet = p.selectedEquipmentSet;
@@ -953,7 +957,7 @@ const restoreAbyssalRangedScript = (slotNumber, shouldApply) => `(async () => {
   const targetNames = new Set(targetSet?.equipment.equippedArray.filter(slot => !slot.isEmpty).map(slot => slot.item.name) ?? []);
   const missing = Object.entries(gear).filter(([, name]) => !owned(name) && !targetNames.has(name)).map(([slot, name]) => slot + ': ' + name);
   const result = { name: game.characterName, slot: slotIndex + 1, preset: gear, missing, targetEquipment: [...targetNames], applied: false, actions: [] };
-  if (!${JSON.stringify(shouldApply)}) return result;
+  if (!${js(shouldApply)}) return result;
   if (!targetSet) return { ...result, error: 'equipment set ' + (slotIndex + 1) + ' does not exist' };
   if (missing.length) return { ...result, error: 'missing required bank items' };
   const previousSet = p.selectedEquipmentSet;
@@ -971,22 +975,22 @@ const restoreAbyssalRangedScript = (slotNumber, shouldApply) => `(async () => {
 })()`;
 
 const equipmentActionScript = (itemName, slotName, quantity, shouldApply) => `(() => {
-  const item = [...game.bank.items.keys()].find(item => item.name === ${JSON.stringify(itemName)});
+  const item = [...game.bank.items.keys()].find(item => item.name === ${js(itemName)});
   const player = game.combat.player;
-  const slot = player.equipment.equippedArray.find(entry => entry.slot.localID === ${JSON.stringify(slotName)})?.slot;
-  const current = player.equipment.equippedArray.find(entry => entry.slot.localID === ${JSON.stringify(slotName)})?.item?.name ?? null;
+  const slot = player.equipment.equippedArray.find(entry => entry.slot.localID === ${js(slotName)})?.slot;
+  const current = player.equipment.equippedArray.find(entry => entry.slot.localID === ${js(slotName)})?.item?.name ?? null;
   const available = item ? game.bank.items.get(item)?.quantity ?? 0 : 0;
-  const result = { name: game.characterName, item: ${JSON.stringify(itemName)}, slot: ${JSON.stringify(slotName)}, current, available, applied: false };
+  const result = { name: game.characterName, item: ${js(itemName)}, slot: ${js(slotName)}, current, available, applied: false };
   if (!item) return { ...result, error: 'item is not in bank' };
-  if (!slot || !item.validSlots?.some(value => value.localID === ${JSON.stringify(slotName)})) return { ...result, error: 'item cannot be equipped in this slot' };
-  const stack = /^(Summon[12]|Quiver|Consumable)$/.test(${JSON.stringify(slotName)});
+  if (!slot || !item.validSlots?.some(value => value.localID === ${js(slotName)})) return { ...result, error: 'item cannot be equipped in this slot' };
+  const stack = /^(Summon[12]|Quiver|Consumable)$/.test(${js(slotName)});
   const amount = ${quantity === undefined ? 'undefined' : Number(quantity)} ?? (stack ? available : 1);
   if (amount < 1 || amount > available) return { ...result, error: 'requested quantity is unavailable' };
   result.quantity = amount;
-  if (!${JSON.stringify(shouldApply)}) return result;
-  result.action = mh.equipSlot(${JSON.stringify(itemName)}, ${JSON.stringify(slotName)}, amount);
-  result.final = player.equipment.equippedArray.find(entry => entry.slot.localID === ${JSON.stringify(slotName)})?.item?.name ?? null;
-  if (result.final !== ${JSON.stringify(itemName)}) return { ...result, error: 'Melvor did not equip the requested item' };
+  if (!${js(shouldApply)}) return result;
+  result.action = mh.equipSlot(${js(itemName)}, ${js(slotName)}, amount);
+  result.final = player.equipment.equippedArray.find(entry => entry.slot.localID === ${js(slotName)})?.item?.name ?? null;
+  if (result.final !== ${js(itemName)}) return { ...result, error: 'Melvor did not equip the requested item' };
   result.applied = true;
   return result;
 })()`;
@@ -1017,7 +1021,7 @@ const completionLine = (row, prev) => {
 
 // Guarded combat configuration change: kind is potion | prayers | poi | style | souls.
 const configSetScript = (kind, value, shouldApply) => `(async () => {
-  const kind = ${JSON.stringify(kind)}, value = ${JSON.stringify(value)}, apply = ${JSON.stringify(shouldApply)};
+  const kind = ${js(kind)}, value = ${js(value)}, apply = ${js(shouldApply)};
   const player = game.combat.player;
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const result = { name: game.characterName, kind, target: value, applied: false };
@@ -1105,18 +1109,18 @@ const skillStartScript = (skillName, recipeName, shouldApply) => `(async () => {
   const values = value => value instanceof Map || value instanceof Set ? [...value.values()] : value?.allObjects ?? value ?? [];
   const methodNames = object => { const names = new Set(); for (let value = object; value && value !== Object.prototype; value = Object.getPrototypeOf(value)) for (const name of Object.getOwnPropertyNames(value)) if (typeof object[name] === 'function') names.add(name); return [...names].filter(name => /select|create|start/i.test(name)); };
   const method = (object, names) => names.find(name => typeof object[name] === 'function');
-  const skill = values(game.skills).find(skill => skill.name.toLowerCase() === ${JSON.stringify(skillName.toLowerCase())});
-  if (!skill) return { error: ${JSON.stringify('unknown skill: ' + skillName)} };
+  const skill = values(game.skills).find(skill => skill.name.toLowerCase() === ${js(skillName.toLowerCase())});
+  if (!skill) return { error: ${js('unknown skill: ' + skillName)} };
   const actions = values(skill.actions).length ? values(skill.actions) : values(skill.recipes);
-  const action = actions.find(action => (action.name ?? action.product?.name ?? '').toLowerCase() === ${JSON.stringify(recipeName.toLowerCase())});
-  const result = { name: game.characterName, skill: skill.name, recipe: ${JSON.stringify(recipeName)}, applied: false };
+  const action = actions.find(action => (action.name ?? action.product?.name ?? '').toLowerCase() === ${js(recipeName.toLowerCase())});
+  const result = { name: game.characterName, skill: skill.name, recipe: ${js(recipeName)}, applied: false };
   if (!action) return { ...result, error: 'unknown recipe for this skill' };
   const costs = action.itemCosts ?? action.costs?.items ?? [];
   result.inputs = costs.map(cost => ({ item: cost.item?.name, required: cost.quantity ?? cost.qty ?? 0, available: game.bank.items.get(cost.item)?.quantity ?? 0 })).filter(cost => cost.item && cost.required > 0);
   if ((skill.level ?? 0) < (action.level ?? 1) || (skill.abyssalLevel ?? 0) < (action.abyssalLevel ?? 0)) return { ...result, error: 'recipe is not unlocked' };
   if (!result.inputs.length || result.inputs.some(cost => cost.available < cost.required)) return { ...result, error: 'insufficient recipe materials' };
   result.methods = methodNames(skill);
-  if (!${JSON.stringify(shouldApply)}) return result;
+  if (!${js(shouldApply)}) return result;
   const select = method(skill, ['selectRecipeOnClick', 'selectRecipe']);
   const start = method(skill, ['createButtonOnClick', 'start', 'startAction']);
   if (!select || !start) return { ...result, error: 'unsupported Melvor artisan action API' };
@@ -1133,15 +1137,15 @@ const skillStartScript = (skillName, recipeName, shouldApply) => `(async () => {
 
 const talentUnlockScript = (skillName, nodeName, shouldApply) => `(async () => {
   const values = value => value instanceof Map || value instanceof Set ? [...value.values()] : value?.allObjects ?? value ?? [];
-  const skill = values(game.skills).find(skill => skill.name.toLowerCase() === ${JSON.stringify(skillName.toLowerCase())});
-  if (!skill) return { error: ${JSON.stringify('unknown skill: ' + skillName)} };
-  const tree = values(skill.skillTrees).find(tree => values(tree.nodes).some(node => node.name?.toLowerCase() === ${JSON.stringify(nodeName.toLowerCase())} || node.shortName?.toLowerCase() === ${JSON.stringify(nodeName.toLowerCase())}));
-  const node = tree && values(tree.nodes).find(node => node.name?.toLowerCase() === ${JSON.stringify(nodeName.toLowerCase())} || node.shortName?.toLowerCase() === ${JSON.stringify(nodeName.toLowerCase())});
-  const result = { name: game.characterName, skill: skill.name, node: ${JSON.stringify(nodeName)}, pointsBefore: tree?.points ?? null, applied: false };
+  const skill = values(game.skills).find(skill => skill.name.toLowerCase() === ${js(skillName.toLowerCase())});
+  if (!skill) return { error: ${js('unknown skill: ' + skillName)} };
+  const tree = values(skill.skillTrees).find(tree => values(tree.nodes).some(node => node.name?.toLowerCase() === ${js(nodeName.toLowerCase())} || node.shortName?.toLowerCase() === ${js(nodeName.toLowerCase())}));
+  const node = tree && values(tree.nodes).find(node => node.name?.toLowerCase() === ${js(nodeName.toLowerCase())} || node.shortName?.toLowerCase() === ${js(nodeName.toLowerCase())});
+  const result = { name: game.characterName, skill: skill.name, node: ${js(nodeName)}, pointsBefore: tree?.points ?? null, applied: false };
   if (!node || !tree) return { ...result, error: 'unknown talent node for this skill' };
   if (!node.canUnlock || !tree.canAffordNode?.(node)) return { ...result, error: 'talent node is not affordable or unlockable' };
   result.methods = Object.getOwnPropertyNames(Object.getPrototypeOf(tree)).filter(name => /unlock/i.test(name));
-  if (!${JSON.stringify(shouldApply)}) return result;
+  if (!${js(shouldApply)}) return result;
   const unlock = tree.unlockNodeOnClick ?? tree.unlockNode;
   if (typeof unlock !== 'function') return { ...result, error: 'unsupported Melvor talent API' };
   unlock.call(tree, node);
@@ -1277,7 +1281,7 @@ async function loginSmoke() {
       const user = document.querySelector('#formElements-signIn-username');
       const pass = document.querySelector('#formElements-signIn-password');
       if (!user || !pass) throw Error('sign-in form not found');
-      for (const [el, value] of [[user, ${JSON.stringify(username)}], [pass, ${JSON.stringify(password)}]]) {
+      for (const [el, value] of [[user, ${js(username)}], [pass, ${js(password)}]]) {
         el.focus();
         el.value = value;
         el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -2158,7 +2162,7 @@ function chooseClearPlan(check, planResults = []) {
 // (then eats back up and goes on), runs from a magic final Bane to reroll its style, and puts the final-Bane plan
 // on before the last area. Refuses to start when the Unhallowed Wasteland set does not negate its healing.
 const eventRunScript = (plans, timeoutMs) => `(async () => {
-  const ID_MODIFIER_RANKING = ${JSON.stringify(ID_MODIFIER_RANKING)};
+  const ID_MODIFIER_RANKING = ${js(ID_MODIFIER_RANKING)};
   const chooseIdModifier = ${chooseIdModifier};
   const c = game.combat, p = c.player, ev = game.combatEvents.allObjects[0], sleep = ms => new Promise(r => setTimeout(r, ms));
   const ORDER = ['Unhallowed Wasteland', 'Dark Waters', 'Shrouded Badlands', 'Perilous Peaks'];
@@ -2166,7 +2170,7 @@ const eventRunScript = (plans, timeoutMs) => `(async () => {
   const dungeon = game.dungeons.find(d => d.event === ev), clears = () => c.getDungeonCompleteCount(dungeon);
   const st = { log: [], minHpPct: 100, eats: 0, flees: 0, rerolls: 0, banes: [], clearsBefore: clears(), set: p.selectedEquipmentSet };
   const log = m => st.log.push(new Date().toISOString().slice(11, 19) + ' ' + m);
-  const desc = x => String(x.description || x.name).replace(/<[^>]+>/g, '');
+  const desc = x => { let t = String(x.description || x.name), prev; do { prev = t; t = t.replace(/<[^>]*>/g, ''); } while (t !== prev); return t; };
   const hpPct = () => 100 * p.hitpoints / p.stats.maxHitpoints;
   // the Unhallowed Wasteland enemies heal (100 - negation)% every 2 turns: under 100 the area cannot be cleared
   if (!c.isEventActive) {
@@ -2218,8 +2222,8 @@ const eventRunScript = (plans, timeoutMs) => `(async () => {
     const left = [...c.activeEventAreas.keys()];
     if (!left.length) continue;
     const area = ORDER.map(n => left.find(a => a.name === n)).find(Boolean) || left[0];
-    if (c.eventProgress === 4 && left.length === 1 && !final && ${JSON.stringify(plans)}.length) {
-      final = await mh.dungeonSetupApply(${JSON.stringify(plans)}); log('final Bane plan: ' + (final.error || 'applied'));
+    if (c.eventProgress === 4 && left.length === 1 && !final && ${js(plans)}.length) {
+      final = await mh.dungeonSetupApply(${js(plans)}); log('final Bane plan: ' + (final.error || 'applied'));
       if (final.error) { state = 'final plan failed'; break; }
     }
     const set = AREA_SET[area.name] ?? 0;
@@ -2325,20 +2329,20 @@ async function collectJournal(name, save, includeSaveBackup = false) {
     await waitFor(client, "typeof mod !== 'undefined' && mod.api.ETA !== undefined", 5000).catch(() => null);
     const data = await evalExpr(client, journalScript(includeSaveBackup, target));
     // --sim: replay the current target with each upgrade candidate in [Myth] Combat Simulator
-    if (simulate && data.report?.action === 'Combat' && data.upgradePlan?.slots) data.upgradeSim = await evalExpr(client, `mh.simUpgrades(${JSON.stringify(data.upgradePlan)})`, 240000);
+    if (simulate && data.report?.action === 'Combat' && data.upgradePlan?.slots) data.upgradeSim = await evalExpr(client, `mh.simUpgrades(${js(data.upgradePlan)})`, 240000);
     // --sim: next dungeon bosses, never-killed monsters and the target item's best monster, for the Plans goals
     if (simulate && data.goals) {
       const areas = (data.goals.dungeons || []).filter(d => d.name !== '???' && !d.clears && d.unlocked && d.boss).slice(0, 2).map(d => ({ key: 'area:' + d.id, monsterId: d.boss, entityId: d.id }));
       const monsters = (data.goals.completion?.unkilled || []).slice(0, 3).map(m => ({ key: 'mon:' + m.id, monsterId: m.id }));
       const farm = (data.goals.target?.monsters || []).filter(m => m.unlocked !== false).slice(0, 1).map(m => ({ key: 'mon:' + m.monsterId, monsterId: m.monsterId }));
-      data.goalSim = await evalExpr(client, `mh.simTargets(${JSON.stringify([...areas, ...monsters, ...farm])})`, 240000);
+      data.goalSim = await evalExpr(client, `mh.simTargets(${js([...areas, ...monsters, ...farm])})`, 240000);
     }
     return data;
   }, simulate ? SIM_DEBUG : undefined);
 }
 
 const journalScript = (includeSaveBackup, target) => `(() => {
-    const wanted = ${JSON.stringify(JOURNAL_WANTED)};
+    const wanted = ${js(JOURNAL_WANTED)};
     const qty = n => { for (const [item, bi] of game.bank.items) if (item.name === n) return bi.quantity; return 0; };
     const skills = mh.skills();
     const targets = [...new Set([
@@ -2349,11 +2353,11 @@ const journalScript = (includeSaveBackup, target) => `(() => {
     const inventory = [...game.bank.items].map(([item, entry]) => ({ name: item.name, quantity: entry.quantity, media: item.media || null, type: item.type || item.category || 'Other', kind: item.constructor?.name ?? null, slot: item.validSlots?.[0]?.localID ?? null, sell: item.sellsFor?.quantity ?? 0, currency: item.sellsFor?.currency?.id === 'melvorD:GP' ? 'GP' : item.sellsFor?.currency?.id === 'melvorItA:AbyssalPieces' ? 'AP' : null })).sort((a, b) => a.name.localeCompare(b.name));
     const values = value => value instanceof Map ? [...value.values()] : value instanceof Set ? [...value] : Array.isArray(value) ? value : value?.allObjects ?? [];
     const talents = game.skills.allObjects.flatMap(skill => values(skill.skillTrees).map(tree => ({ skill: skill.name, points: tree.points || 0, candidates: values(tree.nodes).filter(node => node.canUnlock && tree.canAffordNode(node) && !values(tree.unlockedNodes).includes(node)).map(node => ({ name: node.name, shortName: node.shortName })) }))).filter(tree => tree.points > 0);
-    const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])), equipmentSets, inventory, talents, createdAt: (() => { try { return game.stats.General.get(GeneralStats.AccountCreationDate) || null; } catch { return null; } })(), abyss: mh.abyssOpen(), skillRates: mh.skillRates(), upgradePlan: mh.upgradePlan(), goals: mh.goalData(${JSON.stringify(target)}), completion: ${completionScript} };
+    const out = { report: mh.readOnlyReport(), skills, skilling: mh.skillingAudit(), skillingOptions: Object.fromEntries(targets.map(n => [n, mh.skillingOptions(n)])), bank: Object.fromEntries(wanted.map(n => [n, qty(n)])), equipmentSets, inventory, talents, createdAt: (() => { try { return game.stats.General.get(GeneralStats.AccountCreationDate) || null; } catch { return null; } })(), abyss: mh.abyssOpen(), skillRates: mh.skillRates(), upgradePlan: mh.upgradePlan(), goals: mh.goalData(${js(target)}), completion: ${completionScript} };
     const stat = key => { try { return game.stats.Combat.get(CombatStats[key]); } catch { return null; } };
     const clears = game.dungeons.allObjects.reduce((n, d) => n + (game.combat.getDungeonCompleteCount?.(d) ?? 0), 0);
     out.stats = { deaths: stat('Deaths'), kills: stat('MonstersKilled'), dungeonClears: clears };
-    if (${JSON.stringify(includeSaveBackup)}) out.saveExport = mh.exportSaveString();
+    if (${js(includeSaveBackup)}) out.saveExport = mh.exportSaveString();
     return out;
   })()`;
 
@@ -2545,10 +2549,10 @@ if (require.main === module) (async () => {
       const qty = requestedQuantity ?? 1;
       if (!(qty >= 1 && qty <= 10)) throw Error('bank-add puts back 1 to 10 items');
       const script = `(() => {
-        const item = game.items.allObjects.find(i => i.name === ${JSON.stringify(arg3)});
-        if (!item) return { error: 'no item named ' + ${JSON.stringify(arg3)} };
+        const item = game.items.allObjects.find(i => i.name === ${js(arg3)});
+        if (!item) return { error: 'no item named ' + ${js(arg3)} };
         const before = game.bank.items.get(item)?.quantity ?? 0;
-        if (!${JSON.stringify(apply)}) return { name: game.characterName, item: item.name, before, after: before + ${qty}, applied: false };
+        if (!${js(apply)}) return { name: game.characterName, item: item.name, before, after: before + ${qty}, applied: false };
         game.bank.addItem(item, ${qty}, false, false, true, false);
         const after = game.bank.items.get(item)?.quantity ?? 0;
         return { name: game.characterName, item: item.name, before, after, applied: after === before + ${qty}, error: after === before + ${qty} ? null : 'bank quantity did not change' };
@@ -2564,7 +2568,7 @@ if (require.main === module) (async () => {
       if (who === 'all') throw Error(`usage: ./melvor-report.js ${cmd} <character>${cmd === 'set-candidates' ? ' --style melee|ranged|magic' : cmd === 'train-targets' ? ' --slot N' : ''}`);
       if (cmd === 'set-candidates' && !gearStyle) throw Error('set-candidates needs --style melee|ranged|magic');
       const { sources } = await readSourcesByName();
-      const expr = cmd === 'sets' ? '({ name: game.characterName, styles: Object.fromEntries(Object.entries(game.combat.player.attackStyles ?? {}).map(([k, v]) => [k, v?.name])), sets: mh.setsView(), prayer: { level: game.prayer?.level, abyssalLevel: game.prayer?.abyssalLevel ?? 0 }, abyssalPrayers: game.prayers.allObjects.filter(p => /^melvorItA:/.test(p.id)).map(p => ({ name: p.name, level: p.abyssalLevel ?? 0 })).sort((a, b) => a.level - b.level) })' : cmd === 'set-candidates' ? `mh.setCandidates(${JSON.stringify(gearStyle)})` : `(self.__mptScreenTrials = ${Number(process.env.MELVOR_SCREEN_TRIALS ?? 200)}, mh.trainTargets(${requestedSlot}, 45, ${JSON.stringify(weaponName)}))`;
+      const expr = cmd === 'sets' ? '({ name: game.characterName, styles: Object.fromEntries(Object.entries(game.combat.player.attackStyles ?? {}).map(([k, v]) => [k, v?.name])), sets: mh.setsView(), prayer: { level: game.prayer?.level, abyssalLevel: game.prayer?.abyssalLevel ?? 0 }, abyssalPrayers: game.prayers.allObjects.filter(p => /^melvorItA:/.test(p.id)).map(p => ({ name: p.name, level: p.abyssalLevel ?? 0 })).sort((a, b) => a.level - b.level) })' : cmd === 'set-candidates' ? `mh.setCandidates(${js(gearStyle)})` : `(self.__mptScreenTrials = ${Number(process.env.MELVOR_SCREEN_TRIALS ?? 200)}, mh.trainTargets(${requestedSlot}, 45, ${js(weaponName)}))`;
       const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, expr, 900000), cmd === 'train-targets' ? SIM_DEBUG : undefined);
       if (r.error) throw Error(r.error);
       if (cmd === 'sets') {
@@ -2601,10 +2605,10 @@ if (require.main === module) (async () => {
         if (st.do === 'config-set') return configSetScript(st.kind, st.value, apply);
         if (st.do === 'equip') return equipmentActionScript(st.item, st.slot, st.quantity, apply);
         if (st.do === 'skill-start') return skillStartScript(st.skill, st.recipe, apply);
-        if (st.do === 'set-plan') return apply ? `mh.dungeonSetupApply(${JSON.stringify(st.plan)})` : `mh.dungeonSetupPreview(${JSON.stringify(st.plan)})`;
+        if (st.do === 'set-plan') return apply ? `mh.dungeonSetupApply(${js(st.plan)})` : `mh.dungeonSetupPreview(${js(st.plan)})`;
         if (st.do === 'set-swap') return `mh.setSwap(${Number(st.a)}, ${Number(st.b)}, ${apply})`;
-        if (st.do === 'fight-start') return `mh.fightStart(${JSON.stringify(st.monster)}, ${Number(st.slot)}, ${apply})`;
-        if (st.do === 'craft') return `mh.craft(${JSON.stringify(st.skill)}, ${JSON.stringify(st.recipe)}, ${Number(st.quantity) || 1}, ${apply})`;
+        if (st.do === 'fight-start') return `mh.fightStart(${js(st.monster)}, ${Number(st.slot)}, ${apply})`;
+        if (st.do === 'craft') return `mh.craft(${js(st.skill)}, ${js(st.recipe)}, ${Number(st.quantity) || 1}, ${apply})`;
         throw Error('unknown batch step: ' + st.do + ' (config-set, equip, skill-start, set-plan, set-swap, fight-start, craft)');
       };
       const exprs = steps.map(exprFor); // validate every step before loading the game
@@ -2641,15 +2645,15 @@ if (require.main === module) (async () => {
         const raw = JSON.parse(fs.readFileSync(arg3, 'utf8'));
         const plans = (Array.isArray(raw) ? raw : raw.plans || []).map(p => ({ setIndex: Number(p.setIndex), style: p.style || null, equipment: p.equipment || [], spell: p.spell || null, prayers: p.prayers || null }));
         if (!plans.length || plans.some(p => !Number.isInteger(p.setIndex) || p.setIndex < 1)) throw Error('plan must be a list of { setIndex, equipment: [[slot, item]], spell?, prayers? }');
-        expr = apply ? `mh.dungeonSetupApply(${JSON.stringify(plans)})` : `mh.dungeonSetupPreview(${JSON.stringify(plans)})`;
+        expr = apply ? `mh.dungeonSetupApply(${js(plans)})` : `mh.dungeonSetupPreview(${js(plans)})`;
       } else if (cmd === 'set-swap') {
         const [a, b] = [Number(arg3), Number(arg4)];
         if (!Number.isInteger(a) || !Number.isInteger(b)) throw Error('set numbers must be integers');
         expr = `mh.setSwap(${a}, ${b}, ${apply})`;
       } else if (cmd === 'fight-start') {
         if (slotIndex < 0) throw Error('fight-start needs --slot N');
-        expr = `mh.fightStart(${JSON.stringify(arg3)}, ${requestedSlot}, ${apply})`;
-      } else expr = `mh.craft(${JSON.stringify(arg3)}, ${JSON.stringify(arg4)}, ${requestedQuantity || 1}, ${apply})`;
+        expr = `mh.fightStart(${js(arg3)}, ${requestedSlot}, ${apply})`;
+      } else expr = `mh.craft(${js(arg3)}, ${js(arg4)}, ${requestedQuantity || 1}, ${apply})`;
       const run = client => evalExpr(client, expr, 180000);
       const r = apply ? await withCharacterWrite(who, run) : await readSourcesByName().then(({ sources }) => withCharacterSource(who, sources[who]?.source, run));
       if (r.autoSlayerOff || r.semiAutoSlayerOff) writeAutoSlayerOff(who, { ...(readAutoSlayerOff()[who] || {}), game: Boolean(r.autoSlayerOff || readAutoSlayerOff()[who]?.game), semi: Boolean(r.semiAutoSlayerOff || readAutoSlayerOff()[who]?.semi) });
@@ -2681,7 +2685,7 @@ if (require.main === module) (async () => {
       if (who === 'all' || !arg3) throw Error('usage: ./melvor-report.js item-where <character> "<item name part>"');
       const { sources } = await readSourcesByName();
       const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, `(() => {
-        const part = ${JSON.stringify(arg3.toLowerCase())};
+        const part = ${js(arg3.toLowerCase())};
         const items = game.items.allObjects.filter(i => i.name.toLowerCase().includes(part));
         const bank = items.map(i => [i.name, game.bank.items.get(i)?.quantity ?? 0]).filter(([, q]) => q > 0);
         const sets = game.combat.player.equipmentSets.flatMap((set, i) => set.equipment.equippedArray.filter(s => items.includes(s.item)).map(s => ['S' + (i + 1) + ' ' + s.slot.localID, s.item.name]));
@@ -2701,8 +2705,8 @@ if (require.main === module) (async () => {
       if (who === 'all' || !arg3) throw Error('usage: ./melvor-report.js skilling-best <character> <skill>');
       const { sources } = await readSourcesByName();
       const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, `(() => {
-        const skill = game.skills.allObjects.find(s => s.name.toLowerCase() === ${JSON.stringify(arg3.toLowerCase())});
-        if (!skill) return { error: 'unknown skill ' + ${JSON.stringify(arg3)} };
+        const skill = game.skills.allObjects.find(s => s.name.toLowerCase() === ${js(arg3.toLowerCase())});
+        if (!skill) return { error: 'unknown skill ' + ${js(arg3)} };
         // legacy ids carry the skill in their name (thievingStunInterval, altMagicSkillXP): drop those of other skills
         const otherSkill = new RegExp(game.skills.allObjects.filter(s => s !== skill).map(s => s.localID.toLowerCase()).join('|'));
         const notSkilling = /ammo|potion|summoningcharge|food|respawn|regen|combat|attack|damage|hitpoint|evasion|accuracy|slayer|prayer|rune|lifesteal|reflect|resistance/;
@@ -2766,7 +2770,7 @@ if (require.main === module) (async () => {
         if (!out.prev.name) { out.status = 'previous activity unknown: not started'; out.resume = { wanted: null, now: null, set: out.prev.set, wantedSet: out.prev.set, ok: false }; return out; }
         try {
           if (plans.length) {
-            out.setup = await evalExpr(client, `mh.dungeonSetupApply(${JSON.stringify(plans)})`, 120000);
+            out.setup = await evalExpr(client, `mh.dungeonSetupApply(${js(plans)})`, 120000);
             // the replaced gear on disk too, so `dungeon-setup --restore --apply` can put it back if this session fails
             if (out.setup.before) fs.writeFileSync(path.join(dir, `${safeFilePart(who)}-${safeFilePart(check.dungeon)}-before.json`), JSON.stringify({ at: new Date().toISOString(), character: who, dungeon: check.dungeon, results: out.setup.before.map(b => ({ ...b, best: { death: 0 } })) }, null, 2));
             if (out.setup.error) { out.status = 'setup failed: ' + out.setup.error; return out; }
@@ -2777,7 +2781,7 @@ if (require.main === module) (async () => {
         } finally {
           // the game refuses gear changes inside a dungeon: leave the fight first (a timed-out run is still in it)
           out.stopped = await evalExpr(client, `(async () => { if (game.combat.isActive) { game.combat.stop(); await new Promise(r => setTimeout(r, 1000)); } return !game.combat.isActive; })()`, 30000);
-          if (out.setup?.before) out.restore = await evalExpr(client, `mh.dungeonSetupApply(${JSON.stringify(out.setup.before.map(b => ({ ...b, best: { death: 0 } })))})`, 120000);
+          if (out.setup?.before) out.restore = await evalExpr(client, `mh.dungeonSetupApply(${js(out.setup.before.map(b => ({ ...b, best: { death: 0 } })))})`, 120000);
           if (out.potion && out.prev.potion) out.potionBack = await evalExpr(client, configSetScript('potion', out.prev.potion, true), 60000);
           out.resume = await evalExpr(client, `(async () => {
             const s = self.__mptPrev, p = game.combat.player, sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -2829,7 +2833,7 @@ if (require.main === module) (async () => {
       const plans = [...plan.results].filter(r => !styles || styles.includes(r.style)).sort((a, b) => a.setIndex - b.setIndex).map(r => ({ setIndex: r.setIndex, style: r.style, equipment: r.equipment, potion: r.potion, prayers: r.prayers, best: r.best }));
       if (!plans.length) throw Error('no plan for ' + (styles || []).join(', '));
       if (apply) {
-        const r = await withCharacterWrite(who, client => evalExpr(client, `mh.dungeonSetupApply(${JSON.stringify(plans)})`, 120000));
+        const r = await withCharacterWrite(who, client => evalExpr(client, `mh.dungeonSetupApply(${js(plans)})`, 120000));
         // keep the first record: a second --apply must not overwrite the daily gear with the dungeon gear
         if (!restore && r.before && !fs.existsSync(beforeFile)) fs.writeFileSync(beforeFile, JSON.stringify({ at: new Date().toISOString(), character: who, dungeon: plan.dungeon, results: r.before.map(b => ({ ...b, best: { death: 0 } })) }, null, 2));
         if (restore && r.applied) fs.unlinkSync(beforeFile);
@@ -2843,7 +2847,7 @@ if (require.main === module) (async () => {
         return;
       }
       const { sources } = await readSourcesByName();
-      const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, `mh.dungeonSetupPreview(${JSON.stringify(plans)})`, 60000));
+      const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, `mh.dungeonSetupPreview(${js(plans)})`, 60000));
       if (r.error) throw Error(r.error);
       console.log(`${r.name} | ${plan.dungeon} | setup preview (plans from ${new Date(plan.at).toLocaleString()}); nothing changed`);
       for (const s of r.sets) {
@@ -2878,12 +2882,12 @@ if (require.main === module) (async () => {
       const { sources } = await readSourcesByName();
       // --cape: another required cape than the check's best one (one Maximum Skillcape cannot sit in every set)
       const cape = capeName || check.cape;
-      const capeId = cape ? `(() => game.items.allObjects.find(i => i.name === ${JSON.stringify(cape)})?.id)()` : 'null';
+      const capeId = cape ? `(() => game.items.allObjects.find(i => i.name === ${js(cape)})?.id)()` : 'null';
       const results = await withCharacterSource(who, sources[who]?.source, async client => {
         const out = [];
         for (const t of targets) {
-          const monsterExpr = t.monsterId ? JSON.stringify(t.monsterId) : `(() => { const a = [...game.dungeons.allObjects, ...game.abyssDepths.allObjects, ...game.strongholds.allObjects].find(x => x.id === ${JSON.stringify(t.entityId)}); return ([...a.monsters].find(m => m.name === ${JSON.stringify(t.fight)}) ?? [...a.monsters].sort((x, y) => (y.combatLevel ?? 0) - (x.combatLevel ?? 0))[0]).id; })()`; // the blocking fight, not always the strongest monster
-          out.push({ ...t, ...(await evalExpr(client, `self.__mptOptCandidates = ${Number(process.env.MELVOR_OPTIMIZE_CANDIDATES || 0)}; self.__mptScreenTrials = ${Number(process.env.MELVOR_SCREEN_TRIALS ?? 200)}; mh.optimizeFight({ monsterId: ${monsterExpr}, entityId: ${JSON.stringify(t.entityId)}, setIndex: ${t.setIndex}, style: ${JSON.stringify(t.style)}, cape: ${capeId}, maxSims: ${Number(process.env.MELVOR_OPTIMIZE_SIMS || 70)} })`, 900000)) });
+          const monsterExpr = t.monsterId ? JSON.stringify(t.monsterId) : `(() => { const a = [...game.dungeons.allObjects, ...game.abyssDepths.allObjects, ...game.strongholds.allObjects].find(x => x.id === ${js(t.entityId)}); return ([...a.monsters].find(m => m.name === ${js(t.fight)}) ?? [...a.monsters].sort((x, y) => (y.combatLevel ?? 0) - (x.combatLevel ?? 0))[0]).id; })()`; // the blocking fight, not always the strongest monster
+          out.push({ ...t, ...(await evalExpr(client, `self.__mptOptCandidates = ${Number(process.env.MELVOR_OPTIMIZE_CANDIDATES || 0)}; self.__mptScreenTrials = ${Number(process.env.MELVOR_SCREEN_TRIALS ?? 200)}; mh.optimizeFight({ monsterId: ${monsterExpr}, entityId: ${js(t.entityId)}, setIndex: ${t.setIndex}, style: ${js(t.style)}, cape: ${capeId}, maxSims: ${Number(process.env.MELVOR_OPTIMIZE_SIMS || 70)} })`, 900000)) });
         }
         return out;
       }, SIM_DEBUG);
@@ -2908,7 +2912,7 @@ if (require.main === module) (async () => {
       const roles = (process.env.MELVOR_SET_ROLES || 'melee,ranged,magic,skill,melee,ranged,magic').split(',').map(x => x.trim());
       const style = gearStyle || roles[requestedSlot - 1];
       const { sources } = await readSourcesByName();
-      const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, `(() => { const m = game.monsters.allObjects.find(x => x.name === ${JSON.stringify(arg3)}); if (!m) return { error: 'no monster ' + ${JSON.stringify(arg3)} }; self.__mptOptCandidates = ${Number(process.env.MELVOR_OPTIMIZE_CANDIDATES || 0)}; self.__mptScreenTrials = ${Number(process.env.MELVOR_SCREEN_TRIALS ?? 200)}; return mh.optimizeFight({ monsterId: m.id, entityId: undefined, setIndex: ${requestedSlot}, style: ${JSON.stringify(style)}, maxSims: ${Number(process.env.MELVOR_OPTIMIZE_SIMS || 120)} }); })()`, 900000), SIM_DEBUG);
+      const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, `(() => { const m = game.monsters.allObjects.find(x => x.name === ${js(arg3)}); if (!m) return { error: 'no monster ' + ${js(arg3)} }; self.__mptOptCandidates = ${Number(process.env.MELVOR_OPTIMIZE_CANDIDATES || 0)}; self.__mptScreenTrials = ${Number(process.env.MELVOR_SCREEN_TRIALS ?? 200)}; return mh.optimizeFight({ monsterId: m.id, entityId: undefined, setIndex: ${requestedSlot}, style: ${js(style)}, maxSims: ${Number(process.env.MELVOR_OPTIMIZE_SIMS || 120)} }); })()`, 900000), SIM_DEBUG);
       if (r.error) throw Error(r.error);
       console.log(`${who} | ${arg3} | S${requestedSlot} ${style}: deaths ${(r.start.death * 100).toFixed(1)}% -> ${(r.best.death * 100).toFixed(1)}%, kill ${r.start.kill.toFixed(1)} -> ${r.best.kill.toFixed(1)} s (${r.sims} sims${r.screenTrials ? `, screened at ${r.screenTrials} trials, result at ${r.best.trials}` : ''})`);
       const finalBySlot = new Map(); for (const c of r.changes) finalBySlot.set(c.slot, { ...c, from: finalBySlot.get(c.slot)?.from ?? c.from });
@@ -2927,7 +2931,7 @@ if (require.main === module) (async () => {
       if (who === 'all' || !arg3) throw Error('usage: ./melvor-report.js dungeon-check <character> "<dungeon name>"');
       const { sources } = await readSourcesByName();
       const roles = (process.env.MELVOR_SET_ROLES || 'melee,ranged,magic,skill,melee,ranged,magic').split(',').map(x => x.trim());
-      const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, `mh.dungeonCheck(${JSON.stringify(arg3)}, ${JSON.stringify(roles)})`, 600000), SIM_DEBUG);
+      const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, `mh.dungeonCheck(${js(arg3)}, ${js(roles)})`, 600000), SIM_DEBUG);
       if (r.error) throw Error(r.error);
       printDungeonCheck(who, r);
       const dir = path.join(JOURNAL_DIR, 'dungeons'); fs.mkdirSync(dir, { recursive: true });
@@ -2970,7 +2974,7 @@ if (require.main === module) (async () => {
       const timeout = Number(process.env.MELVOR_EVENT_RUN_TIMEOUT_MS || 2 * 60 * 60 * 1000);
       const r = await withCharacterWrite(who, async client => {
         const out = await evalExpr(client, eventRunScript(plans, timeout), timeout + 60000);
-        if (out.finalBefore) out.restore = await evalExpr(client, `mh.dungeonSetupApply(${JSON.stringify(out.finalBefore.map(b => ({ ...b, best: { death: 0 } })))})`, 120000);
+        if (out.finalBefore) out.restore = await evalExpr(client, `mh.dungeonSetupApply(${js(out.finalBefore.map(b => ({ ...b, best: { death: 0 } })))})`, 120000);
         await evalExpr(client, `game.combat.player.changeEquipmentSet(${out.set ?? 0})`);
         return out;
       });
@@ -3037,7 +3041,7 @@ if (require.main === module) (async () => {
         const task = game.combat.slayerTask;
         if (!task?.active || !task.monster) return { error: 'no active Slayer task' };
         // fight-start turned Auto Slayer (game setting, SEMI mod) off to fight another monster: back on the task, turn it back on
-        const restore = ${JSON.stringify(readAutoSlayerOff()[who] || {})};
+        const restore = ${js(readAutoSlayerOff()[who] || {})};
         const semi = document.getElementById('semi-auto-slayer-enable-check');
         if (restore.game && !game.settings.enableAutoSlayer) game.settings.toggleSetting('enableAutoSlayer');
         if (restore.semi && semi && !semi.checked) semi.click();
@@ -3213,7 +3217,7 @@ if (require.main === module) (async () => {
           return { report, sets };
         })()`);
         return evalExpr(client, `(() => {
-          const audit = mh.gearAudit(${JSON.stringify(gearStyle)} || game.combat.player.attackType, ${detail ? 5 : 2});
+          const audit = mh.gearAudit(${js(gearStyle)} || game.combat.player.attackType, ${detail ? 5 : 2});
           return { name: game.characterName, action: game.activeAction?.name ?? null, combat: mh.combatInfo(), context: audit.context, equipped: audit.equipped, candidates: audit.candidates, blocked: audit.blocked };
         })()`);
       });
