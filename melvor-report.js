@@ -307,7 +307,9 @@ async function closeSpareTab() {
 }
 const SELECTION_READY = "/Select your Character|Sign In|DEMO VERSION/.test(document.body?.innerText || '')";
 
-async function withCharacterSource(name, source, fn, init) {
+const READ_ONLY = "(() => { window.saveData = () => {}; PlayFabClientSDK.UpdateUserData = (req, cb) => cb && cb({ code: 200, status: 'OK', data: {} }, null); return 'read-only'; })()";
+
+async function withCharacterSource(name, source, fn, init, write = false) {
   const loader = source === 'local' ? 'loadLocalCharacter' : 'loadCharacter';
   const t = await takeTab();
   const { client } = t;
@@ -325,6 +327,9 @@ async function withCharacterSource(name, source, fn, init) {
     await waitFor(client, "typeof cloudManager !== 'undefined' && cloudManager.isAuthenticated && !/DEMO VERSION/.test(document.body.innerText)", 20000)
       .catch(() => { throw Error('Melvor cloud is signed out in this Chrome: sign in again (login-smoke), nothing was read or changed'); });
     await evalExpr(client, helper);
+    // a loaded character pushes itself to the cloud (autoCloudSave on load, then periodically) and saves locally:
+    // a read must leave both saves untouched, so only writers (withCharacterWrite, save-push) keep saving
+    if (!write) await evalExpr(client, READ_ONLY);
     const load = await evalExpr(client, `mh.${loader}(${JSON.stringify(name)})`, 45000);
     if (!String(load).startsWith(source === 'local' ? 'loading local ' : 'loading ')) throw Error(load);
     await waitFor(client, `typeof game !== 'undefined' && game.loopStarted && game.characterName === ${JSON.stringify(name)}`, 150000);
@@ -2356,7 +2361,7 @@ async function withCharacterWrite(name, fn) {
     const result = await fn(client);
     const saved = await evalExpr(client, 'mh.save()', 60000);
     return { ...result, saved };
-  });
+  }, undefined, true);
   const afterSlots = await readSlots();
   const after = sourceOfTruth(afterSlots).find(s => s.name === name) || null;
   return { ...result, sourceBefore: before?.source || 'unknown', sourceAfter: after?.source || 'unknown' };
@@ -2889,7 +2894,7 @@ if (require.main === module) (async () => {
       })()`);
         const saved = await evalExpr(client, 'mh.save()', 60000);
         return { ...result, saved };
-      });
+      }, undefined, true);
       const afterSlots = await readSlots();
       const after = sourceOfTruth(afterSlots).find(s => s.name === who) || null;
       console.log(`${data.name} | save-push | ${data.action || 'idle'} | GP ${fmtNum(data.gp)}`);
