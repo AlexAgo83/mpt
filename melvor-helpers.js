@@ -191,6 +191,7 @@
       combatLevel: game.playerCombatLevel,
       hp: game.combat.player.hitpoints,
       prayerPoints: game.combat.player.prayerPoints,
+      soulPoints: game.combat.player.soulPoints,
       food: game.combat.player.food.currentSlot?.item?.name ?? null,
       foodQty: game.combat.player.food.currentSlot?.quantity ?? 0,
       equipment: Object.fromEntries(slots.map(s => [s.slot.localID, s.item.name])),

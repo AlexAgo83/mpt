@@ -79,7 +79,7 @@ const usage = `usage:
   ./melvor-report.js skilling <character>
   ./melvor-report.js agility [all|character]
   ./melvor-report.js config [all|character]
-  ./melvor-report.js config-set <character> <potion|prayers|poi|style> <value> [--apply]
+  ./melvor-report.js config-set <character> <potion|prayers|poi|style|souls> <value> [--apply]
   ./melvor-report.js talents <character>
   ./melvor-report.js export-state [all|character]
   ./melvor-report.js save-backup [all|character]
@@ -1014,7 +1014,7 @@ const completionLine = (row, prev) => {
     (prev ? `\n  vs ${prev.at.slice(0, 10)}` : '');
 };
 
-// Guarded combat configuration change: kind is potion | prayers | poi | style.
+// Guarded combat configuration change: kind is potion | prayers | poi | style | souls.
 const configSetScript = (kind, value, shouldApply) => `(async () => {
   const kind = ${JSON.stringify(kind)}, value = ${JSON.stringify(value)}, apply = ${JSON.stringify(shouldApply)};
   const player = game.combat.player;
@@ -1039,13 +1039,29 @@ const configSetScript = (kind, value, shouldApply) => `(async () => {
     result.current = names(player.activePrayers);
     if (missing.length) return { ...result, error: 'unknown prayer: ' + missing.join(', ') };
     const unusable = wanted.filter(prayer => !player.canEnablePrayer?.(prayer) && !player.activePrayers.has(prayer));
-    if (unusable.length) return { ...result, error: 'prayer not usable now: ' + unusable.map(prayer => prayer.name).join(', ') };
+    // say why: canEnablePrayer only toasts its reason
+    const why = prayer => !prayer.canUseWithDamageType(player.damageType) ? 'not with ' + player.damageType.name + ' damage'
+      : prayer.isUnholy && player.modifiers.allowUnholyPrayerUse < 2 ? 'needs 2 unholy items'
+      : prayer.isAbyssal ? 'soul points ' + Math.floor(player.soulPoints) + ' < ' + player.computeSoulPointMaxCost(prayer)
+      : 'prayer points ' + Math.floor(player.prayerPoints) + ' < ' + player.computePrayerMaxCost(prayer);
+    if (unusable.length) return { ...result, error: 'prayer not usable now: ' + unusable.map(prayer => prayer.name + ' (' + why(prayer) + ')').join(', ') };
     if (!apply) return result;
     for (const prayer of [...player.activePrayers]) if (!wanted.includes(prayer)) player.togglePrayer(prayer);
     for (const prayer of wanted) if (!player.activePrayers.has(prayer)) player.togglePrayer(prayer);
     await sleep(300);
     result.final = names(player.activePrayers);
     if (wanted.some(prayer => !player.activePrayers.has(prayer)) || player.activePrayers.size !== wanted.length) return { ...result, error: 'Melvor did not set the requested prayers' };
+  } else if (kind === 'souls') {
+    // value '<soul item>:<quantity>': release souls from the bank for soul points (abyssal prayers run on them)
+    const [itemName, qtyText] = value.split(':');
+    const item = game.items.allObjects.find(i => i.name === itemName.trim());
+    if (!item?.soulPoints) return { ...result, error: 'not a soul item: ' + itemName };
+    const quantity = Math.min(Number(qtyText) || 0, game.bank.getQty(item));
+    result.current = Math.floor(player.soulPoints) + ' soul points';
+    result.available = game.bank.getQty(item);
+    if (!apply || quantity <= 0) return result;
+    game.bank.releaseSoulItemOnClick(item, quantity);
+    result.final = Math.floor(player.soulPoints) + ' soul points (' + quantity + ' ' + item.name + ' released)';
   } else if (kind === 'poi') {
     const map = game.cartography.activeMap;
     const poi = map?.pointsOfInterest.allObjects.find(poi => poi.name === value);
@@ -1078,7 +1094,7 @@ const configSetScript = (kind, value, shouldApply) => `(async () => {
     await sleep(300);
     result.final = player.attackStyles?.[type]?.name ?? 'unknown';
     if (result.final !== value) return { ...result, error: 'Melvor did not set the attack style' };
-  } else return { ...result, error: 'kind must be potion, prayers, poi, or style' };
+  } else return { ...result, error: 'kind must be potion, prayers, poi, style, or souls' };
   result.hitChance = player.stats.hitChance;
   result.applied = true;
   return result;
@@ -3018,7 +3034,7 @@ if (require.main === module) (async () => {
 
     if (cmd === 'equip' || cmd === 'skill-start' || cmd === 'talent-unlock' || cmd === 'config-set') {
       if (who === 'all' || !arg3 || !arg4) {
-        const usage = cmd === 'equip' ? 'equip <character> <item> <slot>' : cmd === 'config-set' ? 'config-set <character> <potion|prayers|poi|style> <value>' : `${cmd} <character> <skill> <${cmd === 'skill-start' ? 'recipe' : 'node'}>`;
+        const usage = cmd === 'equip' ? 'equip <character> <item> <slot>' : cmd === 'config-set' ? 'config-set <character> <potion|prayers|poi|style|souls> <value>' : `${cmd} <character> <skill> <${cmd === 'skill-start' ? 'recipe' : 'node'}>`;
         throw Error(`usage: ./melvor-report.js ${usage} [--apply]`);
       }
       const script = cmd === 'config-set'
