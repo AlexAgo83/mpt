@@ -101,6 +101,7 @@ const usage = `usage:
   ./melvor-report.js fight-start <character> "<monster>" --slot N [--apply]   (fight one monster with set N, e.g. a train-targets pick)
   ./melvor-report.js batch <character> <steps.json> [--apply]    (one load + one save for several steps: [{do: config-set|equip|skill-start|set-plan|set-swap|fight-start|craft, ...}])
   ./melvor-report.js item-where <character> "<item name part>"     (bank, sets, deaths: where an item went)
+  ./melvor-report.js skilling-best <character> <skill>             (per slot, bank items whose modifiers help that skill; read-only)
   ./melvor-report.js bank-add <character> "<exact item name>" [--quantity N] [--apply]   (repair: put back an item lost by the tooling)
   ./melvor-report.js journal-serve [--port 8787]
   ./melvor-report.js journal-status [all|character]
@@ -115,7 +116,7 @@ if (require.main === module) {
     console.log(usage);
     process.exit(0);
   }
-  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide', 'dungeon-check', 'dungeon-optimize', 'dungeon-setup', 'dungeon-clear', 'event-run', 'item-where', 'bank-add', 'sets', 'set-candidates', 'set-plan', 'set-swap', 'craft', 'train-targets', 'fight-start', 'fight-optimize', 'batch'].includes(cmd)) {
+  if (!['summary', 'brief', 'gear', 'skilling', 'agility', 'config', 'talents', 'slots', 'smoke', 'login-smoke', 'diff-slots', 'source-of-truth', 'improve', 'combat-plan', 'combat-setup', 'combat-run', 'magic-setup', 'slayer-abyssal', 'slayer-start', 'equip', 'skill-start', 'talent-unlock', 'config-set', 'export-state', 'save-backup', 'save-push', 'journal', 'journal-serve', 'journal-status', 'journal-diff', 'journal-action', 'completion', 'dungeon-guide', 'dungeon-check', 'dungeon-optimize', 'dungeon-setup', 'dungeon-clear', 'event-run', 'item-where', 'skilling-best', 'bank-add', 'sets', 'set-candidates', 'set-plan', 'set-swap', 'craft', 'train-targets', 'fight-start', 'fight-optimize', 'batch'].includes(cmd)) {
     console.error(usage);
     process.exit(2);
   }
@@ -2691,6 +2692,47 @@ if (require.main === module) (async () => {
       console.log(`  items matching: ${r.matches.join(', ') || 'none'}`);
       console.log(`  in bank: ${r.bank.map(([n, q]) => n + ' x' + q).join(', ') || 'none'}`);
       console.log(`  equipped: ${r.sets.map(([w, n]) => w + ' ' + n).join(', ') || 'none'}`);
+      return;
+    }
+
+    if (cmd === 'skilling-best') {
+      // read-only: per slot, the bank items whose modifiers help one skill (scoped to it, or unscoped skilling ones)
+      // ponytail: ranks by number of matching modifiers, not by value; read the descriptions before equipping
+      if (who === 'all' || !arg3) throw Error('usage: ./melvor-report.js skilling-best <character> <skill>');
+      const { sources } = await readSourcesByName();
+      const r = await withCharacterSource(who, sources[who]?.source, client => evalExpr(client, `(() => {
+        const skill = game.skills.allObjects.find(s => s.name.toLowerCase() === ${JSON.stringify(arg3.toLowerCase())});
+        if (!skill) return { error: 'unknown skill ' + ${JSON.stringify(arg3)} };
+        // legacy ids carry the skill in their name (thievingStunInterval, altMagicSkillXP): drop those of other skills
+        const otherSkill = new RegExp(game.skills.allObjects.filter(s => s !== skill).map(s => s.localID.toLowerCase()).join('|'));
+        const notSkilling = /ammo|potion|summoningcharge|food|respawn|regen|combat|attack|damage|hitpoint|evasion|accuracy|slayer|prayer|rune|lifesteal|reflect|resistance/;
+        const helps = m => {
+          if (m.skill) return m.skill === skill;
+          if (m.realm && m.realm !== skill.realm && !skill.hasRealm?.(m.realm)) return false;
+          const id = m.modifier.id.toLowerCase();
+          return /skill|mastery|doubl|preserv|interval|xp/.test(id) && !notSkilling.test(id) && !otherSkill.test(id.replace(/^melvord?:/, ''));
+        };
+        const text = m => { try { return m.print().text; } catch { return m.modifier.id + ' ' + m.value; } };
+        const useful = i => (i.modifiers ?? []).filter(helps).map(text);
+        const met = i => { try { return game.checkRequirements(i.equipRequirements ?? [], false); } catch { return false; } };
+        const p = game.combat.player;
+        const out = {};
+        for (const slot of p.equipment.equippedArray.map(e => e.slot)) {
+          const current = p.equipment.equippedArray.find(e => e.slot === slot);
+          const picks = [...game.bank.items].map(([i, b]) => [i, b.quantity]).filter(([i]) => i.validSlots?.includes(slot) && met(i))
+            .map(([i, q]) => ({ name: i.name, qty: q, effects: useful(i) })).filter(c => c.effects.length)
+            .sort((a, b) => b.effects.length - a.effects.length).slice(0, 4);
+          const cur = current && !current.isEmpty ? { name: current.item.name, effects: useful(current.item) } : null;
+          if (picks.length || cur?.effects.length) out[slot.localID] = { current: cur, picks };
+        }
+        return { name: game.characterName, skill: skill.name, set: p.selectedEquipmentSet + 1, action: game.activeAction?.name ?? null, slots: out };
+      })()`, 120000));
+      if (r.error) throw Error(r.error);
+      console.log(`${r.name} | ${r.skill} | S${r.set} selected | doing ${r.action || 'nothing'}`);
+      for (const [slot, { current, picks }] of Object.entries(r.slots)) {
+        console.log(`  ${slot}: now ${current ? current.name + (current.effects.length ? ' (' + current.effects.join('; ') + ')' : ' (nothing for ' + r.skill + ')') : 'empty'}`);
+        for (const c of picks) console.log(`    - ${c.name} x${c.qty}: ${c.effects.join('; ')}`);
+      }
       return;
     }
 
