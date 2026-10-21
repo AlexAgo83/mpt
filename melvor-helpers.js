@@ -76,6 +76,9 @@
 
   // Local save + immediate cloud push.
   mh.save = async () => {
+    // saveData() silently skips while the game replays offline time (hours of it take minutes): wait it out
+    for (let i = 0; loadingOfflineProgress && i < 600; i++) await new Promise(r => setTimeout(r, 1000));
+    if (loadingOfflineProgress) throw Error('offline progress still loading after 10 min: nothing saved');
     saveData();
     await cloudManager.forceUpdatePlayFabSave();
     return 'saved (local + cloud)';

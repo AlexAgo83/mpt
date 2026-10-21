@@ -2380,7 +2380,7 @@ async function withCharacterWrite(name, fn) {
   const before = sources[name] || null;
   const result = await withCharacterSource(name, before?.source, async client => {
     const result = await fn(client);
-    const saved = await evalExpr(client, 'mh.save()', 60000);
+    const saved = await evalExpr(client, 'mh.save()', 660000);
     return { ...result, saved };
   }, undefined, true);
   const afterSlots = await readSlots();
@@ -2954,7 +2954,7 @@ if (require.main === module) (async () => {
         const report = mh.readOnlyReport();
         return { name: report.name, action: report.action, gp: report.gp };
       })()`);
-        const saved = await evalExpr(client, 'mh.save()', 60000);
+        const saved = await evalExpr(client, 'mh.save()', 660000);
         return { ...result, saved };
       }, undefined, true);
       const afterSlots = await readSlots();
