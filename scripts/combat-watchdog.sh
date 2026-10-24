@@ -3,6 +3,8 @@
 # Rya (Hardcore) is never restarted automatically. Read-only check; writes only when a character is idle.
 set -uo pipefail
 cd "$(dirname "$0")/.."
+# the cloud session expires now and then (2026-10-23): sign in again first, it returns at once when still signed in
+node --env-file-if-exists=.env.local melvor-report.js login-smoke >/dev/null 2>&1 || echo "login-smoke failed"
 # ponytail: fixed character:slot list, update it when a character's combat set changes
 for entry in GrifhinZ:6 Dash:6 Edalbraw:5; do
   name=${entry%%:*} slot=${entry##*:}
