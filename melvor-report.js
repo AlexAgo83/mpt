@@ -2051,6 +2051,7 @@ function renderDashboard(snap) {
 ${DASHBOARD_CSS}
 </style>
 <body>
+<a class="hub-back" href="/">← Jarvis HQ</a>
 <header class="topbar"><div class="brand"><img src="assets/mpt-mark.svg" alt=""><h1>MelvorPT</h1></div>
 <div class="top-actions"><a href="daily" class="button-link">Daily recap</a><span id="scanTime" class="muted"></span>
 <div class="split" aria-label="Refresh journal"><button id="refreshCharacter" type="button" class="split-pick" aria-haspopup="menu" aria-label="Character to refresh"><span>All</span><svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button><button id="refreshButton" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg><span>Refresh</span></button></div>

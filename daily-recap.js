@@ -91,7 +91,8 @@ small{color:var(--mut)}.up{color:var(--up)}.down{color:var(--down)}.now{margin:0
 .items{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px}.item{display:grid;justify-items:center;gap:1px;padding:4px;border:1px solid var(--line);border-radius:6px;text-align:center;min-width:0}
 .item img{width:32px;height:32px}.item b{font-size:.8rem}.item small{font-size:.65rem;line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}.more{align-self:center;color:var(--mut);font-size:.8rem}
 .scroll{overflow-x:auto}.hist{border-collapse:collapse}.hist td,.hist th{white-space:nowrap;border-top:1px solid var(--line);padding:4px 12px 4px 0;text-align:left;font-variant-numeric:tabular-nums}
-</style></head><body><header><h1><a href="./">MelvorPT</a> · ${title}</h1><small>${sub}</small><nav>${nav}</nav></header><main>${body}</main></body></html>`;
+.hub-back{display:inline-block;margin-bottom:6px;color:var(--mut);font-size:.85rem;text-decoration:none}.hub-back:hover{color:var(--accent)}
+</style></head><body><a class="hub-back" href="/">← Jarvis HQ</a><header><h1><a href="./">MelvorPT</a> · ${title}</h1><small>${sub}</small><nav>${nav}</nav></header><main>${body}</main></body></html>`;
 
 const readDays = () => !fs.existsSync(DAILY_DIR) ? [] : fs.readdirSync(DAILY_DIR).filter(f => /^\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort();
 const readDay = f => JSON.parse(fs.readFileSync(path.join(DAILY_DIR, f), 'utf8'));
