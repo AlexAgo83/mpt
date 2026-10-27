@@ -213,7 +213,7 @@ assert.ok(html.includes('save risk') && html.includes('needs attention'), 'risk 
 assert.ok(html.includes('To do') && html.includes("cell('Next'") && html.includes("dataset.panel = 'skills'") && html.includes("dataset.panel = 'plans'"), 'cockpit focus and detail tabs present');
 assert.ok(!/Users\/|password|9223|chrome-profile/i.test(html), 'dashboard is sanitized');
 assert.match(html, /journal-serve/, 'offline dashboard explains how to enable refresh controls');
-assert.match(html, /\/refresh/, 'served dashboard can trigger a journal refresh');
+assert.match(html, /fetch\('refresh'/, 'served dashboard can trigger a journal refresh');
 assert.match(html, /equipment-grid/, 'dashboard renders the character equipment sheet');
 assert.match(html, /playerDamageType/, 'equipment sheet shows the active combat damage type');
 assert.match(html, /wiki\.melvoridle\.com\/api\.php/, 'equipment sheet loads official wiki icons');

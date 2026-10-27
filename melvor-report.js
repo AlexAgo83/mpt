@@ -2043,15 +2043,16 @@ function renderDashboard(snap) {
   return `<!doctype html>
 <html lang="fr">
 <meta charset="utf-8">
+<script>if (location.protocol.startsWith('http') && !location.pathname.endsWith('/') && !location.pathname.endsWith('.html')) location.replace(location.pathname + '/' + location.search + location.hash);</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" type="image/svg+xml" href="/assets/mpt-mark.svg">
+<link rel="icon" type="image/svg+xml" href="assets/mpt-mark.svg">
 <title>MelvorPT</title>
 <style>
 ${DASHBOARD_CSS}
 </style>
 <body>
-<header class="topbar"><div class="brand"><img src="/assets/mpt-mark.svg" alt=""><h1>MelvorPT</h1></div>
-<div class="top-actions"><a href="/daily" class="button-link">Daily recap</a><span id="scanTime" class="muted"></span>
+<header class="topbar"><div class="brand"><img src="assets/mpt-mark.svg" alt=""><h1>MelvorPT</h1></div>
+<div class="top-actions"><a href="daily" class="button-link">Daily recap</a><span id="scanTime" class="muted"></span>
 <div class="split" aria-label="Refresh journal"><button id="refreshCharacter" type="button" class="split-pick" aria-haspopup="menu" aria-label="Character to refresh"><span>All</span><svg class="caret" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg></button><button id="refreshButton" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg><span>Refresh</span></button></div>
 <button id="todoButton" class="todo-pill" type="button" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><b id="todoCount">0</b><span class="tab-label">To do</span></button>
 <button id="setupButton" class="icon-button" type="button" title="Account setup" aria-label="Account setup"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button></div></header>

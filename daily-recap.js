@@ -77,7 +77,7 @@ function history(days) {
 }
 
 const page = (title, sub, nav, body) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Melvor daily recap</title><link rel="icon" type="image/svg+xml" href="/assets/mpt-mark.svg"><style>
+<title>Melvor daily recap</title><link rel="icon" type="image/svg+xml" href="assets/mpt-mark.svg"><style>
 :root{--bg:#0f1311;--card:#171d1a;--fg:#e8ece9;--mut:#93a39b;--up:#5fd39a;--down:#f08a7e;--line:#2a332f;--accent:#e9b949}
 body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,sans-serif}
 a{color:var(--accent)}header{display:flex;flex-wrap:wrap;align-items:baseline;gap:.4rem 1rem;margin-bottom:12px}
@@ -91,7 +91,7 @@ small{color:var(--mut)}.up{color:var(--up)}.down{color:var(--down)}.now{margin:0
 .items{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px}.item{display:grid;justify-items:center;gap:1px;padding:4px;border:1px solid var(--line);border-radius:6px;text-align:center;min-width:0}
 .item img{width:32px;height:32px}.item b{font-size:.8rem}.item small{font-size:.65rem;line-height:1.1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}.more{align-self:center;color:var(--mut);font-size:.8rem}
 .scroll{overflow-x:auto}.hist{border-collapse:collapse}.hist td,.hist th{white-space:nowrap;border-top:1px solid var(--line);padding:4px 12px 4px 0;text-align:left;font-variant-numeric:tabular-nums}
-</style></head><body><header><h1><a href="/">MelvorPT</a> · ${title}</h1><small>${sub}</small><nav>${nav}</nav></header><main>${body}</main></body></html>`;
+</style></head><body><header><h1><a href="./">MelvorPT</a> · ${title}</h1><small>${sub}</small><nav>${nav}</nav></header><main>${body}</main></body></html>`;
 
 const readDays = () => !fs.existsSync(DAILY_DIR) ? [] : fs.readdirSync(DAILY_DIR).filter(f => /^\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort();
 const readDay = f => JSON.parse(fs.readFileSync(path.join(DAILY_DIR, f), 'utf8'));
@@ -112,8 +112,8 @@ function renderDaily({ day = null, live = false } = {}) {
     now = readDay(files[i]); before = i > 0 ? readDay(files[i - 1]) : null;
   }
   const link = (href, label, on) => `<a href="${href}"${on ? ' class="on"' : ''}>${label}</a>`;
-  const nav = [link('/daily', 'Last snapshot', !live && i === files.length - 1), link('/daily?live=1', 'Since last snapshot (live)', live),
-    !live && files[i - 1] ? link(`/daily?day=${files[i - 1].slice(0, 10)}`, '← previous day') : '', !live && files[i + 1] ? link(`/daily?day=${files[i + 1].slice(0, 10)}`, 'next day →') : ''].join('');
+  const nav = [link('daily', 'Last snapshot', !live && i === files.length - 1), link('daily?live=1', 'Since last snapshot (live)', live),
+    !live && files[i - 1] ? link(`daily?day=${files[i - 1].slice(0, 10)}`, '← previous day') : '', !live && files[i + 1] ? link(`daily?day=${files[i + 1].slice(0, 10)}`, 'next day →') : ''].join('');
   const sub = before ? `${esc(before.at.slice(0, 16).replace('T', ' '))} → ${esc(now.at.slice(0, 16).replace('T', ' '))} UTC · ${span(now.at, before.at)}` : esc(now.at.slice(0, 16).replace('T', ' ')) + ' UTC';
   const cards = Object.entries(now.characters).map(([n, c]) => card(n, c, before?.characters?.[n], media)).join('\n');
   return page(live ? 'since last snapshot' : 'daily recap', sub, nav, cards + history(files.slice(Math.max(0, i - HISTORY_DAYS + 1), i + 1).map(readDay)));

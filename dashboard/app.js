@@ -46,7 +46,7 @@ const goalOf = (name, c) => (served ? snap.goals?.[name]?.goal : goalStore[name]
 const saveGoal = async (name, patch) => {
   snap.goals = { ...(snap.goals || {}), [name]: { ...(snap.goals?.[name] || {}), ...patch } };
   if (patch.goal) { goalStore[name] = patch.goal; try { localStorage.setItem('mpt-goals', JSON.stringify(goalStore)); } catch {} }
-  if (location.protocol.startsWith('http')) { try { await fetch('/goal', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ character: name, ...patch }) }); } catch {} }
+  if (location.protocol.startsWith('http')) { try { await fetch('goal', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ character: name, ...patch }) }); } catch {} }
 };
 // Plans > Dungeon path: a "Clear <dungeon>" line gains the last dungeon-check verdict and the dungeon-optimize plan
 const pct = v => (v * 100).toFixed(1) + '%';
@@ -189,7 +189,7 @@ refreshButton.addEventListener('click', async () => {
   refreshButton.disabled = true;
   refreshStatus.textContent = 'Refreshing…';
   try {
-    const response = await fetch('/refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ character: refreshTarget }) });
+    const response = await fetch('refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ character: refreshTarget }) });
     const result = await response.json();
     if (!response.ok) throw Error(result.error || 'refresh failed');
     location.reload();
@@ -316,7 +316,7 @@ function decisionRow(a, status) {
     const b = el('button', '', label); b.type = 'button';
     b.addEventListener('click', async () => {
       if (!location.protocol.startsWith('http')) { await navigator.clipboard?.writeText('./melvor-report.js journal-action ' + a.id + ' ' + next); note.textContent = 'Command copied (open the page with journal-serve to click instead).'; return; }
-      const r = await fetch('/action', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: a.id, status: next }) });
+      const r = await fetch('action', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: a.id, status: next }) });
       if (r.ok) { if (next === 'approved') { head.firstChild.textContent = 'approved'; b.remove(); } else row.remove(); } else note.textContent = (await r.json()).error || 'failed';
     });
     bar.append(b);
