@@ -6,7 +6,7 @@
 > Related backlog: (none yet)
 > Related task: (none yet)
 > Reminder: Update status, category, verification, and linked refs when you edit this doc.
-> Indicators reviewed: 2026-08-15 16:56:54
+> Indicators reviewed: 2026-10-28 14:43:13
 
 # Trigger
 
@@ -26,6 +26,13 @@
 5. For non-combat tasks, check the ring objective (level XP versus mastery XP), summons, consumable, and item runways. Check Agility obstacles/pillars and Cartography map/hex modifiers only against the current task objective.
 6. For combat, record dungeon, boss attack type, player attack style, hit chance, food, and consumable/prayer needs. Treat hit chance below 80% as an accuracy problem before adding damage.
 7. Return an exact proposed change, expected benefit, prerequisite, and risk. `combat-plan` describes the next uncleared dungeon; do not use it as a build for a dungeon already in progress.
+
+# Pitfalls
+
+- `brief all` over every configured account can take minutes and looks silent: redirect it to a file and read it once it finishes.
+- `gear` prints text before any JSON, so `gear ... | jq` fails; read the text or cut the JSON part first.
+- Chrome's debug port (9223, test account 9224) already taken means another report process is running: wait for it or kill it (`pkill -f remote-debugging-port=<port>`) before rerunning.
+- `source-of-truth` reporting a local save newer than Cloud with `writeBlocked: true` means Cloud must not be overwritten blindly; settle the save first (run_001).
 
 # Verification
 
