@@ -168,3 +168,15 @@ Rules:
   (circular references), always map to primitives.
 - The `game` object is huge: go through the helpers rather than exploring blindly.
 
+
+## Running from Tower
+
+mpt also runs on Tower (WSL) at `~/jarvis/mpt`, with `.env.local` and `journal/` copied from the
+Mac. Settings there: `CHROME_PATH=/snap/bin/chromium` and
+`MELVOR_PROFILE=~/snap/chromium/common/mpt-melvor-profile` (snap cannot write `~/.cache`, and
+Playwright's Chromium lacks libnss3/libnspr4 on that WSL). The Melvor login lives in localStorage
+(`melvorCloudAuthToken`), not in cookies: it was moved by exporting and importing localStorage over
+CDP. Close the browser with CDP `Browser.close`, or the writes are lost (a SIGTERM to the snap
+wrapper leaves the real browser running). Only one machine (Mac or Tower) drives Melvor at a time:
+the mpt lock is per machine. Verified on Tower: `slots` and `summary`; writes, sim and the dashboard
+were not tested there.
