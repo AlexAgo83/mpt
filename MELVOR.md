@@ -213,3 +213,9 @@ On Tower:
   (`game.bank.upgradeItemOnClick(upgrade, 1)` inside `withCharacterWrite`, consumes the bank copy);
   shop buy is `game.shop.buyItemOnClick(p, true)`; `journal --sim` does not rank `(U)` items (compare
   `equipmentStats`); `set-plan` cannot set prayers on a set that is not selected while out of combat.
+
+
+## Repo conventions
+Everything written into the repo (docs, code comments) is in English, whatever the conversation
+language. `AGENTS.md`, `LOGICS.md` and `logics/` belong to the Logics scaffolding: put no project
+content there; project instructions live in this file (`CLAUDE.md` only includes it).
