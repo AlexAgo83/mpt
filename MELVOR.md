@@ -180,3 +180,36 @@ CDP. Close the browser with CDP `Browser.close`, or the writes are lost (a SIGTE
 wrapper leaves the real browser running). Only one machine (Mac or Tower) drives Melvor at a time:
 the mpt lock is per machine. Verified on Tower: `slots` and `summary`; writes, sim and the dashboard
 were not tested there.
+
+Since 2026-10-18 game operations run on Tower only (over ssh), so the operator can follow them on the
+dashboard; the Mac must not load the game. Even a read-only command (`brief`, `train-targets`,
+`dungeon-check`) loads the character, and a loaded game autosaves: a stale load on one machine
+overwrites progress saved from the other. Before a command, check no dashboard refresh or cron run is
+active: `ps -eo args | grep '[m]elvor-report.js journal'`. After an mpt change, push, then
+`git pull --ff-only` in Tower's `~/jarvis/mpt`.
+
+On Tower:
+- Cron 06:00 (Paris): `scripts/daily.sh` save-pushes all seven characters, runs `journal all --record
+  --save-backup`, then `daily-recap.js` into `journal/daily/YYYY-MM-DD.json`; the recap is the
+  dashboard page `/daily` (not the fleet reports). Log `~/.cache/mpt-daily.log`; save archives keep 30
+  per character (`MELVOR_SAVE_KEEP`).
+- Cron `15,45 * * * *`: `scripts/combat-watchdog.sh` restarts idle GrifhinZ, Dash and Edalbraw through
+  `slayer-start` (never Rya). Log `~/.cache/mpt-combat-watchdog.log`.
+- Dashboard: systemd user unit `mpt-dashboard.service` (`journal-serve --port 8790`; 8787 is taken on
+  Tower), exposed by `tailscale serve --https=8443`: https://kdesktop.tail205fb2.ts.net:8443/
+- Melvor's `saveData()` silently skips while `loadingOfflineProgress`; `mh.save` waits for it.
+
+## Operator decisions and checks
+
+- A question from the operator is a question: no game write on a question ("c'est une question hein").
+- In-dungeon choices are the tool's (wiki guide plus simulation). Death threshold: 0% for Hardcore, at
+  most 1% otherwise (`MELVOR_DEATH_THRESHOLD`). No GP cap. Rya (Hardcore) is never run automatically:
+  0% over 1000 trials, then a supervised run.
+- Before a ranged or magic fight, or trusting a simulation for one, check the set's ammo (quiver) and
+  the spell's runes are in stock, then confirm a minute later with `brief --short` that the action is
+  Combat with kills progressing. A fight that stops at once ("check resources") leaves the character
+  idle while the report says applied.
+- Gotchas: Melvor refuses two enhancements of the same family; item upgrades have no mpt command
+  (`game.bank.upgradeItemOnClick(upgrade, 1)` inside `withCharacterWrite`, consumes the bank copy);
+  shop buy is `game.shop.buyItemOnClick(p, true)`; `journal --sim` does not rank `(U)` items (compare
+  `equipmentStats`); `set-plan` cannot set prayers on a set that is not selected while out of combat.
