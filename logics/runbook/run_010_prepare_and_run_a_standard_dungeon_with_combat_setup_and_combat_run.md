@@ -1,7 +1,7 @@
 ## run_010_prepare_and_run_a_standard_dungeon_with_combat_setup_and_combat_run - Prepare and run a standard dungeon with combat-setup and combat-run
-> Status: Draft
+> Status: Active
 > Category: support
-> Verified: 2026-10-04, live: `combat-run Chap "Frozen Cove" --slot 1` (2 clears) and Kang (1 clear in about 1 min, full HP throughout), saved local + cloud.
+> Verified: 2026-11-12, static code and git-history review: combatSetupScript and combatRunScript match the standard-dungeon procedure (53e0ffa, 10e119d); no live game run performed. Historical live verification: 2026-10-04, Chap and Kang cleared Frozen Cove.
 > Related request: (none yet)
 > Related backlog: (none yet)
 > Related task: (none yet)
@@ -25,6 +25,7 @@
 6. Read the result: pending `Claim` and `Increase Level Cap` buttons are reported, never chosen. Ask the operator before choosing a reward or cap.
 
 # Verification
+- Operator cleanup 2026-11-12: retained as Active after static verification against the delivered code and git history. This review did not load a character or run a live procedure.
 - The output shows `sourceBefore` and `sourceAfter` on the same newest source.
 - `brief <character>` no longer lists the dungeon in `standard.next`.
 

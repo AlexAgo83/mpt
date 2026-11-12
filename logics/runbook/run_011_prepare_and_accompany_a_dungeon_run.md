@@ -1,5 +1,5 @@
 ## run_011_prepare_and_accompany_a_dungeon_run - Prepare a character for a dungeon and accompany the run
-> Status: Draft
+> Status: Archived
 > Category: support
 > Verified: 2026-10-04, live: check -> optimize -> setup -> run on Chap and Kang (Frozen Cove), Opa (Underground Lava Lake with the S2 plan) and Dash (Bandit Base). One clear end to end: run_014 (dungeon-clear).
 > Related request: (none yet)
@@ -27,6 +27,7 @@
 6. **Record**: `journal <character> --record` and note the result (clear, death, loot) in the character journal.
 
 # Verification
+- Not planned, operator cleanup 2026-11-12. Archived because step 4 groups combat-setup with preview-first commands requiring --apply, but its CLI dispatch writes immediately through withCharacterWrite. The trigger also includes strongholds, which combatRunScript explicitly does not handle. Evidence: melvor-report.js combat-setup dispatch and combatRunScript; git commits 570165e and 53e0ffa. The historical procedure is retained for reference, not endorsed for execution.
 - `brief <character>` no longer lists the dungeon as next; Plans > Dungeon path moves on.
 - No unexpected item loss (compare equipment before and after).
 
