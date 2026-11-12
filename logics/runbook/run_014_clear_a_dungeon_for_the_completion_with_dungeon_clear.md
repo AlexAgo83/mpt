@@ -1,5 +1,5 @@
 ## run_014_clear_a_dungeon_for_the_completion_with_dungeon_clear - Clear a dungeon for the completion with dungeon-clear
-> Status: Draft
+> Status: Archived
 > Category: support
 > Verified: 2026-10-04, live: Opa (Underground Lava Lake, S2 plan, back to Woodcutting) and Dash (Bandit Base); the return to the Slayer task was fixed after these runs (Dash and Edalbraw came back off task) and is re-tested on Edalbraw.
 > Related request: (none yet)
@@ -21,6 +21,7 @@
 2. Read the last line: `previous activity ... -> now ... on S<n> (was S<n>): resumed`. Anything else is a failure.
 
 # Verification
+- Not planned, operator cleanup 2026-11-12. Archived because step 1 promises to restore the previous potion unconditionally, while dungeon-clear restores it only when both out.potion and out.prev.potion are truthy. With no previous potion, a plan potion can remain active. Evidence: melvor-report.js dungeon-clear finally block; git commit 541a39c. The historical procedure is retained for reference, not endorsed for execution.
 - `brief <character>`: same action, same set and, on a Slayer task, the task monster with the same kills left.
 - `journal/<character>.md` gets a `dungeon-clear` entry (status, set, lowest HP, return).
 

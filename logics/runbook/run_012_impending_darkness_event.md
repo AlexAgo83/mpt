@@ -1,7 +1,7 @@
 ## run_012_impending_darkness_event - Prepare and play the Impending Darkness Event
-> Status: Draft
+> Status: Active
 > Category: support
-> Verified: 2026-10-10, live: Chap cleared it (5 rounds, final Bane ranged after one magic reroll) with an in-page driver; Kang died once in round 4 (Unhallowed Wasteland, S1, flee check at 30% polled every second) and was restarted with the stricter rules below. `event-run` is that driver as a command: not run live yet as a command.
+> Verified: 2026-11-12, static code and git-history review: eventRunScript, event-run dispatch and mh.dungeonCheck implement the documented event flow (93a0b0d); no live game run performed. Historical live verification: 2026-10-10, Chap cleared the event with the in-page driver; the CLI itself was not run live.
 > Related request: (none yet)
 > Related backlog: (none yet)
 > Related task: (none yet)
@@ -36,6 +36,7 @@
 6. By hand only if `event-run` stopped: the rules in `docs/dungeons/impending-darkness.md` (eat after your own attacks under Affliction, Run if put to sleep by Suffocate).
 
 # Verification
+- Operator cleanup 2026-11-12: retained as Active after static verification against the delivered event driver and readiness checks. This review did not run event-run or load a character; the historical live-driver result does not constitute a live CLI test.
 - `event-run` prints `cleared` and `clears N -> N+1`; `dungeon-check` shows the new clear count.
 - The four rewards (Shields of Melee/Ranged/Magic Power, Ring of Power) and the lore book in the bank; The Abyssal Approach unlocked.
 

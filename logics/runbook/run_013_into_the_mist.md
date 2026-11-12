@@ -1,7 +1,7 @@
 ## run_013_into_the_mist - Prepare and play Into the Mist
-> Status: Draft
+> Status: Active
 > Category: support
-> Verified: (not yet verified). Written 2026-10-04 from the wiki Guide (v1.3.1); Chap and Kang have already cleared it once.
+> Verified: 2026-11-12, static code and git-history review: mh.dungeonCheck checks Dungeon Equipment Swapping and simulates the dungeon fights; the manual phase procedure matches docs/dungeons/into-the-mist.md (863803c). No live game run or phase automation verified.
 > Related request: (none yet)
 > Related backlog: (none yet)
 > Related task: (none yet)
@@ -23,6 +23,7 @@
 5. Eat by the rules in the doc; run if a max hit can exceed current HP.
 
 # Verification
+- Operator cleanup 2026-11-12: retained as Active as a manual procedure, checked against mh.dungeonCheck and the tracked dungeon guide. This review did not verify live game mechanics; combatRunScript does not automate the phase switches or boss pauses.
 - Lore books Beginning of the End and New Dawn in the bank; passive slot usable.
 
 # Rollback
