@@ -50,6 +50,7 @@ npm run source
 ./melvor-report.js journal <character>
 ./melvor-report.js journal all --record --save-backup
 ./melvor-report.js journal <character> --record --sim
+./melvor-report.js journal <character> --live
 ./melvor-report.js journal-serve
 ./melvor-report.js journal-status all
 ./melvor-report.js journal-diff all

@@ -39,6 +39,7 @@ const record = argv.includes('--record');
 const abyssalOnly = argv.includes('--abyssal');
 const detail = argv.includes('--detail');
 const saveBackup = argv.includes('--save-backup');
+const live = argv.includes('--live');
 const simulate = argv.includes('--sim');
 const restore = argv.includes('--restore');
 const apply = argv.includes('--apply');
@@ -55,7 +56,7 @@ const slotIndex = argv.indexOf('--slot');
 const requestedSlot = slotIndex >= 0 ? Number(argv[slotIndex + 1]) : 6;
 const dashboardPortIndex = argv.indexOf('--port');
 const dashboardPort = dashboardPortIndex >= 0 ? Number(argv[dashboardPortIndex + 1]) : Number(process.env.MELVOR_JOURNAL_PORT || 8787);
-const [cmd = 'summary', who = 'all', arg3, arg4] = argv.filter((a, i) => !['--record', '--abyssal', '--save-backup', '--sim', '--detail', '--apply', '--restore-ranged', '--restore', '--style', '--slot', '--port', '--quantity', '--cape', '--weapon'].includes(a) && (styleIndex < 0 || i !== styleIndex + 1) && (capeIndex < 0 || i !== capeIndex + 1) && (weaponIndex < 0 || i !== weaponIndex + 1) && (slotIndex < 0 || i !== slotIndex + 1) && (dashboardPortIndex < 0 || i !== dashboardPortIndex + 1) && (quantityIndex < 0 || i !== quantityIndex + 1));
+const [cmd = 'summary', who = 'all', arg3, arg4] = argv.filter((a, i) => !['--record', '--live', '--abyssal', '--save-backup', '--sim', '--detail', '--apply', '--restore-ranged', '--restore', '--style', '--slot', '--port', '--quantity', '--cape', '--weapon'].includes(a) && (styleIndex < 0 || i !== styleIndex + 1) && (capeIndex < 0 || i !== capeIndex + 1) && (weaponIndex < 0 || i !== weaponIndex + 1) && (slotIndex < 0 || i !== slotIndex + 1) && (dashboardPortIndex < 0 || i !== dashboardPortIndex + 1) && (quantityIndex < 0 || i !== quantityIndex + 1));
 const usage = `usage:
   ./melvor-report.js slots
   ./melvor-report.js smoke
@@ -84,7 +85,7 @@ const usage = `usage:
   ./melvor-report.js export-state [all|character]
   ./melvor-report.js save-backup [all|character]
   ./melvor-report.js save-push <character> [--local-source]
-  ./melvor-report.js journal [all|character] [--record] [--save-backup] [--sim]
+  ./melvor-report.js journal [all|character] [--record] [--live] [--save-backup] [--sim]
   ./melvor-report.js completion [all|character] [--record]
   ./melvor-report.js dungeon-guide "<dungeon name>"
   ./melvor-report.js dungeon-check <character> "<dungeon name>"
@@ -110,7 +111,8 @@ const usage = `usage:
 
 Most commands are read-only. combat-setup and combat-run write, save, then verify source-of-truth.
 journal prints a Markdown entry; --record appends it under journal/ and
-refreshes journal/latest.json, journal/actions.jsonl and journal/index.html.`;
+refreshes journal/latest.json, journal/actions.jsonl and journal/index.html; --live only writes
+journal/live/<character>.json (daily snapshot shape plus generatedAt), for an on-demand refresh.`;
 if (require.main === module) {
   if (argv.includes('--help') || argv.includes('-h') || cmd === 'help') {
     console.log(usage);
@@ -2417,6 +2419,17 @@ function runJournalAction(id, status) {
   console.log(`${id} -> ${status} (${prev.character}: ${prev.item}${prev.slot ? ' in ' + prev.slot : ''})`);
 }
 
+// --live: one character's observed state, in the daily snapshot shape, for an on-demand refresh outside
+// latest.json and journal/daily (their once-a-day semantics stay intact); replaced atomically
+function writeLive(c, now, dir = path.join(JOURNAL_DIR, 'live')) {
+  const { snapshot } = require('./daily-recap.js');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `${c.name}.json`), part = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(part, JSON.stringify({ generatedAt: now, ...snapshot({ generatedAt: now, characters: { [c.name]: c } }) }));
+  fs.renameSync(part, file);
+  return path.relative(__dirname, file);
+}
+
 async function runJournal() {
   const { sources } = await readSourcesByName();
   const chars = [];
@@ -2437,8 +2450,9 @@ async function runJournal() {
   const previous = readLatestSnapshot();
   const now = new Date().toISOString();
   for (const c of chars) c.analysis.progressEtas = progressEtas(c, previous?.characters?.[c.name] || null);
+  if (live) for (const c of chars) console.log(`recorded ${writeLive(c, now)}`);
   if (!record) {
-    for (const c of chars) console.log(journalMd(c) + '\n');
+    if (!live) for (const c of chars) console.log(journalMd(c) + '\n');
     return;
   }
   fs.mkdirSync(JOURNAL_DIR, { recursive: true });
@@ -2500,7 +2514,7 @@ function lock(retry = true) {
   }
 }
 
-module.exports = { runeRisk, briefLine, planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData, completionLine, verifiedSkillPlan, buildGoals, dungeonVerdict, chooseClearPlan, chooseIdModifier };
+module.exports = { writeLive, runeRisk, briefLine, planActions, buildCharacterJournal, journalMd, mergeLedger, buildLatest, renderDashboard, sourceOfTruth, potionItemName, readLedger, journalRefreshSummary, sanitizeIncident, incidentSignature, readIncidents, incidentCandidates, promoteIncidentCandidates, structuredInsights, equipmentActionScript, skillStartScript, talentUnlockScript, configSetScript, briefFromData, completionLine, verifiedSkillPlan, buildGoals, dungeonVerdict, chooseClearPlan, chooseIdModifier };
 if (require.main === module) (async () => {
   if (cmd === 'journal-serve') return runJournalServer();
   if (cmd === 'dungeon-guide') return runDungeonGuide(who);
