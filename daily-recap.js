@@ -17,7 +17,7 @@ const snapshot = latest => ({
     return [name, {
       action: o.action, mode: o.mode, gp: o.gp, ap: o.ap ?? null, maxedSkills: o.maxedSkills ?? null, totalLevel: o.totalLevel, combatLevel: o.combatLevel,
       area: o.combat?.area ?? null, monster: o.combat?.monster ?? null, slayerTask: o.combat?.slayerTask ?? null,
-      completion: o.completion?.total ?? null, stats: o.stats ?? null, saveHash: o.saveBackup?.hash ?? null,
+      completion: o.completion?.total ?? null, stats: o.stats ?? null, dungeons: o.dungeons ?? null, abyss: o.abyss ?? null, saveHash: o.saveBackup?.hash ?? null,
       skills: (o.skills || []).map(s => ({ name: s.name, level: s.level, xp: s.xp, abyssalLevel: s.abyssalLevel ?? 0, abyssalXP: s.abyssalXP ?? 0 })),
       bank: Object.fromEntries((o.inventory || []).map(i => [i.name, i.quantity])),
     }];

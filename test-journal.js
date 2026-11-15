@@ -47,6 +47,14 @@ assert.match(a.reason, /sim \+10\.0% XP\/h on Shrimp/, 'the decision says what t
 assert.match(a.id, /^[0-9a-f]{12}$/);
 assert.strictEqual(c.analysis.saveRisk, null, 'known local source is not a journal risk');
 assert.ok(c.observed.saveSource.source === 'local');
+{
+  const d = buildCharacterJournal('Clears', { ...data, abyss: true, goals: { dungeons: [{ name: 'Chicken Coop', kind: 'dungeon', clears: 3, missing: [] }, { name: 'Frozen Cove', kind: 'dungeon', clears: 0, missing: [] }, { name: 'Lair of the Spider Queen', kind: 'depth', clears: 12, missing: [] }, { name: 'Unknown', kind: 'stronghold', clears: null, missing: [] }] } }, save);
+  assert.deepStrictEqual(d.observed.dungeons, { 'Chicken Coop': 3, 'Lair of the Spider Queen': 12 }, 'completions per dungeon, depth and stronghold, cleared ones only');
+  const { snapshot: daySnap } = require('./daily-recap.js');
+  const day = daySnap({ generatedAt: 'T', characters: { Clears: d } }).characters.Clears;
+  assert.deepStrictEqual([day.dungeons, day.abyss], [{ 'Chicken Coop': 3, 'Lair of the Spider Queen': 12 }, true], 'the daily snapshot carries dungeon completions and the abyss flag');
+  assert.deepStrictEqual(buildCharacterJournal('NoGoals', data, save).observed.dungeons, {}, 'no goal data, no completions');
+}
 
 const magicCombat = buildCharacterJournal('MagicChar', {
   ...data,
@@ -416,6 +424,7 @@ assert.deepStrictEqual(require('./daily-recap.js').itemChanges({ bank: { Whale: 
   assert.strictEqual(file.generatedAt, 'T1', 'live file carries generatedAt');
   assert.deepStrictEqual(Object.keys(file.characters), ['Solo'], 'live file holds only that character');
   assert.strictEqual(file.characters.Solo.totalLevel, 900, 'live file uses the daily snapshot shape');
+  assert.strictEqual(file.characters.Solo.dungeons, null, 'live file has a dungeons field, null when not observed');
   assert.deepStrictEqual(fs.readdirSync(dir), ['Solo.json'], 'no temporary file left behind');
   fs.rmSync(dir, { recursive: true });
   console.log('live snapshot ok');

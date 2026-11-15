@@ -1513,6 +1513,8 @@ function buildCharacterJournal(name, data, save) {
       standard: brief.standard,
       abyssal: brief.abyssal,
       stats: data.stats || null,
+      // completions per dungeon, Abyss depth and stronghold, from goalData's clear counts (null when the game gave none)
+      dungeons: Object.fromEntries((data.goals?.dungeons || []).filter(d => d.clears > 0).map(d => [d.name, d.clears])),
       saveSource: save ? { source: save.source, diffMinutes: save.diffMs === null ? null : Math.round(save.diffMs / 60000) } : null,
     },
     analysis: {
