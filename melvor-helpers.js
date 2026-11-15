@@ -193,6 +193,7 @@
     return {
       character: game.characterName,
       gp: game.gp.amount,
+      ap: game.abyssalPieces?.amount ?? null,
       activeAction: game.activeAction?.name ?? null,
       combatLevel: game.playerCombatLevel,
       hp: game.combat.player.hitpoints,
@@ -1023,6 +1024,7 @@
       name: snap.character,
       mode: game.currentGamemode?.name ?? null,
       gp: snap.gp,
+      ap: snap.ap ?? null,
       action: snap.activeAction,
       combatLevel: snap.combatLevel,
       totalLevel: skills.reduce((a, s) => a + s.level, 0),

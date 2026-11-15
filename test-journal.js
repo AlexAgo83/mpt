@@ -395,3 +395,13 @@ console.log('daily recap ok');
 assert.match(require('./daily-recap.js').renderDaily(), /<title>Melvor daily/, 'daily page renders with or without snapshots');
 assert.deepStrictEqual(require('./daily-recap.js').itemChanges({ bank: { Whale: 90, Bones: 5 } }, { bank: { Whale: 100, Arrow: 3 } }),
   { gained: [{ name: 'Bones', delta: 5 }], used: [{ name: 'Whale', delta: -10 }, { name: 'Arrow', delta: -3 }] }, 'items gained and used from bank deltas');
+
+// Daily snapshot carries AP and maxed skills, null when an older observed record lacks them.
+{
+  const { snapshot } = require('./daily-recap.js');
+  const day = snapshot({ generatedAt: 'T', characters: { New: { observed: { gp: 1, ap: 42, maxedSkills: '3/24' } }, Old: { observed: { gp: 1 } } } });
+  assert.strictEqual(day.characters.New.ap, 42, 'snapshot carries AP');
+  assert.strictEqual(day.characters.New.maxedSkills, '3/24', 'snapshot carries maxed skills');
+  assert.strictEqual(day.characters.Old.ap, null, 'missing AP stays null');
+  assert.strictEqual(day.characters.Old.maxedSkills, null, 'missing maxed skills stays null');
+}
