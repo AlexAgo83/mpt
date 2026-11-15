@@ -405,3 +405,18 @@ assert.deepStrictEqual(require('./daily-recap.js').itemChanges({ bank: { Whale: 
   assert.strictEqual(day.characters.Old.ap, null, 'missing AP stays null');
   assert.strictEqual(day.characters.Old.maxedSkills, null, 'missing maxed skills stays null');
 }
+
+// --live writes one character's daily-shaped snapshot under journal/live, atomically, nothing else.
+{
+  const os = require('os'), path = require('path');
+  const { writeLive } = require('./melvor-report.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mpt-live-'));
+  writeLive({ name: 'Solo', observed: { gp: 5, totalLevel: 900, skills: [{ name: 'Magic', level: 99, xp: 1e7 }] } }, 'T1', dir);
+  const file = JSON.parse(fs.readFileSync(path.join(dir, 'Solo.json'), 'utf8'));
+  assert.strictEqual(file.generatedAt, 'T1', 'live file carries generatedAt');
+  assert.deepStrictEqual(Object.keys(file.characters), ['Solo'], 'live file holds only that character');
+  assert.strictEqual(file.characters.Solo.totalLevel, 900, 'live file uses the daily snapshot shape');
+  assert.deepStrictEqual(fs.readdirSync(dir), ['Solo.json'], 'no temporary file left behind');
+  fs.rmSync(dir, { recursive: true });
+  console.log('live snapshot ok');
+}

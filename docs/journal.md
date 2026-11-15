@@ -15,6 +15,11 @@ recommendations, current-action plan, standard plan, abyssal plan, proposed acti
 - `journal/saves/`: private save-string backups. `*.latest.txt` contains the latest raw
   export per character, dated archives keep recent history, and `manifest.jsonl` stores
   only metadata (timestamp, source, byte size, hash, relative path)
+`--live` (read-only on the game, like every `journal` run) writes only `journal/live/<Character>.json`:
+that character's observed state in the `journal/daily/` snapshot shape plus `generatedAt`, replaced
+atomically. It leaves `latest.json`, the daily snapshots and the ledgers alone, so an on-demand refresh
+of one character never changes the once-a-day recap.
+
 - `journal/completion.jsonl`: one Completion Log row per character and refresh (also written by
   `completion --record`); runs print the delta since the previous row
 - `journal/index.html`: offline decision cockpit with account indicators, priority/attention
