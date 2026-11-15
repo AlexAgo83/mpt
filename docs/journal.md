@@ -19,6 +19,9 @@ recommendations, current-action plan, standard plan, abyssal plan, proposed acti
 that character's observed state in the `journal/daily/` snapshot shape plus `generatedAt`, replaced
 atomically. It leaves `latest.json`, the daily snapshots and the ledgers alone, so an on-demand refresh
 of one character never changes the once-a-day recap.
+Each character in that shape (and in `latest.json` `observed`) carries `dungeons`, the completion count of
+every cleared dungeon, Abyss depth and stronghold by name (`{"Chicken Coop": 3}`), and `abyss`, true once
+the character is in the Abyss.
 
 - `journal/completion.jsonl`: one Completion Log row per character and refresh (also written by
   `completion --record`); runs print the delta since the previous row
