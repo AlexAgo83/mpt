@@ -15,7 +15,7 @@ const snapshot = latest => ({
   characters: Object.fromEntries(Object.entries(latest.characters).map(([name, c]) => {
     const o = c.observed;
     return [name, {
-      action: o.action, mode: o.mode, gp: o.gp, totalLevel: o.totalLevel, combatLevel: o.combatLevel,
+      action: o.action, mode: o.mode, gp: o.gp, ap: o.ap ?? null, maxedSkills: o.maxedSkills ?? null, totalLevel: o.totalLevel, combatLevel: o.combatLevel,
       area: o.combat?.area ?? null, monster: o.combat?.monster ?? null, slayerTask: o.combat?.slayerTask ?? null,
       completion: o.completion?.total ?? null, stats: o.stats ?? null, saveHash: o.saveBackup?.hash ?? null,
       skills: (o.skills || []).map(s => ({ name: s.name, level: s.level, xp: s.xp, abyssalLevel: s.abyssalLevel ?? 0, abyssalXP: s.abyssalXP ?? 0 })),
